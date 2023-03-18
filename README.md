@@ -1,1 +1,1 @@
-# enhanced-rtmp
+Veovera Software Organization, a not-for-profit organization formed to help enhance software for the public good, has published new technical document(s) here to support enhancements to RTMP. Additionally, Veovera has welcomed new members to the organizations including Adobe, Google and Veriskope.  
