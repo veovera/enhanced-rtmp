@@ -1,4 +1,3 @@
-<base target="_blank">
 <img src="https://github.com/veovera/enhanced-rtmp/blob/main/vso_logo.png" width="200">
 ## Intro
 
