@@ -2,7 +2,7 @@
 
 ## Intro
 
-Veovera Software Organization (aka VSO), a not-for-profit organization, was formed to help enhance software for the public good. VSO has published a new technical document(s) here to support enhancements to RTMP. Additionally, Veovera has welcomed new members to the organizations including Adobe, Google and Veriskope.
+Veovera Software Organization (aka VSO), a not-for-profit organization, was formed to help enhance software for the public good. VSO has published a new technical document(s) here to support enhancements to RTMP. Additionally, Veovera has welcomed new members to the organization including Adobe, Google and Veriskope.
 
 
 ## Abstract
