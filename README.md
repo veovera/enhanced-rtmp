@@ -1,5 +1,5 @@
-<img src="https://github.com/veovera/enhanced-rtmp/blob/main/vso_logo.png" width="200">
 <base target="_blank">
+<img src="https://github.com/veovera/enhanced-rtmp/blob/main/vso_logo.png" width="200">
 ## Intro
 
 Veovera Software Organization (aka VSO), a not-for-profit organization, was formed to help enhance software for the public good. VSO has published a new technical document(s) here to support enhancements to RTMP. Additionally, Veovera has welcomed new members to the organizations including Adobe, Google and Veriskope.
