@@ -3,7 +3,7 @@
 <br>
 
 # 2023-07-31
-[Adobe, YouTube, and Twitch to Enhance RTMP with Not-For-Profit Veovera Software Leading the Initiative](https://www.streamingmediablog.com/2023/07/enhanced-rtmp.html).
+[Adobe, YouTube, and Twitch to enhance RTMP with not-for-profit Veovera Software Oranization leading the initiative](https://www.streamingmediablog.com/2023/07/enhanced-rtmp.html).
 <br>
 <br>
 
