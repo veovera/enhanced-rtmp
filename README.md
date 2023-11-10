@@ -1,4 +1,4 @@
-<img src="https://github.com/veovera/enhanced-rtmp/blob/main/vso_logo.png" width="200">
+<img src="https://veovera.github.io/enhanced-rtmp/vso_logo.png" width="200">
 
 # Intro
 Veovera Software Organization (aka VSO), a not-for-profit organization, was formed in 2022 to help enhance software for public good. VSO has published a new technical document(s) to support enhancements to RTMP. Additionally, Veovera has welcomed new members to the organization including Adobe, YouTube and Twitch.
