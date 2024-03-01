@@ -4,6 +4,8 @@
 
 ## With Additional Video Codecs And HDR Support
 
+## &nbsp;
+
 Author: Slavik Lozben (Veovera) \
 Contributors: Google, Jean-Baptiste Kempf (FFmpeg, VideoLAN), pkv (OBS), Dennis Sädtler (OBS), Xavier Hallade (Intel Corporation), Luxoft, SplitmediaLabs Limited (XSplit), Craig Barberich (VSO), Chris Hock (Adobe), Michael Thornburgh \
 Status: v2-2024-02-r1
@@ -167,8 +169,6 @@ Table 2: Current VideoTagHeader
 Note: We have 4 bits to define video CodecID, luckily not all values are taken. We will leverage available values to define additional video CodecIDs. Whew, we have room to define new video formats. We can leverage the unused bits to achieve unlimited codec expansion. Please see the **ENHANCEMENT TO RTMP & FLV** sections below for the enhancement descriptions.
 
 ## ENHANCEMENT TO RTMP & FLV ARE DESCRIBED BELOW
-
-## &nbsp;
 
 ## Enhancing onMetaData
 
