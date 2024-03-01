@@ -6,7 +6,7 @@
 
 Author: Slavik Lozben (Veovera) \
 Contributors: Google, Jean-Baptiste Kempf (FFmpeg, VideoLAN), pkv (OBS), Dennis Sädtler (OBS), Xavier Hallade (Intel Corporation), Luxoft, SplitmediaLabs Limited (XSplit), Craig Barberich (VSO), Chris Hock (Adobe), Michael Thornburgh \
-Status: v2-2024-02-r1
+Status: **v1-2024-02-29-r1**
 
 ```txt
 +---------------------------+-------------------------------------------------------+---------------------------+
