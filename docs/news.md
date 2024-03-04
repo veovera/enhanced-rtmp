@@ -1,7 +1,10 @@
+# Veovera Software organization
 
-# **News**
+![veover logo](https://veovera.github.io/enhanced-rtmp/vso_logo.png)
 
-## 2023-07-31
+## **News**
+
+### 2023-07-31
 
 - [Adobe, YouTube, and Twitch to enhance RTMP with not-for-profit Veovera Software Oranization leading the initiative](https://www.streamingmediablog.com/2023/07/enhanced-rtmp.html).
 - [Veovera Software Organization formally publishes technical specifications for enhanced RTMP.](https://veovera.org/news)
