@@ -1,15 +1,26 @@
-# Veovera Software organization
+<!-- THIS FILE IS GENERATED, DON'T EDIT -->
 
-![veover logo](./vso_logo.png)
+# Veovera Software Organization (VSO)
 
 ## Intro
 
-Established in 2022, the Veovera Software Organization (VSO) is a not-for-profit entity with a mission to enhance software for the public good. VSO has been instrumental in advancing the Real-Time Messaging Protocol (RTMP), notably with the inclusion of industry leaders like Adobe, YouTube, and Twitch in our collaborative efforts.
+Founded in 2022, the Veovera Software Organization (VSO) is a dedicated not-for-profit entity committed to enhancing software technology for the public good. VSO has played a pivotal role in advancing the Real-Time Messaging Protocol (RTMP), notably through collaboration with industry leaders such as Adobe, YouTube, Twitch and others. Our collective efforts focus on refining and broadening the capabilities of RTMP to ensure it meets the evolving demands of modern media streaming.
 
 ## Abstract
 
-In response to the evolving needs of the media streaming industry, VSO has taken a leading role in modernizing the RTMP/FLV protocol. This technology, foundational to streaming yet largely unchanged for over two decades, has been revitalized through our initiatives. Our key publication, [enhanced-rtmp-v1.pdf](./docs/enhanced/enhanced-rtmp-v1.pdf) | [enhanced-rtmp-v1.md](./docs/enhanced/enhanced-rtmp-v1.md), presents comprehensive enhancements that incorporate advanced video codecs such as VP9, HEVC, and AV1. These improvements align RTMP with the latest in streaming technology standards.
+As the media streaming landscape continues to evolve, the VSO has emerged as a pivotal force in modernizing the RTMP/FLV protocol, a cornerstone of streaming technology that had remained largely unaltered for over two decades. Through our pioneering initiatives, we have introduced initial enhancements “[enhanced-rtmp-v1](https://veovera.github.io/enhanced-rtmp/docs/enhanced/enhanced-rtmp-v1)” (or "[enhanced-rtmp-v1.pdf"](https://veovera.github.io/enhanced-rtmp/docs/enhanced/enhanced-rtmp-v1.pdf)) and the latest alpha specification, "[enhanced-rtmp-v2](https://veovera.github.io/enhanced-rtmp/docs/enhanced/enhanced-rtmp-v2)" (or "[enhanced-rtmp-v2.pdf"](https://veovera.github.io/enhanced-rtmp/docs/enhanced/enhanced-rtmp-v2.pdf)). This key publication outlines substantial advancements to RTMP, including:
 
-Our ongoing commitment extends beyond these initial enhancements. We are actively working on incorporating popular audio codecs like Opus, FLAC, AC-3, and E-AC-3, alongside developing features such as seamless reconnect commands, multichannel and multitrack. Our approach is to foster innovation while ensuring backward compatibility, enhancing RTMP's utility without disrupting the existing infrastructure.
+- Integration of advanced video codecs (VP8, VP9, HEVC, AV1) with High Dynamic Range (HDR) support, catering to modern displays and content requirements.
+- Addition of VideoPacketType.Metadata, expanding the range of supported video metadata types.
+- Introduction of video Multitrack capabilities, allowing for the management and processing of multiple video streams concurrently.
+- Implementation of a Reconnect Request feature, aimed at improving connection stability and resilience.
 
-We continue to value and encourage feedback and collaboration from the wider community. Your insights are vital to our ongoing efforts and can be shared by creating a new issue at <**[new issue](https://github.com/veovera/enhanced-rtmp/issues)**>.
+These enhancements are designed to align RTMP with contemporary streaming technology standards, ensuring its relevance and efficacy in today's digital landscape. \
+&nbsp; \
+We are also committed to incorporating leading audio codecs (Opus, FLAC, AC-3, E-AC-3) and developing features for audio multitrack and multichannel configurations. These forthcoming audio enhancements will closely follow the current version update, with a strategic focus on innovation and backward compatibility.
+
+## Community Engagement
+
+In the spirit of open collaboration and continuous improvement, we highly value the community's feedback and contributions. Our work, including detailed documentation, the latest enhancements, and avenues for community engagement, is hosted on GitHub. We invite you to join our efforts by visiting our GitHub repository at <[https://github.com/veovera/enhanced-rtmp](https://github.com/veovera/enhanced-rtmp)>. Here, you can access our publications, contribute to the project, and share your insights by creating [new issues](https://github.com/veovera/enhanced-rtmp/issues). \
+&nbsp; \
+Together, we can shape the future of media streaming technology, ensuring that RTMP remains innovative. Your participation and feedback are crucial to our ongoing endeavors.
