@@ -2,6 +2,8 @@
 
 # Veovera Software Organization (VSO)
 
+![veover logo](./vso_logo.png)
+
 ## Intro
 
 Founded in 2022, the Veovera Software Organization (VSO) is a dedicated not-for-profit entity committed to enhancing software technology for the public good. VSO has played a pivotal role in advancing the Real-Time Messaging Protocol (RTMP), notably through collaboration with industry leaders such as Adobe, YouTube, Twitch and others. Our collective efforts focus on refining and broadening the capabilities of RTMP to ensure it meets the evolving demands of modern media streaming.
