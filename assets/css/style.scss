@@ -2,12 +2,6 @@
 ---
 
 @import "{{ site.theme }}";
-.main-content pre>code, pre {
-  font-size: .80rem;
-  display: inline-block;
-  line-height: 1.2;
-}
-
 .markdown-body pre>code {
   font-size: .80rem;
   display: inline-block;
