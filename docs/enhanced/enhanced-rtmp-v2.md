@@ -1098,11 +1098,11 @@ Example: \
 
 The format for versioning documents is structured as follows:
 
-- **v#-yyy-mm-dd-[a|b|r]#:**
-  - **v#:** Major version number for tracking the progression of the enhanced RTMP development.
+- **v\#-yyy-mm-dd-[a\|b\|r]\#:**
+  - **v\#:** Major version number for tracking the progression of the enhanced RTMP development.
   - **yyyy-mm-dd:** Date when the document was updated.
-  - **[a|b|r]:** Suffix to distinguish between the alpha, beta, and release stage.
-  - **#:** Minor version number for a particular date. Increments for multiple versions on the same date.
+  - **[a\|b\|r]:** Suffix to distinguish between the alpha, beta, and release stage.
+  - **\#:** Minor version number for a particular date. Increments for multiple versions on the same date.
 
 This format provides a comprehensive overview of each version's status and chronological order, facilitating effective tracking and management of the enhanced RTMP specification development.
 
