@@ -2,7 +2,7 @@
 
 # Veovera Software Organization (VSO)
 
-![veover logo](./vso_logo.png)
+![Veovera logo](https://veovera.github.io/enhanced-rtmp/vso_logo.png)
 
 ## Intro
 
@@ -26,3 +26,7 @@ We are also committed to incorporating leading audio codecs (Opus, FLAC, AC-3, E
 In the spirit of open collaboration and continuous improvement, we highly value the community's feedback and contributions. Our work, including detailed documentation, the latest enhancements, and avenues for community engagement, is hosted on GitHub. We invite you to join our efforts by visiting our GitHub repository at <[https://github.com/veovera/enhanced-rtmp](https://github.com/veovera/enhanced-rtmp)>. Here, you can access our publications, contribute to the project, and share your insights by creating [new issues](https://github.com/veovera/enhanced-rtmp/issues). \
 &nbsp; \
 Together, we can shape the future of media streaming technology, ensuring that RTMP remains innovative. Your participation and feedback are crucial to our ongoing endeavors.
+
+## Join Veovera
+
+For information on how to join Veovera Organization please contact <[mailto:info@veovera.org](mailto:info@veovera.org)>.
