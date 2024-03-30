@@ -19,7 +19,7 @@ As the media streaming landscape continues to evolve, the VSO has emerged as a p
 
 These enhancements are designed to align RTMP with contemporary streaming technology standards, ensuring its relevance and efficacy in today's digital landscape. \
 &nbsp; \
-We are also committed to incorporating leading audio codecs (Opus, FLAC, AC-3, E-AC-3) and developing features for audio multitrack and multichannel configurations. These forthcoming audio enhancements will closely follow the current version update, with a strategic focus on innovation and backward compatibility.
+Additionally, we are dedicated to pushing the boundaries of audio quality and functionality by integrating leading audio codecs such as Opus, FLAC, AC-3, and E-AC-3 into our offerings. We are also excited about the forthcoming features for multitrack and multichannel audio configurations, aiming to enhance your auditory experience without sacrificing compatibility with existing setups. These audio enhancements, following closely on the heels of our latest update, underscore our commitment to innovation while maintaining backward compatibility. For the latest insights and updates on these exciting developments, we invite you to explore our news [feed](https://veovera.github.io/enhanced-rtmp/docs/news/feed).
 
 ## Community Engagement
 
