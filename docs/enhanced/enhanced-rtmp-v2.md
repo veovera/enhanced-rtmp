@@ -75,11 +75,11 @@ Additionally we add the keyword [[DEPRECATED](#deprecated)] to the set of keywor
 
 ## Abstract
 
-In the rapidly evolving media streaming landscape, there is a pressing need to update legacy protocols to align with modern technological standards. The Real-Time Messaging Protocol [[RTMP](https://docs.google.com/document/d/1aY1bF3RI_TKgd-VpTEUzuWK9FEoS9i0lyXitcF_xavo/edit#heading=h.2x95bq1f401u)] and Flash Video [[FLV](https://docs.google.com/document/d/1aY1bF3RI_TKgd-VpTEUzuWK9FEoS9i0lyXitcF_xavo/edit#heading=h.jpwhvwronaz9)] file format, introduced in 2002, have been pivotal and continue to be vital especially in live broadcasting. Despite RTMP widespread use, it has shown signs of aging, particularly in the lack of support for contemporary video codecs (VP8, VP9, HEVC, AV1) and audio codecs (AC3, EAC3, Opus, FLAC). Recognizing this, Veovera Software Organization (VSO), in collaboration with industry giants like Adobe, YouTube, and Twitch, and other key stakeholders, has embarked on a mission to rejuvenate RTMP, ensuring it meets the demands of contemporary streaming needs. \
+In the rapidly evolving media streaming landscape, there is a pressing need to update legacy protocols to align with modern technological standards. The Real-Time Messaging Protocol [[RTMP](https://docs.google.com/document/d/1aY1bF3RI_TKgd-VpTEUzuWK9FEoS9i0lyXitcF_xavo/edit#heading=h.2x95bq1f401u)] and Flash Video [[FLV](https://docs.google.com/document/d/1aY1bF3RI_TKgd-VpTEUzuWK9FEoS9i0lyXitcF_xavo/edit#heading=h.jpwhvwronaz9)] file format, introduced in 2002, have been pivotal and continue to be vital especially in live broadcasting. Despite RTMP widespread use, it has shown signs of aging, particularly in the lack of support for contemporary video codecs (VP8, VP9, VVC, HEVC, AV1) and audio codecs (AC3, EAC3, Opus, FLAC). Recognizing this, Veovera Software Organization (VSO), in collaboration with industry giants like Adobe, YouTube, and Twitch, and other key stakeholders, has embarked on a mission to rejuvenate RTMP, ensuring it meets the demands of contemporary streaming needs. \
 &nbsp; \
 This document details the comprehensive enhancements made to the RTMP and FLV specifications, aimed at revitalizing the technology for current and future media demands. Our strategic approach prioritizes innovation while maintaining backward compatibility, thereby augmenting RTMP's utility without undermining existing infrastructures. Some of the key advancements include:
 
-- Integration of advanced video codecs (VP8, VP9, HEVC, AV1) with High Dynamic Range (HDR) support, enhancing video quality for modern displays.
+- Integration of advanced video codecs (VP8, VP9, VVC, HEVC, AV1) with High Dynamic Range (HDR) support, enhancing video quality for modern displays.
 - Introduction of VideoPacketType.Metadata, broadening the scope of video metadata.
 - Implementation of video multitrack capabilities, facilitating sophisticated media stream management.
 - Establishment of a reconnect request feature, bolstering connection stability and resilience.
@@ -642,6 +642,7 @@ Table: Extended VideoTagHeader
 ¦                                                                                    ¦  Av1         = makeFourCc('av01'),                                                 ¦
 ¦                                                                                    ¦  Vp8         = makeFourCc('vp08'),                                                 ¦
 ¦                                                                                    ¦  Vp9         = makeFourCc('vp09'),                                                 ¦
+¦                                                                                    ¦  Vvc         = makeFourCc('vvc1'),                                                 ¦
 ¦                                                                                    ¦  Hevc        = makeFourCc('hvc1'),                                                 ¦
 ¦                                                                                    ¦  Avc         = makeFourCc('avc1'),                                                 ¦
 ¦                                                                                    ¦}                                                                                   ¦
@@ -738,6 +739,11 @@ Table: Extended VideoTagHeader
 ¦      // ISO 14496-15, 8.3.3.1.2 for the description of HEVCDecoderConfigurationRecord                                                                                   ¦
 ¦      hevcHeader = [HEVCDecoderConfigurationRecord]                                                                                                                      ¦
 ¦    }                                                                                                                                                                    ¦
+¦    if (videoFourCc == VideoFourCc.Vvc) {                                                                                                                               ¦
+¦      // body contains a configuration record to start the sequence. See ISO                                                                                             ¦
+¦      // ISO 14496-15, 11.2.4.2.2 for the description of VVCDecoderConfigurationRecord                                                                                   ¦
+¦      vvcHeader = [VVCDecoderConfigurationRecord]                                                                                                                      ¦
+¦    }
 ¦  }                                                                                                                                                                      ¦
 ¦                                                                                                                                                                         ¦
 ¦  if (videoPacketType == VideoPacketType.MPEG2TSSequenceStart) {                                                                                                         ¦
@@ -967,7 +973,7 @@ Table: New name-value pair that can be set in the Command Object
 ¦      Property       ¦           Type            ¦                            Description                            ¦                    Example Value                     ¦
 +---------------------+---------------------------+-------------------------------------------------------------------+------------------------------------------------------+
 ¦fourCcList           ¦Strict Array of strings    ¦Used to declare the enhanced list of supported codecs when         ¦e.g., 1                                               ¦
-¦                     ¦                           ¦connecting to the server. The fourCcList property is a strict array¦[ ‘av01’, ‘vp09, ‘hvc1’, ‘Avc1’]                      ¦
+¦                     ¦                           ¦connecting to the server. The fourCcList property is a strict array¦[ ‘av01’, ‘vp09, ‘vvc1’, ‘hvc1’, ‘Avc1’]                      ¦
 ¦                     ¦                           ¦of dense ordinal indices. Each entry in the array is of string     ¦                                                      ¦
 ¦                     ¦                           ¦type, specifically a [FourCC] value (i.e., a string that is a      ¦e.g., 2                                               ¦
 ¦                     ¦                           ¦sequence of four bytes), representing a supported video codec.     ¦[ * ]                                                 ¦
