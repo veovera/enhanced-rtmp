@@ -33,7 +33,7 @@
 
 **Author**: Slavik Lozben (Veovera Software Organization) \
 **Contributors**: Adobe, Google, Twitch, Jean-Baptiste Kempf (FFmpeg, VideoLAN), pkv (OBS), Dennis Sädtler (OBS), Xavier Hallade (Intel Corporation), Luxoft, SplitmediaLabs Limited (XSplit), Craig Barberich (VSO), Michael Thornburgh \
-**Status**: **v2-2024-03-16-a1**
+**Status**: **v2-2024-04-02-a1**
 
 ### Alpha Version Disclaimer for Enhanced RTMP V2 Specification
 
@@ -717,8 +717,13 @@ Table: Extended VideoTagHeader
 ¦  }                                                                                                                                                                      ¦
 ¦                                                                                                                                                                         ¦
 ¦  if (videoPacketType == VideoPacketType.SequenceStart) {                                                                                                                ¦
+¦    if (videoFourCc == VideoFourCc.Vp8) {                                                                                                                                ¦
+¦      // body contains a VP8 configuration record to start the sequence                                                                                                  ¦
+¦      vp8Header = [VPCodecConfigurationRecord]                                                                                                                           ¦
+¦    }                                                                                                                                                                    ¦
+¦                                                                                                                                                                         ¦
 ¦    if (videoFourCc == VideoFourCc.Vp9) {                                                                                                                                ¦
-¦      // body contains a configuration record to start the sequence                                                                                                      ¦
+¦      // body contains a VP9 configuration record to start the sequence                                                                                                  ¦
 ¦      vp9Header = [VPCodecConfigurationRecord]                                                                                                                           ¦
 ¦    }                                                                                                                                                                    ¦
 ¦                                                                                                                                                                         ¦
@@ -750,7 +755,7 @@ Table: Extended VideoTagHeader
 ¦  if (videoPacketType == VideoPacketType.CodedFrames) {                                                                                                                  ¦
 ¦    if (videoFourCc == VideoFourCc.Vp8) {                                                                                                                                ¦
 ¦      // body contains series of coded full frames                                                                                                                       ¦
-¦      vp9CodedData = [Vp8CodedData]                                                                                                                                      ¦
+¦      vp8CodedData = [Vp8CodedData]                                                                                                                                      ¦
 ¦    }                                                                                                                                                                    ¦
 ¦                                                                                                                                                                         ¦
 ¦    if (videoFourCc == VideoFourCc.Vp9) {                                                                                                                                ¦
@@ -1167,5 +1172,7 @@ Parmar, H., Ed. and M. Thornburgh, Ed., "Adobe’s Real Time Messaging Protocol"
 ¦         Date         ¦                                        Comments                                        ¦
 +----------------------+----------------------------------------------------------------------------------------+
 ¦   v2-2024-03-16-a1   ¦ 1. The Enhanced RTMP Version 2 Alpha is now ready for public testing.                  ¦
++----------------------+----------------------------------------------------------------------------------------+
+¦   v2-2024-04-02-a1   ¦ 1. Fixed pseudocode logic relating to VP8 sequence start and coded data.               ¦
 +----------------------+----------------------------------------------------------------------------------------+
 ```
