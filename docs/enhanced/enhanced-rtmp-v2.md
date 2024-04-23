@@ -33,7 +33,7 @@
 
 **Author**: Slavik Lozben (Veovera Software Organization) \
 **Contributors**: Adobe, Google, Twitch, Jean-Baptiste Kempf (FFmpeg, VideoLAN), pkv (OBS), Dennis Sädtler (OBS), Xavier Hallade (Intel Corporation), Luxoft, SplitmediaLabs Limited (XSplit), Craig Barberich (VSO), Michael Thornburgh \
-**Status**: **v2-2024-04-02-a1**
+**Status**: **v2-2024-04-22-a1**
 
 ### Alpha Version Disclaimer for Enhanced RTMP V2 Specification
 
@@ -319,10 +319,11 @@ Table: [[FLV](#flv)] specification [VideoTagHeader](https://veovera.github.io/en
 +------------------+----------------------+-----------------------------------------------------------+
 ¦                  ¦                      ¦IF AVCPacketType == 1                                      ¦
 ¦                  ¦                      ¦ Composition time offset                                   ¦
-¦CompositionTime   ¦IF CodecID == 7       ¦ELSE                                                       ¦
-¦                  ¦SI24                  ¦ 0                                                         ¦
-¦                  ¦                      ¦See ISO 14496-12, 8.15.3 for an explanation of composition ¦
-¦                  ¦                      ¦times. The offset in an FLV file is always in milliseconds.¦
+¦                  ¦IF CodecID == 7       ¦ELSE                                                       ¦
+¦CompositionTime   ¦SI24                  ¦ 0                                                         ¦
+¦                  ¦                      ¦See ISO/IEC 14496-12, 8.15.3 for an explanation of         ¦
+¦                  ¦                      ¦composition times. The offset in an FLV file is always in  ¦
+¦                  ¦                      ¦milliseconds.                                              ¦
 +------------------+----------------------+-----------------------------------------------------------+
 ```
 
@@ -733,14 +734,14 @@ Table: Extended VideoTagHeader
 ¦    }                                                                                                                                                                    ¦
 ¦                                                                                                                                                                         ¦
 ¦    if (videoFourCc == VideoFourCc.Avc) {                                                                                                                                ¦
-¦      // body contains a configuration record to start the sequence. See ISO                                                                                             ¦
+¦      // body contains a configuration record to start the sequence. See ISO/IEC                                                                                         ¦
 ¦      // 14496-15, 5.2.4.1 for the description of AVCDecoderConfigurationRecord                                                                                          ¦
 ¦      avcHeader = [AVCDecoderConfigurationRecord]                                                                                                                        ¦
 ¦    }                                                                                                                                                                    ¦
 ¦                                                                                                                                                                         ¦
 ¦    if (videoFourCc == VideoFourCc.Hevc) {                                                                                                                               ¦
-¦      // body contains a configuration record to start the sequence. See ISO                                                                                             ¦
-¦      // ISO 14496-15, 8.3.3.1.2 for the description of HEVCDecoderConfigurationRecord                                                                                   ¦
+¦      // body contains a configuration record to start the sequence. See ISO/IEC                                                                                         ¦
+¦      // 14496-15, 8.3.3.1.2 for the description of HEVCDecoderConfigurationRecord                                                                                       ¦
 ¦      hevcHeader = [HEVCDecoderConfigurationRecord]                                                                                                                      ¦
 ¦    }                                                                                                                                                                    ¦
 ¦  }                                                                                                                                                                      ¦
@@ -769,7 +770,7 @@ Table: Extended VideoTagHeader
 ¦    }                                                                                                                                                                    ¦
 ¦                                                                                                                                                                         ¦
 ¦    if (videoFourCc == VideoFourCc.Avc) {                                                                                                                                ¦
-¦      // See ISO 14496-12, 8.15.3 for an explanation of composition times.                                                                                               ¦
+¦      // See ISO/IEC 14496-12, 8.15.3 for an explanation of composition times.                                                                                           ¦
 ¦      // The offset in an FLV file is always in milliseconds.                                                                                                            ¦
 ¦      compositionTimeOffset = SI24                                                                                                                                       ¦
 ¦                                                                                                                                                                         ¦
@@ -778,7 +779,7 @@ Table: Extended VideoTagHeader
 ¦    }                                                                                                                                                                    ¦
 ¦                                                                                                                                                                         ¦
 ¦    if (videoFourCc == VideoFourCc.Hevc) {                                                                                                                               ¦
-¦      // See ISO 14496-12, 8.15.3 for an explanation of composition times.                                                                                               ¦
+¦      // See ISO/IEC 14496-12, 8.15.3 for an explanation of composition times.                                                                                           ¦
 ¦      // The offset in an FLV file is always in milliseconds.                                                                                                            ¦
 ¦      compositionTimeOffset = SI24                                                                                                                                       ¦
 ¦                                                                                                                                                                         ¦
@@ -1174,5 +1175,7 @@ Parmar, H., Ed. and M. Thornburgh, Ed., "Adobe’s Real Time Messaging Protocol"
 ¦   v2-2024-03-16-a1   ¦ 1. The Enhanced RTMP Version 2 Alpha is now ready for public testing.                  ¦
 +----------------------+----------------------------------------------------------------------------------------+
 ¦   v2-2024-04-02-a1   ¦ 1. Fixed pseudocode logic relating to VP8 sequence start and coded data.               ¦
++----------------------+----------------------------------------------------------------------------------------+
+¦   v2-2024-04-22-a1   ¦ 1. Minor cleanup of normative reference moniker. No changes to logic.                  ¦
 +----------------------+----------------------------------------------------------------------------------------+
 ```
