@@ -6,6 +6,7 @@
 
 - [Table of Contents](#table-of-contents)
 - [Document Status](#document-status)
+- [Alpha Version Disclaimer for Enhanced RTMP V\* Specification](#alpha-version-disclaimer-for-enhanced-rtmp-v-specification)
 - [Usage License](#usage-license)
 - [Terminology](#terminology)
 - [Abstract](#abstract)
@@ -18,6 +19,7 @@
 - [Enhancements to RTMP and FLV](#enhancements-to-rtmp-and-flv)
 - [Enhancing onMetaData](#enhancing-onmetadata)
 - [Reconnect Request](#reconnect-request)
+- [Enhanced Audio](#enhanced-audio)
 - [Enhanced Video](#enhanced-video)
 - [Metadata Frame](#metadata-frame)
 - [Multitrack Streaming via Enhanced RTMP](#multitrack-streaming-via-enhanced-rtmp)
@@ -31,17 +33,17 @@
 
 ## Document Status
 
-**Author**: Slavik Lozben (Veovera Software Organization) \
+**Author**: Slavik Lozben (Veovera Software Organization)(VSO) \
 **Contributors**: Adobe, Google, Twitch, Jean-Baptiste Kempf (FFmpeg, VideoLAN), pkv (OBS), Dennis Sädtler (OBS), Xavier Hallade (Intel Corporation), Luxoft, SplitmediaLabs Limited (XSplit), Craig Barberich (VSO), Michael Thornburgh \
-**Status**: **v2-2024-04-22-a1**
+**Status**: **v2-2024-05-15-a1**
 
-### Alpha Version Disclaimer for Enhanced RTMP V2 Specification
+## Alpha Version Disclaimer for Enhanced RTMP V\* Specification
 
-This document outlines the alpha version of the Enhanced Real-Time Messaging Protocol (RTMP) Version 2 specification. As we refine and enhance the protocol, there may be breaking changes introduced to this alpha version based on feedback and further testing. Rest assured, no breaking changes will occur in the General Availability (GA) released versions. \
+This document details an alpha version of the Enhanced Real-Time Messaging Protocol (a.k.a., E-RTMP) Version \* specification. As we refine and enhance the protocol, there may be breaking changes introduced to an alpha version based on feedback and further testing. Rest assured, no breaking changes will occur in the General Availability (GA) released versions. \
 &nbsp; \
 We encourage developers, implementers, and stakeholders to actively participate in this development phase. Your feedback, whether it be bug reports, feature suggestions, or usability improvements, is invaluable and can be submitted via new issues in our GitHub repository at <[https://github.com/veovera/enhanced-rtmp](https://github.com/veovera/enhanced-rtmp)>. We are committed to transparently communicating updates and changes, ensuring that all stakeholders are informed and involved. \
 &nbsp; \
-Please note that engaging with this alpha version gives you a unique opportunity to influence the final specifications of Enhanced RTMP V2. We look forward to collaborating with you on this exciting journey towards a more robust and efficient protocol.
+Please note that engaging with an alpha version gives you a unique opportunity to influence the final specifications of E-RTMP V\*. We look forward to collaborating with you on the exciting journey towards a more robust and efficient protocol.
 
 ## Usage License
 
@@ -75,22 +77,21 @@ Additionally we add the keyword [[DEPRECATED](#deprecated)] to the set of keywor
 
 ## Abstract
 
-In the rapidly evolving media streaming landscape, there is a pressing need to update legacy protocols to align with modern technological standards. The Real-Time Messaging Protocol [[RTMP](https://docs.google.com/document/d/1aY1bF3RI_TKgd-VpTEUzuWK9FEoS9i0lyXitcF_xavo/edit#heading=h.2x95bq1f401u)] and Flash Video [[FLV](https://docs.google.com/document/d/1aY1bF3RI_TKgd-VpTEUzuWK9FEoS9i0lyXitcF_xavo/edit#heading=h.jpwhvwronaz9)] file format, introduced in 2002, have been pivotal and continue to be vital especially in live broadcasting. Despite RTMP widespread use, it has shown signs of aging, particularly in the lack of support for contemporary video codecs (VP8, VP9, HEVC, AV1) and audio codecs (AC3, EAC3, Opus, FLAC). Recognizing this, Veovera Software Organization (VSO), in collaboration with industry giants like Adobe, YouTube, and Twitch, and other key stakeholders, has embarked on a mission to rejuvenate RTMP, ensuring it meets the demands of contemporary streaming needs. \
+In the rapidly evolving media streaming landscape, there is a pressing need to update legacy protocols to align with modern technological standards. The Real-Time Messaging Protocol [[RTMP](#rtmp)] and Flash Video [[FLV](#flv)] file format, introduced in 2002, have been pivotal and continue to be vital especially in live broadcasting. Despite RTMP widespread use, it has shown signs of aging, particularly in the lack of support for contemporary video codecs (VP8, VP9, HEVC, AV1) and audio codecs (Opus, FLAC, AC-3, E-AC-3). Recognizing this, Veovera Software Organization (VSO), in collaboration with industry giants like Adobe, YouTube, and Twitch, and other key stakeholders, has embarked on a mission to rejuvenate RTMP, ensuring it meets the demands of contemporary streaming needs. \
 &nbsp; \
 This document details the comprehensive enhancements made to the RTMP and FLV specifications, aimed at revitalizing the technology for current and future media demands. Our strategic approach prioritizes innovation while maintaining backward compatibility, thereby augmenting RTMP's utility without undermining existing infrastructures. Some of the key advancements include:
 
 - Integration of advanced video codecs (VP8, VP9, HEVC, AV1) with High Dynamic Range (HDR) support, enhancing video quality for modern displays.
+- Incorporation of superior audio codecs (Opus, FLAC, AC-3, E-AC-3) with multichannel support, enriching the auditory experience.
 - Introduction of VideoPacketType.Metadata, broadening the scope of video metadata.
-- Implementation of video multitrack capabilities, facilitating sophisticated media stream management.
+- Implementation of video and audio multitrack capabilities, facilitating sophisticated media stream management.
 - Establishment of a reconnect request feature, bolstering connection stability and resilience.
 
-These strategic enhancements position RTMP as a robust, future-proof standard in the streaming technology arena. Veovera is committed to open collaboration and values community input. We encourage participation in the ongoing development process through our [GitHub repository](https://github.com/veovera/enhanced-rtmp), where you can access detailed documentation, contribute to the project, and share insights, fostering a vibrant ecosystem around enhanced RTMP. \
-&nbsp; \
-Our commitment to RTMP's evolution doesn't stop here. We plan to quickly follow up these enhancements with the incorporation of leading audio codecs, such as Opus, FLAC, AC-3, and E-AC-3, along with the development of features supporting audio multitrack and multichannel configurations. This continuous innovation underscores our dedication to keeping RTMP at the forefront of streaming technology standards.
+These strategic enhancements position RTMP as a robust, future-proof standard in the streaming technology arena. Veovera is committed to open collaboration and values community input. We encourage participation in the ongoing development process through our [GitHub repository](https://github.com/veovera/enhanced-rtmp), where you can access detailed documentation, contribute to the project, and share insights, fostering a vibrant ecosystem around enhanced E-RTMP.
 
 ## Introduction
 
-This document describes enhancements to [[RTMP](#rtmp)] and [[FLV](#flv)], introducing support for new media codecs, HDR capability, and more. A primary objective is to ensure these enhancements do not introduce breaking changes for established clients or the content they stream. As such, legacy [[RTMP](#rtmp)] and legacy [[FLV](#flv)] specifications remain integral to the RTMP ecosystem. While this updated specification aims to minimize redundancy with previous versions, when combined with previous-generation documentation, it provides a comprehensive overview of the RTMP solution. We've drawn from several legacy references, which are as follows:
+This document describes enhancements to legacy [[RTMP](#rtmp)] and legacy [[FLV](#flv)], introducing support for new media codecs, HDR capability, and more. A primary objective is to ensure these enhancements do not introduce breaking changes for established clients or the content they stream. As such, legacy RTMP and legacy FLV specifications remain integral to the RTMP ecosystem. While this updated specification aims to minimize redundancy with previous versions, when combined with previous-generation documentation, it provides a comprehensive overview of the RTMP solution. We've drawn from several legacy references, which are as follows:
 
 - Adobe Legacy [[RTMP](#rtmp)] Specification
 - Adobe Legacy [[FLV](#flv)] Specification
@@ -98,10 +99,10 @@ This document describes enhancements to [[RTMP](#rtmp)] and [[FLV](#flv)], intro
 
 ## Conventions
 
-This document employs certain conventions to convey particular meanings and requirements. The following section outlines the notation, terminology, and symbols used throughout to ensure clarity and consistency. These conventions provide insight into the ethos of how the enhanced RTMP specification has been crafted and should be interpreted.
+This document employs certain conventions to convey particular meanings and requirements. The following section outlines the notation, terminology, and symbols used throughout to ensure clarity and consistency. These conventions provide insight into the ethos of how the E-RTMP specification has been crafted and should be interpreted.
 
-- **Enhanced RTMP:** refers to a series of improvements made to the legacy Real-Time Messaging Protocol (RTMP), originally developed by Adobe. It's important to note that **enhanced RTMP** is not a brand name but a term used to distinguish this advanced version from the legacy [[RTMP](#rtmp)] specification. Endorsed by Adobe and widely adopted across the industry, enhanced RTMP serves as the current standard for RTMP solutions. This updated protocol includes various enhancements to both RTMP and the FLV format. Please be aware that the term **enhanced RTMP** signifies ongoing updates to RTMP and FLV, and does not pertain to any specific iteration or release.
-- **Pseudocode**: Pseudocode has been provided to convey logic on how to interpret the RTMP or FLV binary format. The code style imitates a cross between TypeScript and C. The pseudocode was written in TypeScript and validated using VSCode to ensure correct syntax and catch any minor typographical errors. Below are some further explanations:
+- **Enhanced RTMP:** refers to a series of improvements made to the legacy Real-Time Messaging Protocol (RTMP), originally developed by Adobe. It's important to note that **enhanced RTMP** is not a brand name but a term used to distinguish this advanced version from the legacy [[RTMP](#rtmp)] specification. Endorsed by Adobe and widely adopted across the industry, enhanced RTMP serves as the current standard for RTMP solutions. This updated protocol includes various enhancements to both RTMP and the [[FLV](#flv)] format. Please be aware that the term **enhanced RTMP** (a.k.a., **E-RTMP**) signifies ongoing updates to RTMP and FLV, and does not pertain to any specific iteration or release.
+- Pseudocode: Pseudocode has been provided to convey logic on how to interpret the E-RTMP or FLV binary format. The code style imitates a cross between TypeScript and C. The pseudocode was written in TypeScript and validated using VSCode to ensure correct syntax and catch any minor typographical errors. Below are some further explanations:
   - Enumerations are used to define valid values
   - Pseudo variables are named in a self-descriptive manner. For instance: \
  \
@@ -109,55 +110,74 @@ This document employs certain conventions to convey particular meanings and requ
  \
 The line above indicates that an unsigned 8-bit value is read from the bitstream. The legal values correspond to the enumerations within the **VideoCommand** set, and the pseudo variable **videoCommand** now holds that value.
   - The pseudocode is written from the point of view of reading (a.k.a., parsing) the bitstream. If you are writing the bitstream, you can swap source with destination variables.
-  - Enhanced RTMP typically employs camelCase naming conventions for variables. In contrast, the naming convention for legacy [[RTMP](#rtmp)] specification is usually preserved as is.
-  - Handshake and [Enhancing NetConnection **connect** command](#enhancing-netconnection-connect-command): The enhanced RTMP specification generally prioritizes the client's perspective over that of the server. To shift this focus and view the interaction from the server's side, the server should echo back certain enhancement information. \
+  - E-RTMP typically employs camelCase naming conventions for variables. In contrast, the naming convention for legacy RTMP specification is usually preserved as is.
+  - Handshake and [Enhancing NetConnection **connect** command](#enhancing-netconnection-connect-command): The E-RTMP specification generally prioritizes the client's perspective over that of the server. To shift this focus and view the interaction from the server's side, the server should echo back certain enhancement information. \
  \
 When the client informs the server of the enhancements it supports via the **connect** command, the server processes this command and responds using the same transaction ID. The server's response string will be one of the following: **\_result**, **\_error**, or a specific method name. A command string of **\_result** or **\_error** indicates a response rather than a new command. \
  \
-During this response, the server will include an object containing specific properties as one of the arguments to **\_result**. It is at this point that the server should indicate its support for enhanced RTMP features. Specifically, the server should denote its capabilities through attributes such as videoFourCcInfoMap, capsEx, and other defined properties.
+During this response, the server will include an object containing specific properties as one of the arguments to **\_result**. It is at this point that the server should indicate its support for E-RTMP features. Specifically, the server should denote its capabilities through attributes such as **videoFourCcInfoMap**, **capsEx**, and other defined properties.
   - The ethos of this pseudocode is to provide a high-level overview of the data structures and operations taking place on the wire. While it accurately represents the bytes being transmitted, it's important to note that the logic is not exhaustive. Specifically, this pseudocode does not cover all possible cases, nor does it always include items such as initialization logic, looping logic or error-handling mechanisms. It serves as a foundational guide that can be implemented in various ways, depending on specific needs and constraints.
 - **Unrecognized value**: If a value in the bitstream is not understood, the logic must fail gracefully in a manner appropriate for the implementation.
 - **Table naming**: Each table in the document is named according to the specific content or subject it is describing.
-- **Bitstream optimization**: One of the guiding principles of enhanced RTMP is to optimize the number of bytes transmitted over the wire. While minimizing payload overhead is a priority, it is sometimes more important to simplify the logic or enhance extensibility. For example, although more optimal methods for creating a codec ID than using FOURCC may exist, such approaches could render the enhancement non-standard and more challenging to extend and maintain in the future.
-- **Capitalization rules**: Another guiding principle in the enhanced RTMP is the standardization of capitalization for types. The original documentation capitalized types such as Number, String, and Boolean, and even included various other spellings. The enhanced RTMP adopts lowercase spelling for terms, such as number, string, and boolean. This change emphasizes that these types are simple, not objects.
+- **Bitstream optimization**: One of the guiding principles of E-RTMP is to optimize the number of bytes transmitted over the wire. While minimizing payload overhead is a priority, it is sometimes more important to simplify the logic or enhance extensibility. For example, although more optimal methods for creating a codec ID than using FOURCC may exist, such approaches could render the enhancement non-standard and more challenging to extend and maintain in the future.
+- **Capitalization rules**: Another guiding principle in the E-RTMP is the standardization of capitalization for types. The original documentation capitalized types such as Number, String, and Boolean, and even included various other spellings. The E-RTMP adopts lowercase spelling for terms, such as number, string, and boolean. This change emphasizes that these types are simple, not objects.
 - **ECMA Array vs Object:** In the world of AMF (Action Message Format), both ECMA Array and Object are used to store collections of properties. A property is simply a pairing of a name with a value. In enhanced RTMP, the term **Object** is specifically used to indicate the Object Type. In the past, people have sometimes used **ECMA Array** and **Object** as if they were the same thing. However, for better coding practices, it's recommended to use **Object** when you're creating AMF data. When you're reading or decoding AMF data, you should be prepared to handle either **ECMA Array** or **Object** for greater flexibility and robustness.
 - **Default values**: Unless explicitly called out, there should be no assumptions made regarding default values, such as null or undefined.
-- **Legacy vs. Enhanced Properties**: In the documentation, an effort has been made to distinguish between legacy properties and newly defined ones through color coding, such as using bold text or different background colors for enhancements. While this color coding is not guaranteed to be consistent, the distinctions between values defined in enhanced RTMP should be readily apparent.
+- **Legacy vs. Enhanced Properties**: In the documentation, an effort has been made to distinguish between legacy properties and newly defined ones through color coding, such as using bold text or different background colors for enhancements. While this color coding is not guaranteed to be consistent, the distinctions between values defined in E-RTMP should be readily apparent.
 - **Capability flags:** The capabilities flags, exchanged during a connect handshake, may not cover all possible functionalities. For instance, a client might indicate support for multitrack processing without specifying its ability to encode or decode multitrack streams. In scenarios where a client, capable of issuing a play command, declares multitrack support, it MUST be equipped to handle the playback of such streams. Similarly, if a client is aware of the server's multitrack capabilities, it MAY opt to publish a multitrack stream.
 
 ## Contextualizing Enhancements
 
-In the following section, we'll outline key enhancements. The aim is to give readers a clear snapshot of the enhanced RTMP objectives and intentions before diving into the rest of the detailed specifications.
+In the following section, we'll outline key enhancements. The aim is to give readers a clear snapshot of the E-RTMP objectives and intentions before diving into the rest of the detailed specifications.
 
 - Newly introduced codecs
 
-Table: Additional codecs for RTMP
+Table: Additional codecs for E-RTMP
 
 ```txt
 +----------------------------------------------+------------------------------------------------------------+
-¦            Additional Video Codec            ¦                           Notes                            ¦
+¦            Additional Audio Codec            ¦                           Notes                            ¦
++----------------------------------------------+------------------------------------------------------------+
+¦AC-3                                          ¦AC-3 and E-AC-3 have significantly influenced the surround  ¦
++----------------------------------------------+sound market by offering versatile and scalable audio       ¦
+¦                                              ¦solutions for both physical and streaming media. Their      ¦
+¦E-AC-3                                        ¦balance of complexity and performance makes them enduring   ¦
+¦                                              ¦standards in multichannel audio technology.                 ¦
++----------------------------------------------+------------------------------------------------------------+
+¦Opus                                          ¦                                                            ¦
++----------------------------------------------+                                                            ¦
+¦FLAC                                          ¦Popular in both hardware and software streaming solutions,  ¦
++----------------------------------------------+the [WebCodecs] audio codec registry also includes support  ¦
+¦AAC (added FOURCC signaling)                  ¦for these widely used audio formats.                        ¦
++----------------------------------------------+                                                            ¦
+¦MP3 (added FOURCC signaling)                  ¦                                                            ¦
++----------------------------------------------+------------------------------------------------------------+
+¦            Additional Video Codec            ¦                                                            ¦
 +----------------------------------------------+------------------------------------------------------------+
 ¦AVC (a.k.a., H.264, added FOURCC signaling)   ¦                                                            ¦
 +----------------------------------------------+                                                            ¦
 ¦HEVC (a.k.a., H.265)                          ¦                                                            ¦
-+----------------------------------------------+Popular within streaming hardware and software solutions.   ¦
-¦VP8 (webRTC officially supports this codec)   ¦                                                            ¦
-+----------------------------------------------+                                                            ¦
++----------------------------------------------+Popular in both hardware and software streaming solutions,  ¦
+¦VP8 (webRTC officially supports this codec)   ¦the [WebCodecs] video codec registry also includes support  ¦
++----------------------------------------------+for these widely used video formats.                        ¦
 ¦VP9                                           ¦                                                            ¦
++----------------------------------------------+                                                            ¦
+¦AV1                                           ¦                                                            ¦
 +----------------------------------------------+------------------------------------------------------------+
-¦AV1                                           ¦- Gaining popularity                                        ¦
-¦                                              ¦- Codec agnostic services are asking for AV1 support        ¦
+¦VVC (a.k.a., H.266)                           ¦- Gaining popularity                                        ¦
+¦                                              ¦- Successor to HEVC                                         ¦
 +----------------------------------------------+------------------------------------------------------------+
 ```
 
 - HDR - to accommodate new video codecs and cater to the existing spectrum of displays
 - VideoPacketType.Metadata - to accommodate diverse video metadata types
-- Multitrack - to provide the ability to manage or process multiple video tracks
+- Multichannel configuration - to specify the number of channels and their sequence
+- Multitrack - to provide the ability to manage or process multiple audio or video tracks
 - and more…
 
 ## Simple Data Types
 
-The following data types are used in RTMP bitstreams and FLV files. FOURCC was introduced to support enhanced RTMP and FLV. \
+The following data types are used in [[RTMP](#rtmp)] bitstreams and [[FLV](#flv)] files. FOURCC was introduced to support E-RTMP and FLV. \
 &nbsp; \
 Table: Simple data types
 
@@ -200,9 +220,9 @@ Note: Unless specifically called out, multi-byte integers SHALL be stored in big
 
 ## RTMP Message Format
 
-Adobe's Real-Time Messaging Protocol (RTMP) is an application-level protocol designed for the multiplexing and packetizing of multimedia streams—such as audio, video, and interactive content, for transmission over network protocols like TCP. A fundamental feature of RTMP is the Chunk Stream, which facilitates the multiplexing, packetizing, and prioritization of messages, integral to the protocol's real-time capabilities. \
+Adobe's Real-Time Messaging Protocol (RTMP) is an application-level protocol designed for the multiplexing and packetizing of multimedia streams—such as audio, video, and interactive content, for transmission over network protocols like TCP. A fundamental feature of [[RTMP](#rtmp)] is the Chunk Stream, which facilitates the multiplexing, packetizing, and prioritization of messages, integral to the protocol's real-time capabilities. \
 &nbsp; \
-The legacy [[RTMP](#rtmp)] specification in [Section 6.1](https://veovera.github.io/enhanced-rtmp/docs/legacy/rtmp-v1-0-spec.pdf#page=22) elaborates on the RTMP Message Format, providing precise encoding guidelines for the RTMP message header, inclusive of field widths and byte order. However, this portrayal might be somewhat confusing because RTMP messages, when transported over the Chunk Stream, don't literally conform to this depicted format. An RTMP Message is divided into two principal components: a message virtual header and a message payload. The 'virtual' descriptor indicates that while RTMP messages are carried within the RTMP Chunk Stream, their headers are conceptually encoded as Chunk Message Headers. When these are decoded from the RTMP Chunk Stream, the underlying transport layer, the resulting format is to be understood as a virtual header. This abstract representation aligns with the structured format and semantics detailed in the legacy [[RTMP](#rtmp)] specification. Detailed next is the format of the message virtual header and some additional related information.
+The legacy RTMP specification in [Section 6.1](https://veovera.github.io/enhanced-rtmp/docs/legacy/rtmp-v1-0-spec.pdf#page=22) elaborates on the RTMP Message Format, providing precise encoding guidelines for the RTMP message header, inclusive of field widths and byte order. However, this portrayal might be somewhat confusing because RTMP messages, when transported over the Chunk Stream, don't literally conform to this depicted format. An RTMP Message is divided into two principal components: a message virtual header and a message payload. The 'virtual' descriptor indicates that while RTMP messages are carried within the RTMP Chunk Stream, their headers are conceptually encoded as Chunk Message Headers. When these are decoded from the RTMP Chunk Stream, the underlying transport layer, the resulting format is to be understood as a virtual header. This abstract representation aligns with the structured format and semantics detailed in the legacy RTMP specification. Detailed next is the format of the message virtual header and some additional related information.
 
 - Message virtual header
 
@@ -225,19 +245,19 @@ The legacy [[RTMP](#rtmp)] specification in [Section 6.1](https://veovera.github
   - The message type value of 8 is reserved for audio message
   - The message type value of 9 is reserved for video messages
 - The message payload follows the header and may contain various types of content, such as compressed audio or video data. RTMP itself does not recognize or process the payload's content. If new codec types are to be added, they must be defined where the actual payload internals are outlined. FLV is a container file format where the specifics of the AV payload, including the codecs, are defined.
-- Please refer to the legacy [[RTMP](#rtmp)] specification (in various locations) and the legacy [[FLV](#flv)] specification (Annex E) for details on the endianness (a.k.a., byte order) of the data format on the wire.
+- Please refer to the legacy RTMP specification (in various locations) and the legacy [[FLV](#flv)] specification (Annex E) for details on the endianness (a.k.a., byte order) of the data format on the wire.
 
 ## An Overview of the FLV File Format
 
-FLV file is a container for AV (Audio and Video) data. The file consists of alternating back-pointers and tags, each accompanied by data related to that tag. Each TagType within a FLV file is unsigned and defined by 5 bits. AUDIODATA has a TagType of 8, and VIDEODATA has a TagType of 9. Note: These TagTypes map to the same values of **MessageType ID**, defined by UI8, in the legacy [[RTMP](#rtmp)] specification. This alignment is by design. \
+[[FLV](#flv)] file is a container for AV (Audio and Video) data. The file consists of alternating back-pointers and tags, each accompanied by data related to that tag. Each TagType within a FLV file is unsigned and defined by 5 bits. AUDIODATA has a TagType of 8, and VIDEODATA has a TagType of 9. Note: These TagTypes map to the same values of **MessageType ID**, defined by UI8, in the legacy [[RTMP](#rtmp)] specification. This alignment is by design. \
 &nbsp; \
-Tag Types of 8 or 9 are accompanied by an AudioTagHeader or VideoTagHeader. It's common to think of RTMP in conjunction with FLV. However, RTMP is a protocol, and FLV is a file container. This distinction is why they are originally defined in separate specifications. This enhancement spec aims to improve both RTMP and FLV.
+Tag Types of 8 or 9 are accompanied by an AudioTagHeader or VideoTagHeader. It's common to think of RTMP in conjunction with FLV. However, RTMP is a protocol, and [[FLV](#flv)] is a file container. This distinction is why they are originally defined in separate specifications. This enhancement spec aims to improve both RTMP and FLV.
 
 ### Pre 2023 AudioTagHeader Format
 
 Below is the AudioTagHeader format for the pre 2023 (a.k.a., legacy) FLV specification: \
 &nbsp; \
-Table: [[FLV](#flv)] specification [AudioTagHeader](https://veovera.github.io/enhanced-rtmp/docs/legacy/video-file-format-v10-1-spec.pdf#page=76)
+Table: FLV specification [AudioTagHeader](https://veovera.github.io/enhanced-rtmp/docs/legacy/video-file-format-v10-1-spec.pdf#page=76)
 
 ```txt
 +------------------+----------------------+----------------------------------------------------------+
@@ -290,7 +310,7 @@ Table: [[FLV](#flv)] specification [AudioTagHeader](https://veovera.github.io/en
 
 Below is the VideoTagHeader format for the pre 2023 (a.k.a., legacy) FLV specification: \
 &nbsp; \
-Table: [[FLV](#flv)] specification [VideoTagHeader](https://veovera.github.io/enhanced-rtmp/docs/legacy/video-file-format-v10-1-spec.pdf#page=78)
+Table: FLV specification [VideoTagHeader](https://veovera.github.io/enhanced-rtmp/docs/legacy/video-file-format-v10-1-spec.pdf#page=78)
 
 ```txt
 +------------------+----------------------+-----------------------------------------------------------+
@@ -329,11 +349,11 @@ Table: [[FLV](#flv)] specification [VideoTagHeader](https://veovera.github.io/en
 
 ## Enhancements to RTMP and FLV
 
-Within the following sections, this document provides a comprehensive overview of the enhancements made to RTMP and FLV. These improvements are discussed in detail, highlighting their impact and benefits.
+Within the following sections, this document provides a comprehensive overview of the enhancements made to [[RTMP](#rtmp)] and [[FLV](#flv)]. These improvements are discussed in detail, highlighting their impact and benefits.
 
 ## Enhancing onMetaData
 
-FLV metadata SHALL be encapsulated within a [SCRIPTDATA](https://veovera.github.io/enhanced-rtmp/docs/legacy/video-file-format-v10-1-spec.pdf#page=80) segment, which includes a [ScriptTagBody](https://veovera.github.io/enhanced-rtmp/docs/legacy/video-file-format-v10-1-spec.pdf#page=80) encoded in the Action Message Format (AMF). Importantly, this metadata SHALL always remain unencrypted, even when the FLV content itself is encrypted. This design choice is essential for allowing various FLV parsers to successfully stream the FLV content and for enabling media players to provide contextual information to the user. \
+[[FLV](#flv)] metadata SHALL be encapsulated within a [SCRIPTDATA](https://veovera.github.io/enhanced-rtmp/docs/legacy/video-file-format-v10-1-spec.pdf#page=80) segment, which includes a [ScriptTagBody](https://veovera.github.io/enhanced-rtmp/docs/legacy/video-file-format-v10-1-spec.pdf#page=80) encoded in the Action Message Format (AMF). Importantly, this metadata SHALL always remain unencrypted, even when the FLV content itself is encrypted. This design choice is essential for allowing various FLV parsers to successfully stream the FLV content and for enabling media players to provide contextual information to the user. \
 &nbsp; \
 The **ScriptTagBody** is structured to encapsulate method invocations. It consists of an item containing a method name (e.g., **onMetaData**) along with a corresponding set of arguments. \
 &nbsp; \
@@ -347,6 +367,11 @@ Table: Typical properties found in the **onMetaData** argument object
 +--------------------+-------------------------------+-------------------------------------------------------------------------------+
 ¦audiocodecid        ¦number                         ¦Audio codec ID used in the file: See AudioTagHeader of the legacy [FLV]        ¦
 ¦                    ¦                               ¦specification for available CodecID values.                                    ¦
+¦                    ¦                               ¦                                                                               ¦
+¦                    ¦                               ¦                                                                               ¦
+¦                    ¦                               ¦When [FourCC] is used to signal the codec, this property is set to a FOURCC    ¦
+¦                    ¦                               ¦value. Note: A FOURCC value is big endian relative to the underlying ASCII     ¦
+¦                    ¦                               ¦character sequence (e.g., ‘Opus’ == 0x4F707573 == 1332770163.0).               ¦
 +--------------------+-------------------------------+-------------------------------------------------------------------------------+
 ¦audiodatarate       ¦number                         ¦Audio bitrate, in kilobits per second                                          ¦
 +--------------------+-------------------------------+-------------------------------------------------------------------------------+
@@ -384,13 +409,13 @@ Table: Typical properties found in the **onMetaData** argument object
 ```
 
 &nbsp; \
-Note: The property **videocodecid** has been enhanced to support FOURCC (Four-byte ASCII code) values. These values are interpreted as UI32 (e.g., 'av01').
+Note: The properties **audiocodecid** and **videocodecid** have been enhanced to support FOURCC (Four-byte ASCII code) values. These values are interpreted as UI32 (e.g., 'av01').
 
 ## Reconnect Request
 
 ### Objective
 
-RTMP packetizes multimedia streams using a suitable transport protocol, typically a persistent TCP connection. There are instances when a streaming platform may request the streaming client to reconnect, such as:
+[[RTMP](#rtmp)] packetizes multimedia streams using a suitable transport protocol, typically a persistent TCP connection. There are instances when a streaming platform may request the streaming client to reconnect, such as:
 
 - When live streaming servers undergo updates.
 - When there's a need to redirect the client to a different server instance, ensuring optimal load balancing and precise geolocation mapping.
@@ -414,7 +439,7 @@ Table: Server to client, NetConnection onStatus command
 +----------------------+--------------+-----------------------------------------------------------------------------------------------+
 ¦      Field Name      ¦     Type     ¦                                          Description                                          ¦
 +----------------------+--------------+-----------------------------------------------------------------------------------------------+
-¦Command Name          ¦string        ¦Name of the command. Set to “onStatus”                                                         ¦
+¦Command Name          ¦string        ¦Name of the command. Set to "onStatus"                                                         ¦
 +----------------------+--------------+-----------------------------------------------------------------------------------------------+
 ¦Transaction ID        ¦number        ¦Transaction ID set to 0. (i.e., no response needed)                                            ¦
 +----------------------+--------------+-----------------------------------------------------------------------------------------------+
@@ -440,17 +465,17 @@ Table: Info Object parameter for onStatus command when handling reconnect
 ¦                ¦           ¦relative to the tcUrl for the current connection.            ¦4. /realtimeapp                                 ¦
 +----------------+-----------+-------------------------------------------------------------+------------------------------------------------+
 ¦code            ¦string     ¦A string identifying the event that occurred. To reconnect   ¦NetConnection.Connect.ReconnectRequest          ¦
-¦                ¦           ¦code MUST be set to “NetConnection.Connect.ReconnectRequest” ¦                                                ¦
+¦                ¦           ¦code MUST be set to "NetConnection.Connect.ReconnectRequest" ¦                                                ¦
 +----------------+-----------+-------------------------------------------------------------+------------------------------------------------+
 ¦description     ¦string     ¦A string containing human-readable information about the     ¦The streaming server is undergoing updates.     ¦
 ¦(optional)      ¦           ¦message. Not every information object includes this property.¦                                                ¦
 +----------------+-----------+-------------------------------------------------------------+------------------------------------------------+
 ¦level           ¦string     ¦A string indicating the severity of the event. To reconnect  ¦status                                          ¦
-¦                ¦           ¦the level MUST be set to “status”.                           ¦                                                ¦
+¦                ¦           ¦the level MUST be set to "status".                           ¦                                                ¦
 +----------------+-----------+-------------------------------------------------------------+------------------------------------------------+
 ```
 
-### Message Flow When Handling **NetConnection.Connect.ReconnectRequest**
+### Message Flow When Handling NetConnection.Connect.ReconnectRequest
 
 1. Prior to the shutdown of the live streaming server or when the server intends to remap the client to another server instance, it dispatches an **onStatus** command to the client with a **code** of **NetConnection.Connect.ReconnectRequest**. If the server aims to remap the client, it MUST set the **tcUrl** property in the Info Object. In order to avoid a disruption, the server managing the original connection (commonly referred to as the "old server") SHOULD continue processing messages from the client until the client disconnects.
 1. When the client receives the **NetConnection.Connect.ReconnectRequest** event, it persists in streaming to/from the current server up to the next appropriate media boundary, such as a keyframe. Subsequently, it establishes a connection with a new server and disconnects from the old server. If the Info Object includes the **tcUrl** property, the client uses this URL for the reconnection process. Absent this property, the client defaults to the **tcUrl** for the current connection.
@@ -458,9 +483,9 @@ Table: Info Object parameter for onStatus command when handling reconnect
 
 The capability to support the **NetConnection.Connect.ReconnectRequest** event becomes evident during the initial connect phase. Detailed guidelines for signaling reconnect ability can be found in the [Enhancing NetConnection **connect** Command](#enhancing-netconnection-connect-command) section.
 
-### Detailed Overview of the **onStatus** Command for **NetConnection**
+### Detailed Overview of the onStatus Command for NetConnection
 
-The server-to-client **onStatus** command for **NetConnection**, serves a crucial function within the RTMP framework. Though the legacy [[RTMP](#rtmp)] specification may not have detailed this command, the goal here is to offer an overview for a better understanding. \
+The server-to-client **onStatus** command for **NetConnection**, serves a crucial function within the RTMP framework. Though the legacy RTMP specification may not have detailed this command, the goal here is to offer an overview for a better understanding. \
 &nbsp; \
 Both clients and servers can initiate RPCs at the receiving end, with some RPCs being predefined as commands. **onStatus** stands out as one such essential command. \
 &nbsp; \
@@ -526,9 +551,267 @@ Table: **code**, **level** and **description** values for **infoObject** used by
 +-----------------------------------------+-------------+-----------------------------------------------------------------------------------------------+
 ```
 
+## Enhanced Audio
+
+The AudioTagHeader has been extended to define additional audio codecs, multichannel audio, multitrack capabilities, signaling support, and additional miscellaneous enhancements, while ensuring backward compatibility. This extension is termed the ExAudioTagHeader and is designed to be future-proof, allowing for the definition of additional audio codecs, features, and corresponding signaling. \
+&nbsp; \
+During the parsing process, the logic MUST handle unexpected or unknown elements gracefully. Specifically, if any critical signaling or flags (e.g., AudioPacketType and AudioFourCc) are not recognized, the system MUST fail in a controlled and predictable manner. \
+&nbsp; \
+IMPORTANT: A single audio message for a unique timestamp may include a batch of AudioPacketType values (e.g., multiple TrackId values). When parsing an audio message, the bitstream MUST be processed completely to ensure all payload data has been handled. \
+&nbsp; \
+Table: Extended AudioTagHeader
+
+```txt
++------------------------------------------------------------------------------------+------------------------------------------------------------------------------------+
+¦                              Description Of Bitstream                              ¦                                  Enumerated Types                                  ¦
++------------------------------------------------------------------------------------+------------------------------------------------------------------------------------+
+¦soundFormat = UB[4] as SoundFormat                                                  ¦enum SoundFormat {                                                                  ¦
+¦                                                                                    ¦  LPcmPlatformEndian  = 0,                                                          ¦
+¦if (soundFormat != SoundFormat.ExHeader) {                                          ¦  AdPcm               = 1,                                                          ¦
+¦  // See AudioTagHeader of the legacy [FLV] specification for for detailed format   ¦  Mp3                 = 2,                                                          ¦
+¦  // of the four bits used for soundRate/soundSize/soundType                        ¦  LPcmLittleEndian    = 3,                                                          ¦
+¦  //                                                                                ¦  Nellymoser16KMono   = 4,                                                          ¦
+¦  // Note: soundRate, soundSize and soundType formats have not changed.             ¦  Nellymoser8KMono    = 5,                                                          ¦
+¦  // if (soundFormat == SoundFormat.ExHeader) we switch into FOURCC audio mode      ¦  Nellymoser          = 6,                                                          ¦
+¦  // as defined below. This means that soundRate, soundSize and soundType           ¦  G711ALaw            = 7,                                                          ¦
+¦  // bits are not interpreted, instead the UB[4] bits are interpreted as an         ¦  G711MuLaw           = 8,                                                          ¦
+¦  // AudioPacketType                                                                ¦  ExHeader            = 9,    // new, used to signal FOURCC mode                    ¦
+¦  soundRate = UB[2]                                                                 ¦  Aac                 = 10,                                                         ¦
+¦  soundSize = UB[1]                                                                 ¦  Speex               = 11,                                                         ¦
+¦  soundType = UB[1]                                                                 ¦  // 12 - reserved                                                                  ¦
+¦}                                                                                   ¦  // 13 - reserved                                                                  ¦
+¦                                                                                    ¦  Mp3_8K              = 14,                                                         ¦
+¦                                                                                    ¦  Native              = 15,   // Device specific sound                              ¦
+¦                                                                                    ¦}                                                                                   ¦
++------------------------------------------------------------------------------------+------------------------------------------------------------------------------------+
+¦                                                                        ExAudioTagHeader Section                                                                         ¦
+¦                                               Note: ExAudioTagHeader is present if (soundFormat == SoundFormat.ExHeader)                                                ¦
++-------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+¦                              Description Of Bitstream                              ¦                                  Enumerated Types                                  ¦
++------------------------------------------------------------------------------------+------------------------------------------------------------------------------------+
+¦//                                                                                  ¦enum AudioPacketType {                                                              ¦
+¦// process ExAudioTagHeader                                                         ¦  SequenceStart       = 0,                                                          ¦
+¦//                                                                                  ¦  CodedFrames         = 1,                                                          ¦
+¦processAudioBody = false                                                            ¦                                                                                    ¦
+¦if (soundFormat == SoundFormat.ExHeader) {                                          ¦  //  2 - Reserved                                                                  ¦
+¦  processAudioBody = true                                                           ¦  //  3 - Reserved                                                                  ¦
+¦                                                                                    ¦                                                                                    ¦
+¦  // The UB[4] bits are interpreted as AudioPacketType                              ¦  MultichannelConfig  = 4,                                                          ¦
+¦  // instead of sound rate, size and type                                           ¦                                                                                    ¦
+¦  audioPacketType = UB[4] as AudioPacketType                                        ¦  // Turns on audio multitrack mode                                                 ¦
+¦                                                                                    ¦  Multitrack          = 5,                                                          ¦
+¦  if (audioPacketType == AudioPacketType.Multitrack) {                              ¦                                                                                    ¦
+¦    isAudioMultitrack = true;                                                       ¦  //  6 - Reserved                                                                  ¦
+¦    audioMultitrackType = UB[4] as AvMultitrackType                                 ¦  // ...                                                                            ¦
+¦                                                                                    ¦  // 14 - reserved                                                                  ¦
+¦    // Fetch AudioPacketType for all audio tracks in the audio message.             ¦  // 15 - reserved                                                                  ¦
+¦    // This fetch MUST not result in a AudioPacketType.Multitrack                   ¦}                                                                                   ¦
+¦    audioPacketType = UB[4] as AudioPacketType                                      ¦                                                                                    ¦
+¦                                                                                    ¦enum AudioFourCc {                                                                  ¦
+¦    if (audioMultitrackType != AvMultitrackType.ManyTracksManyCodecs) {             ¦  //                                                                                ¦
+¦      // The tracks are encoded with the same codec. Fetch the FOURCC for them      ¦  // Valid FOURCC values for signaling support of audio codecs                      ¦
+¦      audioFourCc = FOURCC as AudioFourCc                                           ¦  // in the enhanced FourCC pipeline. In this context, support                      ¦
+¦    }                                                                               ¦  // for a FourCC codec MUST be signaled via the enhanced                           ¦
+¦  } else {                                                                          ¦  // 'connect' command.                                                             ¦
+¦    audioFourCc = FOURCC as AudioFourCc                                             ¦  //                                                                                ¦
+¦  }                                                                                 ¦                                                                                    ¦
+¦}                                                                                   ¦  // AC-3/E-AC-3 - <https://en.wikipedia.org/wiki/Dolby_Digital>                    ¦
+¦                                                                                    ¦  Ac3         = makeFourCc('ac-3'),                                                 ¦
+¦                                                                                    ¦  Eac3        = makeFourCc('ec-3'),                                                 ¦
+¦                                                                                    ¦                                                                                    ¦
+¦                                                                                    ¦  // Opus audio - <https://opus-codec.org/>                                         ¦
+¦                                                                                    ¦  Opus        = makeFourCc('Opus'),                                                 ¦
+¦                                                                                    ¦                                                                                    ¦
+¦                                                                                    ¦  // Mp3 audio - <https://en.wikipedia.org/wiki/MP3>                                ¦
+¦                                                                                    ¦  Mp3         = makeFourCc('.mp3'),                                                 ¦
+¦                                                                                    ¦                                                                                    ¦
+¦                                                                                    ¦  // Free Lossless Audio Codec - <https://xiph.org/flac/format.html>                ¦
+¦                                                                                    ¦  Flac        = makeFourCc('fLaC'),                                                 ¦
+¦                                                                                    ¦                                                                                    ¦
+¦                                                                                    ¦  // Advanced Audio Coding - <https://en.wikipedia.org/wiki/Advanced_Audio_Coding>  ¦
+¦                                                                                    ¦  // The following AAC profiles, denoted by their object types, are supported       ¦
+¦                                                                                    ¦  // 1 = main profile                                                               ¦
+¦                                                                                    ¦  // 2 = low complexity, a.k.a., LC                                                 ¦
+¦                                                                                    ¦  // 5 = high efficiency / scale band replication, a.k.a., HE / SBR                 ¦
+¦                                                                                    ¦  Aac         = makeFourCc('mp4a'),                                                 ¦
+¦                                                                                    ¦}                                                                                   ¦
+¦                                                                                    ¦                                                                                    ¦
+¦                                                                                    ¦enum AvMultitrackType {                                                             ¦
+¦                                                                                    ¦  //                                                                                ¦
+¦                                                                                    ¦  // Used by audio and video pipeline                                               ¦
+¦                                                                                    ¦  //                                                                                ¦
+¦                                                                                    ¦                                                                                    ¦
+¦                                                                                    ¦  OneTrack              = 0,                                                        ¦
+¦                                                                                    ¦  ManyTracks            = 1,                                                        ¦
+¦                                                                                    ¦  ManyTracksManyCodecs  = 2,                                                        ¦
+¦                                                                                    ¦                                                                                    ¦
+¦                                                                                    ¦  //  3 - Reserved                                                                  ¦
+¦                                                                                    ¦  // ...                                                                            ¦
+¦                                                                                    ¦  // 15 - Reserved                                                                  ¦
+¦                                                                                    ¦}                                                                                   ¦
++------------------------------------------------------------------------------------+------------------------------------------------------------------------------------+
+¦                                                                         ExAudioTagBody Section                                                                          ¦
+¦                                            Note: This ExAudioTagBody format is signaled by the presence of ExAudioTagHeader                                             ¦
++-------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+¦                              Description Of Bitstream                              ¦                                  Enumerated Types                                  ¦
++------------------------------------------------------------------------------------+------------------------------------------------------------------------------------+
+¦//                                                                                  ¦enum AudioChannelOrder {                                                            ¦
+¦// process ExAudioTagBody                                                           ¦  //                                                                                ¦
+¦//                                                                                  ¦  // Only the channel count is specified, without any further information           ¦
+¦while (processAudioBody) {                                                          ¦  // about the channel order                                                        ¦
+¦  if (isAudioMultitrack) {                                                          ¦  //                                                                                ¦
+¦    if (audioMultitrackType == AvMultitrackType.ManyTracksManyCodecs) {             ¦  Unspecified = 0,                                                                  ¦
+¦      // Each track has a codec assigned to it. Fetch the FOURCC for the next track.¦                                                                                    ¦
+¦      audioFourCc = FOURCC as AudioFourCc                                           ¦  //                                                                                ¦
+¦    }                                                                               ¦  // The native channel order (i.e., the channels are in the same order in          ¦
+¦                                                                                    ¦  // which as defined in the AudioChannel enum).                                    ¦
+¦    // Track Ordering:                                                              ¦  //                                                                                ¦
+¦    //                                                                              ¦  Native      = 1,                                                                  ¦
+¦    // For identifying the highest priority (a.k.a., default track)                 ¦                                                                                    ¦
+¦    // or highest quality track, it is RECOMMENDED to use trackId                   ¦  //                                                                                ¦
+¦    // set to zero. For tracks of lesser priority or quality, use                   ¦  // The channel order does not correspond to any predefined                        ¦
+¦    // multiple instances of trackId with ascending numerical values.               ¦  // order and is stored as an explicit map.                                        ¦
+¦    // The concept of priority or quality can have multiple                         ¦  //                                                                                ¦
+¦    // interpretations, including but not limited to bitrate,                       ¦  Custom      = 2                                                                   ¦
+¦    // resolution, default angle, and language. This recommendation                 ¦}                                                                                   ¦
+¦    // serves as a guideline intended to standardize track numbering                ¦                                                                                    ¦
+¦    // across various applications.                                                 ¦num AudioChannelMask {                                                              ¦
+¦    audioTrackId = UI8                                                              ¦  //                                                                                ¦
+¦                                                                                    ¦  // Mask used to indicate which channels are present in the stream.                ¦
+¦    if (audioMultitrackType != AvMultitrackType.OneTrack) {                         ¦  //                                                                                ¦
+¦      // The 'sizeOfAudioTrack' specifies the size in bytes of the                  ¦                                                                                    ¦
+¦      // current track that is being processed. This size starts                    ¦  // masks for commonly used speaker configurations                                 ¦
+¦      // counting immediately after the position where the 'sizeOfAudioTrack'       ¦  // <https://en.wikipedia.org/wiki/Surround_sound#Standard_speaker_channels>       ¦
+¦      // value is located. You can use this value as an offset to locate the        ¦  FrontLeft           = 0x000001,                                                   ¦
+¦      // next audio track in a multitrack system. The data pointer is               ¦  FrontRight          = 0x000002,                                                   ¦
+¦      // positioned immediately after this field. Depending on the MultiTrack       ¦  FrontCenter         = 0x000004,                                                   ¦
+¦      // type, the offset points to either a 'fourCc' or a 'trackId.'               ¦  LowFrequency1       = 0x000008,                                                   ¦
+¦      sizeOfAudioTrack = UI24                                                       ¦  BackLeft            = 0x000010,                                                   ¦
+¦    }                                                                               ¦  BackRight           = 0x000020,                                                   ¦
+¦  }                                                                                 ¦  FrontLeftCenter     = 0x000040,                                                   ¦
+¦                                                                                    ¦  FrontRightCenter    = 0x000080,                                                   ¦
+¦  if (audioPacketType == AudioPacketType.MultichannelConfig) {                      ¦  BackCenter          = 0x000100,                                                   ¦
+¦    //                                                                              ¦  SideLeft            = 0x000200,                                                   ¦
+¦    // Specify a speaker for a channel as it appears in the bitstream.              ¦  SideRight           = 0x000400,                                                   ¦
+¦    // This is needed if the codec is not self-describing for channel mapping       ¦  TopCenter           = 0x000800,                                                   ¦
+¦    //                                                                              ¦  TopFrontLeft        = 0x001000,                                                   ¦
+¦                                                                                    ¦  TopFrontCenter      = 0x002000,                                                   ¦
+¦    // set audio channel order                                                      ¦  TopFrontRight       = 0x004000,                                                   ¦
+¦    audioChannelOrder = UI8 as AudioChannelOrder                                    ¦  TopBackLeft         = 0x008000,                                                   ¦
+¦                                                                                    ¦  TopBackCenter       = 0x010000,                                                   ¦
+¦    // number of channels                                                           ¦  TopBackRight        = 0x020000,                                                   ¦
+¦    channelCount = UI8                                                              ¦                                                                                    ¦
+¦                                                                                    ¦  // Completes 22.2 multichannel audio,                                             ¦
+¦    if (audioChannelOrder == AudioChannelOrder.Custom) {                            ¦  // as standardized in SMPTE ST2036-2-2008                                         ¦
+¦      // Each entry specifies the speaker layout (see AudioChannel enum above       ¦  // see - <https://en.wikipedia.org/wiki/22.2_surround_sound>                      ¦
+¦      // for layout definition) in the order that it appears in the bitstream.      ¦  LowFrequency2       = 0x040000,                                                   ¦
+¦      // First entry (i.e., index 0) specifies the speaker layout for channel 1.    ¦  TopSideLeft         = 0x080000,                                                   ¦
+¦      // Subsequent entries specify the speaker layout for the next channels        ¦  TopSideRight        = 0x100000,                                                   ¦
+¦      // (e.g., second entry for channel 2, third entry for channel 3, etc.).       ¦  BottomFrontCenter   = 0x200000,                                                   ¦
+¦      audioChannelMapping = UI8[channelCount] as AudioChannel                       ¦  BottomFrontLeft     = 0x400000,                                                   ¦
+¦    }                                                                               ¦  BottomFrontRight    = 0x800000,                                                   ¦
+¦                                                                                    ¦}                                                                                   ¦
+¦    if (audioChannelOrder == AudioChannelOrder.Native) {                            ¦                                                                                    ¦
+¦      // audioChannelFlags indicates which channels are present in the              ¦enum AudioChannel {                                                                 ¦
+¦      // multi-channel stream. You can perform a Bitwise AND                        ¦  //                                                                                ¦
+¦      // (i.e., audioChannelFlags & AudioChannelMask.xxx) to see if a               ¦  // Channel mappings enums                                                         ¦
+¦      // specific audio channel is present                                          ¦  //                                                                                ¦
+¦      audioChannelFlags = UI32                                                      ¦                                                                                    ¦
+¦    }                                                                               ¦  // commonly used speaker configurations                                           ¦
+¦  }                                                                                 ¦  // see - <https://en.wikipedia.org/wiki/Surround_sound#Standard_speaker_channels> ¦
+¦                                                                                    ¦  FrontLeft           = 0,  // i.e., FrontLeft is assigned to channel zero          ¦
+¦  if (audioPacketType == AudioPacketType.SequenceEnd) {                             ¦  FrontRight,                                                                       ¦
+¦    // signals end of sequence                                                      ¦  FrontCenter,                                                                      ¦
+¦  }                                                                                 ¦  LowFrequency1,                                                                    ¦
+¦                                                                                    ¦  BackLeft,                                                                         ¦
+¦  if (audioPacketType == AudioPacketType.SequenceStart) {                           ¦  BackRight,                                                                        ¦
+¦    if (audioFourCc == AudioFourCc.Aac) {                                           ¦  FrontLeftCenter,                                                                  ¦
+¦      // The AAC audio specific config (a.k.a., AacSequenceHeader) is               ¦  FrontRightCenter,                                                                 ¦
+¦      // defined in ISO/IEC 14496-3.                                                ¦  BackCenter          = 8,                                                          ¦
+¦      aacHeader = [AacSequenceHeader]                                               ¦  SideLeft,                                                                         ¦
+¦    }                                                                               ¦  SideRight,                                                                        ¦
+¦                                                                                    ¦  TopCenter,                                                                        ¦
+¦    if (audioFourCc == AudioFourCc.Flac) {                                          ¦  TopFrontLeft,                                                                     ¦
+¦      // FlacSequenceHeader is a mandatory metadata block (a.k.a., the STREAMINFO   ¦  TopFrontCenter,                                                                   ¦
+¦      // block). The STREAMINFO block contains information about the whole          ¦  TopFrontRight,                                                                    ¦
+¦      // stream, such as sample rate, number of channels, total number of           ¦  TopBackLeft,                                                                      ¦
+¦      // samples, etc. It MUST be present as the first metadata block in the        ¦  TopBackCenter       = 16,                                                         ¦
+¦      // stream. The Flac audio specific bitstream format is defined                ¦  TopBackRight,                                                                     ¦
+¦      // at <https://xiph.org/flac/format.html>                                     ¦                                                                                    ¦
+¦      flacHeader = [FlacSequenceHeader]                                             ¦  // mappings to complete 22.2 multichannel audio, as                               ¦
+¦    }                                                                               ¦  // standardized in SMPTE ST2036-2-2008                                            ¦
+¦                                                                                    ¦  // see - <https://en.wikipedia.org/wiki/22.2_surround_sound>                      ¦
+¦    if (audioFourCc == AudioFourCc.Opus) {                                          ¦  LowFrequency2       = 18,                                                         ¦
+¦      // Opus defines two mandatory header packets.  The first packet in the        ¦  TopSideLeft,                                                                      ¦
+¦      // logical Ogg bitstream MUST contain the identification (ID) header,         ¦  TopSideRight,                                                                     ¦
+¦      // which uniquely identifies a stream as Opus audio.                          ¦  BottomFrontCenter,                                                                ¦
+¦      //                                                                            ¦  BottomFrontLeft,                                                                  ¦
+¦      // The second packet in the logical Ogg bitstream MUST contain the            ¦  BottomFrontRight,                                                                 ¦
+¦      // comment header, which contains user-supplied metadata.                     ¦                                                                                    ¦
+¦      //                                                                            ¦  // Channel is empty and can be safely skipped.                                    ¦
+¦      // The format for the above headers are defined in Sections 5.1 and 5.2       ¦  Unused              = 0xfe,                                                       ¦
+¦      // at https://datatracker.ietf.org/doc/html/rfc7845.html                      ¦                                                                                    ¦
+¦                                                                                    ¦  // Channel contains data, but its speaker configuration is unknown.               ¦
+¦      // read either identification or comment header                               ¦  Unknown             = 0xff,                                                       ¦
+¦      opusHeader = [OpusSequenceHeader]                                             ¦}                                                                                   ¦
+¦    }                                                                               ¦                                                                                    ¦
+¦  }                                                                                 ¦                                                                                    ¦
+¦                                                                                    ¦                                                                                    ¦
+¦  if (audioPacketType == AudioPacketType.CodedFrames) {                             ¦                                                                                    ¦
+¦    if (audioFourCc == AudioFourCc.Ac3 || audioFourCc == AudioFourCc.Eac3) {        ¦                                                                                    ¦
+¦      // body contains audio data as defined by the bitstream syntax                ¦                                                                                    ¦
+¦      // in the ATSC standard for Digital Audio Compression (AC-3, E-AC-3)          ¦                                                                                    ¦
+¦      ac3Data = [Ac3CodedData]                                                      ¦                                                                                    ¦
+¦    }                                                                               ¦                                                                                    ¦
+¦                                                                                    ¦                                                                                    ¦
+¦    if (audioFourCc == AudioFourCc.Opus) {                                          ¦                                                                                    ¦
+¦      // The Opus encoder produces "packets", which are each a contiguous           ¦                                                                                    ¦
+¦      // set of bytes meant to be transmitted as a single unit. A single            ¦                                                                                    ¦
+¦      // packet may contain multiple audio frames. For details on "packet"          ¦                                                                                    ¦
+¦      // and framing description please refer to the Definition of                  ¦                                                                                    ¦
+¦      // the Opus Audio Codec                                                       ¦                                                                                    ¦
+¦      opusData = [OpusCodedData]                                                    ¦                                                                                    ¦
+¦    }                                                                               ¦                                                                                    ¦
+¦                                                                                    ¦                                                                                    ¦
+¦    if (audioFourCc == AudioFourCc.Mp3) {                                           ¦                                                                                    ¦
+¦      // An Mp3 audio stream is built up from a succession of smaller               ¦                                                                                    ¦
+¦      // parts called frames. Each frame is a data block with its own header        ¦                                                                                    ¦
+¦      // and audio information                                                      ¦                                                                                    ¦
+¦      mp3Data = [Mp3CodedData]                                                      ¦                                                                                    ¦
+¦    }                                                                               ¦                                                                                    ¦
+¦                                                                                    ¦                                                                                    ¦
+¦    if (audioFourCc == AudioFourCc.Aac) {                                           ¦                                                                                    ¦
+¦      // The AAC audio specific bitstream format is defined in ISO/IEC 14496-3.     ¦                                                                                    ¦
+¦      aacData = [AacCodedData]                                                      ¦                                                                                    ¦
+¦    }                                                                               ¦                                                                                    ¦
+¦                                                                                    ¦                                                                                    ¦
+¦    if (audioFourCc == AudioFourCc.Flac) {                                          ¦                                                                                    ¦
+¦      // The audio data is composed of one or more audio frames. Each frame         ¦                                                                                    ¦
+¦      // consists of a frame header, which contains a sync code and information     ¦                                                                                    ¦
+¦      // about the frame, such as the block size, sample rate, number of            ¦                                                                                    ¦
+¦      // channels, et cetera. The Flac audio specific bitstream format              ¦                                                                                    ¦
+¦      // is defined at <https://xiph.org/flac/format.html>                          ¦                                                                                    ¦
+¦      flacData = [FlacCodedData]                                                    ¦                                                                                    ¦
+¦    }                                                                               ¦                                                                                    ¦
+¦  }                                                                                 ¦                                                                                    ¦
+¦                                                                                    ¦                                                                                    ¦
+¦  if (isAudioMultitrack &&                                                          ¦                                                                                    ¦
+¦      audioMultitrackType != AvMultitrackType.OneTrack &&                           ¦                                                                                    ¦
+¦      positionDataPtrToNextAudioTrack(sizeOfAudioTrack)) {                          ¦                                                                                    ¦
+¦      // positionDataPtrToNextAudioTrack() is for developer to write                ¦                                                                                    ¦
+¦      continue                                                                      ¦                                                                                    ¦
+¦  }                                                                                 ¦                                                                                    ¦
+¦                                                                                    ¦                                                                                    ¦
+¦                                                                                    ¦                                                                                    ¦
+¦  // done processing audio message                                                  ¦                                                                                    ¦
+¦  break                                                                             ¦                                                                                    ¦
+¦}                                                                                   ¦                                                                                    ¦
++------------------------------------------------------------------------------------+------------------------------------------------------------------------------------+
+```
+
 ## Enhanced Video
 
-The VideoTagHeader has been extended to define additional video codecs, multitrack capabilities, additional miscellaneous enhancements, and signaling support, while ensuring backward compatibility. This extension is termed the ExVideoTagHeader and is designed to be future-proof, allowing for the definition of additional video codecs, features, and corresponding signaling. \
+The VideoTagHeader has been extended to define additional video codecs, multitrack capabilities, signaling support, and additional miscellaneous enhancements, while ensuring backward compatibility. This extension is termed the ExVideoTagHeader and is designed to be future-proof, allowing for the definition of additional video codecs, features, and corresponding signaling. \
 &nbsp; \
 During the parsing process, the logic MUST handle unexpected or unknown elements gracefully. Specifically, if any critical signaling or flags (e.g., VideoFrameType, VideoPacketType, or VideoFourCc) are not recognized, the system MUST fail in a controlled and predictable manner. \
 &nbsp; \
@@ -540,7 +823,7 @@ Table: Extended VideoTagHeader
 +------------------------------------------------------------------------------------+------------------------------------------------------------------------------------+
 ¦                              Description Of Bitstream                              ¦                                  Enumerated Types                                  ¦
 +------------------------------------------------------------------------------------+------------------------------------------------------------------------------------+
-¦// Check if isExVideoHeader flag is set to 1, signaling enhanced RTMP               ¦enum VideoFrameType {                                                               ¦
+¦// Check if isExVideoHeader flag is set to 1, signaling E-RTMP                      ¦enum VideoFrameType {                                                               ¦
 ¦// video mode. In this case, VideoCodecId's 4-bit unsigned binary (UB[4])           ¦    // 0 - reserved                                                                 ¦
 ¦// should not be interpreted as a codec identifier. Instead, these                  ¦    KeyFrame                = 1,    // a seekable frame                             ¦
 ¦// UB[4] bits should be interpreted as VideoPacketType.                             ¦    InterFrame              = 2,    // a non - seekable frame                       ¦
@@ -640,11 +923,11 @@ Table: Extended VideoTagHeader
 ¦                                                                                    ¦  // 'connect' command.                                                             ¦
 ¦                                                                                    ¦  //                                                                                ¦
 ¦                                                                                    ¦                                                                                    ¦
-¦                                                                                    ¦  Av1         = makeFourCc('av01'),                                                 ¦
 ¦                                                                                    ¦  Vp8         = makeFourCc('vp08'),                                                 ¦
 ¦                                                                                    ¦  Vp9         = makeFourCc('vp09'),                                                 ¦
-¦                                                                                    ¦  Hevc        = makeFourCc('hvc1'),                                                 ¦
+¦                                                                                    ¦  Av1         = makeFourCc('av01'),                                                 ¦
 ¦                                                                                    ¦  Avc         = makeFourCc('avc1'),                                                 ¦
+¦                                                                                    ¦  Hevc        = makeFourCc('hvc1'),                                                 ¦
 ¦                                                                                    ¦}                                                                                   ¦
 ¦                                                                                    ¦                                                                                    ¦
 ¦                                                                                    ¦enum AvMultitrackType {                                                             ¦
@@ -820,9 +1103,9 @@ Table: Extended VideoTagHeader
 
 ## Metadata Frame
 
-To support various types of video metadata, the legacy [[FLV](#flv)] specification has been enhanced. The VideoTagHeader has been extended to define a new **VideoPacketType.Metadata** (see ExVideoTagHeader table in [Enhanced Video](#enhanced-video) section) whose payload will contain an AMF-encoded metadata. The metadata will be represented by a series of [name, value] pairs. For now the only defined [name, value] pair is [“colorInfo”, Object]. When leveraging PacketTypeMetadata to deliver HDR metadata, the metadata MUST be sent prior to the video sequence, scene, frame or such that it affects. Each time a new **colorInfo** object is received it invalidates and replaces the current one. To reset to the original color state you can send **colorInfo** with a value of Undefined (the RECOMMENDED approach) or an empty object (i.e., **{}**). \
+To support various types of video metadata, the legacy [[FLV](#flv)] specification has been enhanced. The VideoTagHeader has been extended to define a new **VideoPacketType.Metadata** (see ExVideoTagHeader table in [Enhanced Video](#enhanced-video) section) whose payload will contain an AMF-encoded metadata. The metadata will be represented by a series of [name, value] pairs. For now the only defined [name, value] pair is ["colorInfo", Object]. When leveraging PacketTypeMetadata to deliver HDR metadata, the metadata MUST be sent prior to the video sequence, scene, frame or such that it affects. Each time a new **colorInfo** object is received it invalidates and replaces the current one. To reset to the original color state you can send **colorInfo** with a value of Undefined (the RECOMMENDED approach) or an empty object (i.e., **{}**). \
 &nbsp; \
-It is intentional to leverage a video message to deliver PacketTypeMetadata instead of other RTMP Message types. One benefit of leveraging a video message is to avoid any racing conditions between video messages and other RTMP message types. Given this, once your **colorInfo** object is parsed, the read values MUST be processed in time to affect the first frame of the video section which follows the **colorInfo** object. \
+It is intentional to leverage a video message to deliver PacketTypeMetadata instead of other [[RTMP](#rtmp)] Message types. One benefit of leveraging a video message is to avoid any racing conditions between video messages and other RTMP message types. Given this, once your **colorInfo** object is parsed, the read values MUST be processed in time to affect the first frame of the video section which follows the **colorInfo** object. \
 &nbsp; \
 The **colorInfo** object provides HDR metadata to enable a higher quality image source conforming to BT.2020 (a.k.a., Rec. 2020) standard. The properties of the **colorInfo** object, which are encoded in an AMF message format, are defined below. \
 &nbsp; \
@@ -840,7 +1123,7 @@ type ColorInfo = {
     //
     // colorPrimaries, transferCharacteristics and matrixCoefficients are defined 
     // in ISO/IEC 23091-4/ITU-T H.273. The values are an index into 
-    // respective tables which are described in “Colour primaries”, 
+    // respective tables which are described in "Colour primaries", 
     // "Transfer characteristics" and "Matrix coefficients" sections. 
     // It is RECOMMENDED to provide these values.
     //
@@ -942,7 +1225,7 @@ Table: Flag values for the videoFunction property
 
 ## Multitrack Streaming via Enhanced RTMP
 
-Enhanced RTMP has introduced support for multitrack streaming, offering increased flexibility in audio and video streaming through the use of a track index (a.k.a., **trackId**). This feature allows for the serialization of multiple tracks over a single RTMP connection and stream channel. \
+E-RTMP has introduced support for multitrack streaming, offering increased flexibility in audio and video streaming through the use of a track index (a.k.a., **trackId**). This feature allows for the serialization of multiple tracks over a single [[RTMP](#rtmp)] connection and stream channel. \
 &nbsp; \
 It's important to note that multitrack support is designed to augment, not replace, the option of using multiple streams for streaming. While both multiple streams and multitrack can potentially address the same use cases, the choice between them will depend on the specific capabilities of your RTMP implementation and requirements. In certain cases, multitrack may not be the most efficient option.
 
@@ -951,20 +1234,22 @@ It's important to note that multitrack support is designed to augment, not repla
 - **Adaptive Bitrate Streaming:** Multitrack support allows the client to send Adaptive Bitrate (ABR) ladders, thus avoiding the need for server-side transcoding and reducing quality loss. This also facilitates sending content with multiple codecs like AV1, HEVC, and VP9.
 - **Device Specific Streaming:** The feature allows for the streaming of different aspect ratios, tailored for various device profiles, enabling more dynamic and flexible presentations.
 - **Frame-Level Synchronization:** For example, you can synchronize multiple camera views in a concert.
+- **Multi-Language Support**: Support for multiple audio tracks in a single [[FLV](#flv)] file is now available, eliminating the need for multiple file versions.
 
 ### Additional Multitrack Details
 
 - **Video Messages:** Each video message should include a **trackId** (refer to the **videoPacketType.Multitrack** entry in the **ExVideoTagHeader** table within the [Enhanced Video](#enhanced-video) section for video bitstream signaling) as it is not persistent across messages.
+- **Audio Messages:** Similarly, each audio message should include a **trackId** (refer to the **AudioPacketType.Multitrack** in the **ExAudioTagHeader** table within the [Enhanced Audio](#enhanced-audio) section for audio bitstream signaling).
 - **Payload Parsing:** All tracks within a single timestamp must be processed to ensure comprehensive media handling.
 - **Track Ordering:** For identifying the highest priority (a.k.a., default track) or highest quality track, it is RECOMMENDED to use **trackId** set to zero. For tracks of lesser priority or quality, use multiple instances of **trackId** with ascending numerical values. The concept of **priority** or **quality** can have multiple interpretations, including but not limited to bitrate, resolution, default angle, and language. This recommendation serves as a guideline intended to standardize track numbering across various applications.
 
 ### General Guidelines
 
-Multitrack capabilities in enhanced RTMP offer a wide range of possibilities, from adaptive bitrate streaming to multi-language support. While this document doesn't prescribe specific encoding rules or manifest metadata, it aims to guide you through the complexities of leveraging multitrack features. Consider various parameters like codecs, frame rates, key frames, sampling rates, and resolutions to meet your unique objectives. Remember, media encoding settings are separate from Enhanced RTMP configurations.
+Multitrack capabilities in E-RTMP offer a wide range of possibilities, from adaptive bitrate streaming to multi-language support. While this document doesn't prescribe specific encoding rules or manifest metadata, it aims to guide you through the complexities of leveraging multitrack features. Consider various parameters like codecs, frame rates, key frames, sampling rates, and resolutions to meet your unique objectives. Remember, media encoding settings are separate from E-RTMP configurations.
 
 ## Enhancing NetConnection connect Command
 
-When a client connects to an RTMP server, it sends a [**connect**](https://veovera.github.io/enhanced-rtmp/docs/legacy/rtmp-v1-0-spec.pdf#page=29) command to the server. The command structure sent from the client to the server contains a Command Object, comprising name-value pairs. This is where the client indicates the video codecs it supports. To declare support for newly defined codecs or other enhancements supported by the client, this name-value pair list must be extended. Below is the description of a new name-value pair used in the Command Object of the **connect** command. \
+When a client connects to an E-RTMP server, it sends a [**connect**](https://veovera.github.io/enhanced-rtmp/docs/legacy/rtmp-v1-0-spec.pdf#page=29) command to the server. The command structure sent from the client to the server contains a Command Object, comprising name-value pairs. This is where the client indicates the audio and video codecs it supports. To declare support for newly defined codecs or other enhancements supported by the client, this name-value pair list must be extended. Below is the description of a new name-value pair used in the Command Object of the **connect** command. \
 &nbsp; \
 Table: New name-value pair that can be set in the Command Object
 
@@ -973,41 +1258,42 @@ Table: New name-value pair that can be set in the Command Object
 ¦      Property       ¦           Type            ¦                            Description                            ¦                    Example Value                     ¦
 +---------------------+---------------------------+-------------------------------------------------------------------+------------------------------------------------------+
 ¦fourCcList           ¦Strict Array of strings    ¦Used to declare the enhanced list of supported codecs when         ¦e.g., 1                                               ¦
-¦                     ¦                           ¦connecting to the server. The fourCcList property is a strict array¦[ ‘av01’, ‘vp09, ‘hvc1’, ‘Avc1’]                      ¦
-¦                     ¦                           ¦of dense ordinal indices. Each entry in the array is of string     ¦                                                      ¦
-¦                     ¦                           ¦type, specifically a [FourCC] value (i.e., a string that is a      ¦e.g., 2                                               ¦
-¦                     ¦                           ¦sequence of four bytes), representing a supported video codec.     ¦[ * ]                                                 ¦
-¦                     ¦                           ¦                                                                   ¦                                                      ¦
-¦                     ¦                           ¦In the context of enhanced RTMP, clients capable of receiving any  ¦                                                      ¦
-¦                     ¦                           ¦codec (e.g., recorders or forwarders) may set a FourCC value to the¦                                                      ¦
+¦                     ¦                           ¦connecting to the server. The fourCcList property is a strict array¦[ ‘av01’, ‘vp09, ‘hvc1’,                              ¦
+¦                     ¦                           ¦of dense ordinal indices. Each entry in the array is of string     ¦  ‘Avc1’, ‘ac-3’, ‘ec-3’,                             ¦
+¦                     ¦                           ¦type, specifically a [FourCC] value (i.e., a string that is a      ¦  ‘Opus’, ‘.mp3’, ‘fLaC’,                             ¦
+¦                     ¦                           ¦sequence of four bytes), representing a supported audio/video      ¦  ‘Aac’ ]                                             ¦
+¦                     ¦                           ¦codec.                                                             ¦                                                      ¦
+¦                     ¦                           ¦                                                                   ¦e.g., 2                                               ¦
+¦                     ¦                           ¦In the context of E-RTMP, clients capable of receiving any codec   ¦[ * ]                                                 ¦
+¦                     ¦                           ¦(e.g., recorders or forwarders) may set a FourCC value to the      ¦                                                      ¦
 ¦                     ¦                           ¦wildcard value of '*'.                                             ¦                                                      ¦
 ¦                     ¦                           ¦                                                                   ¦                                                      ¦
 ¦                     ¦                           ¦Note: The fourCcList property was introduced in the original       ¦                                                      ¦
-¦                     ¦                           ¦enhanced RTMP. Going forward, it is RECOMMENDED on the client side ¦                                                      ¦
-¦                     ¦                           ¦to switch to using the videoFourCcInfoMap properties described     ¦                                                      ¦
+¦                     ¦                           ¦E-RTMP. Going forward, it is RECOMMENDED on the client side to     ¦                                                      ¦
+¦                     ¦                           ¦switch to using the [audio|video]FourCcInfoMap properties described¦                                                      ¦
 ¦                     ¦                           ¦below. On the server side, we RECOMMEND supporting both fourCcList ¦                                                      ¦
-¦                     ¦                           ¦and videoFourCcInfoMap properties to handle cases where a client   ¦                                                      ¦
-¦                     ¦                           ¦has not yet transitioned to using the new properties.              ¦                                                      ¦
+¦                     ¦                           ¦and [audio|video]FourCcInfoMap properties to handle cases where a  ¦                                                      ¦
+¦                     ¦                           ¦client has not yet transitioned to using the new properties.       ¦                                                      ¦
 +---------------------+---------------------------+-------------------------------------------------------------------+------------------------------------------------------+
-¦videoFourCcInfoMap   ¦Object                     ¦The videoFourCcInfoMap property is designed to enable setting      ¦e.g., 1                                               ¦
-¦                     ¦                           ¦capability flags for each supported codec in the context of        ¦videoFourCcInfoMap = {                                ¦
-¦                     ¦                           ¦enhanced RTMP streaming. A FourCC key is a four-character code used¦  // can forward any video codec                      ¦
-¦                     ¦                           ¦to specify a video codec. The names of the object properties are   ¦  '*': FourCcInfoMask.CanForward,                     ¦
-¦                     ¦                           ¦strings that correspond to these FourCC keys. Each object property ¦                                                      ¦
-¦                     ¦                           ¦holds a numeric value that represents a set of capability flags.   ¦  // can decode, encode, forward (see '*') VP9 codec  ¦
-¦                     ¦                           ¦These flags can be combined using a Bitwise OR operation.          ¦  'vp09': FourCcInfoMask.CanDecode |                  ¦
+¦videoFourCcInfoMap,  ¦Object                     ¦The [audio|video]FourCcInfoMap property is designed to enable      ¦e.g., 1                                               ¦
+¦audioFourCcInfoMap   ¦                           ¦setting capability flags for each supported codec in the context of¦videoFourCcInfoMap = {                                ¦
+¦                     ¦                           ¦E-RTMP streaming. A FourCC key is a four-character code used to    ¦  // can forward any video codec                      ¦
+¦                     ¦                           ¦specify a video or audio codec. The names of the object properties ¦  '*': FourCcInfoMask.CanForward,                     ¦
+¦                     ¦                           ¦are strings that correspond to these FourCC keys. Each object      ¦                                                      ¦
+¦                     ¦                           ¦property holds a numeric value that represents a set of capability ¦  // can decode, encode, forward (see '*') VP9 codec  ¦
+¦                     ¦                           ¦flags. These flags can be combined using a Bitwise OR operation.   ¦  'vp09': FourCcInfoMask.CanDecode |                  ¦
 ¦                     ¦                           ¦                                                                   ¦          FourCcInfoMask.CanEncode,                   ¦
 ¦                     ¦                           ¦Refer to the enum FourCcInfoMask for the available flags:          ¦}                                                     ¦
 ¦                     ¦                           ¦                                                                   ¦                                                      ¦
-¦                     ¦                           ¦enum FourCcInfoMask {                                              ¦                                                      ¦
-¦                     ¦                           ¦  CanDecode   = 0x01,                                              ¦                                                      ¦
-¦                     ¦                           ¦  CanEncode   = 0x02,                                              ¦                                                      ¦
-¦                     ¦                           ¦  CanForward  = 0x04,                                              ¦                                                      ¦
+¦                     ¦                           ¦enum FourCcInfoMask {                                              ¦e.g., 2                                               ¦
+¦                     ¦                           ¦  CanDecode   = 0x01,                                              ¦audioFourCcInfoMap = {                                ¦
+¦                     ¦                           ¦  CanEncode   = 0x02,                                              ¦  // can forward any audio codec                      ¦
+¦                     ¦                           ¦  CanForward  = 0x04,                                              ¦  '*': FourCcInfoMask.CanForward,                     ¦
 ¦                     ¦                           ¦}                                                                  ¦                                                      ¦
-¦                     ¦                           ¦                                                                   ¦                                                      ¦
-¦                     ¦                           ¦Capability flags define specific functionalities, such as the      ¦                                                      ¦
-¦                     ¦                           ¦ability to decode, encode, or forward.                             ¦                                                      ¦
-¦                     ¦                           ¦                                                                   ¦                                                      ¦
+¦                     ¦                           ¦                                                                   ¦  // can decode, encode, forward (see '*') Opus codec ¦
+¦                     ¦                           ¦Capability flags define specific functionalities, such as the      ¦  'Opus': FourCcInfoMask.CanDecode |                  ¦
+¦                     ¦                           ¦ability to decode, encode, or forward.                             ¦          FourCcInfoMask.CanEncode,                   ¦
+¦                     ¦                           ¦                                                                   ¦}                                                     ¦
 ¦                     ¦                           ¦A FourCC key set to the wildcard character '*' acts as a catch-all ¦                                                      ¦
 ¦                     ¦                           ¦for any codec. When this wildcard key exists, it overrides the     ¦                                                      ¦
 ¦                     ¦                           ¦flags set on properties for specific codecs. For example, if the   ¦                                                      ¦
@@ -1017,12 +1303,11 @@ Table: New name-value pair that can be set in the Command Object
 +---------------------+---------------------------+-------------------------------------------------------------------+------------------------------------------------------+
 ¦capsEx               ¦number                     ¦The value represents capability flags which can be combined via a  ¦CapsExMask.Reconnect | CapsExMask.Multitrack          ¦
 ¦                     ¦                           ¦Bitwise OR to indicate which extended set of capabilities (i.e.,   ¦                                                      ¦
-¦                     ¦                           ¦beyond the legacy RTMP specification) are supported via enhanced   ¦                                                      ¦
-¦                     ¦                           ¦RTMP. See enum CapsExMask for the enumerated values representing   ¦                                                      ¦
-¦                     ¦                           ¦the assigned bits. If the extended capabilities are expressed      ¦                                                      ¦
-¦                     ¦                           ¦elsewhere they will not appear here (e.g., fourCc, hdr or          ¦                                                      ¦
-¦                     ¦                           ¦VideoPacketType.Metadata support is not expressed in this          ¦                                                      ¦
-¦                     ¦                           ¦property).                                                         ¦                                                      ¦
+¦                     ¦                           ¦beyond the legacy RTMP specification) are supported via E-RTMP. See¦                                                      ¦
+¦                     ¦                           ¦enum CapsExMask for the enumerated values representing the assigned¦                                                      ¦
+¦                     ¦                           ¦bits. If the extended capabilities are expressed elsewhere they    ¦                                                      ¦
+¦                     ¦                           ¦will not appear here (e.g., fourCc, hdr or VideoPacketType.Metadata¦                                                      ¦
+¦                     ¦                           ¦support is not expressed in this property).                        ¦                                                      ¦
 ¦                     ¦                           ¦                                                                   ¦                                                      ¦
 ¦                     ¦                           ¦enum CapsExMask {                                                  ¦                                                      ¦
 ¦                     ¦                           ¦  Reconnect   = 0x01    // See reconnect section                   ¦                                                      ¦
@@ -1032,13 +1317,13 @@ Table: New name-value pair that can be set in the Command Object
 ```
 
 &nbsp; \
-As you can see, the client declares to the server what enhancements it supports. The server responds with a command, either **\_result** or **\_error**, to indicate whether the response is a result or an error. During the response, the server provides some properties within an Object as one of the parameters. This is where the server needs to state its support for enhanced RTMP. The server SHOULD state its support via attributes such as videoFourCcInfoMap, capsEx, and similar properties.
+As you can see, the client declares to the server what enhancements it supports. The server responds with a command, either **\_result** or **\_error**, to indicate whether the response is a result or an error. During the response, the server provides some properties within an Object as one of the parameters. This is where the server needs to state its support for E-RTMP. The server SHOULD state its support via attributes such as videoFourCcInfoMap, capsEx, and similar properties.
 
 ## Action Message Format (AMF): AMF0 and AMF3
 
 Action Message Format (AMF) is a compact binary format used to serialize [SCRIPTDATA](https://veovera.github.io/enhanced-rtmp/docs/legacy/video-file-format-v10-1-spec.pdf#page=80). It has two specifications: [[AMF0](#amf0)] and [[AMF3](#amf3)]. AMF3 improves on AMF0 by optimizing the payload size on the wire. To understand the full scope of these optimizations, please refer to the AMF0 and AMF3 specifications. \
 &nbsp; \
-Supporting AMF3 in the RTMP and FLV is beneficial due to its optimization over AMF0. Understanding the ecosystem is crucial before adding AMF3 support to RTMP or FLV.
+Supporting AMF3 in the [[RTMP](#rtmp)] and [[FLV](#flv)] is beneficial due to its optimization over AMF0. Understanding the ecosystem is crucial before adding AMF3 support to RTMP or FLV.
 
 ### Enabling AMF3 in RTMP
 
@@ -1052,13 +1337,13 @@ RTMP has had AMF3 as part of its specification for some time now. During the han
 
 ### Enabling AMF3 in FLV
 
-Prior to Y2023, the FLV file format did not have AMF3 as part of its SCRIPTDATA specification. To ensure support for AMF3 in FLV:
+Prior to Y2023, the [[FLV](#flv)] file format did not have AMF3 as part of its SCRIPTDATA specification. To ensure support for AMF3 in FLV:
 
 - Add a new FLV TagType 15 (i.e., in addition to TagType 18), which supports SCRIPTDATA encoded via AMF3 (i.e., similar to the way Data Message is handled).
 
 ### Important AMF3-encoded Historical Specification Clarification
 
-Established, pre-enhanced RTMP, specifications state the following:
+Established, pre E-RTMP, specifications state the following:
 
 - Command Messages carry the AMF-encoded commands between the client and the server. Message type values:
   - 20 for AMF0 encoding.
@@ -1078,7 +1363,7 @@ Unfortunately, the above is incomplete and may be somewhat unclear. To clarify, 
 
 ## Protocol Versioning
 
-There is no need for a version bump within enhanced RTMP for either the RTMP handshake sequence or the FLV header file version field. All of the enhancements are triggered via the newly defined additions to the bitstream format which don’t break legacy implementations. Enhanced RTMP is self describing in its capabilities.
+There is no need for a version bump within E-RTMP for either the [[RTMP](#rtmp)] handshake sequence or the FLV header file version field. All of the enhancements are triggered via the newly defined additions to the bitstream format which don’t break legacy implementations. E-RTMP is self describing in its capabilities.
 
 ## Documentation Versioning
 
@@ -1105,23 +1390,23 @@ Example: \
 The format for versioning documents is structured as follows:
 
 - **v\#-yyy-mm-dd-[a\|b\|r]\#:**
-  - **v\#:** Major version number for tracking the progression of the enhanced RTMP development.
+  - **v\#:** Major version number for tracking the progression of the E-RTMP development.
   - **yyyy-mm-dd:** Date when the document was updated.
   - **[a\|b\|r]:** Suffix to distinguish between the alpha, beta, and release stage.
   - **\#:** Minor version number for a particular date. Increments for multiple versions on the same date.
 
-This format provides a comprehensive overview of each version's status and chronological order, facilitating effective tracking and management of the enhanced RTMP specification development.
+This format provides a comprehensive overview of each version's status and chronological order, facilitating effective tracking and management of the E-RTMP specification development.
 
 ## References
 
 ### [AMF0]
 
-Adobe Systems Inc. “Action Message Format – AMF 0”, June 2006, \
+Adobe Systems Inc. "Action Message Format – AMF 0", June 2006, \
 <[https://veovera.github.io/enhanced-rtmp/docs/legacy/amf0-file-format-spec.pdf](https://veovera.github.io/enhanced-rtmp/docs/legacy/amf0-file-format-spec.pdf)>.
 
 ### [AMF3]
 
-Adobe Systems Inc. “Action Message Format – AMF 3”, June 2006, \
+Adobe Systems Inc. "Action Message Format – AMF 3", June 2006, \
 <[https://veovera.github.io/enhanced-rtmp/docs/legacy/amf3-file-format-spec.pdf](https://veovera.github.io/enhanced-rtmp/docs/legacy/amf3-file-format-spec.pdf)>.
 
 ### [DEPRECATED]
@@ -1131,7 +1416,7 @@ Deprecation, \
 
 ### [FLV]
 
-“Adobe Flash Video File Format Specification, Version 10.1”, August 2010, \
+"Adobe Flash Video File Format Specification, Version 10.1", August 2010, \
 <[https://veovera.github.io/enhanced-rtmp/docs/legacy/video-file-format-v10-1-spec.pdf](https://veovera.github.io/enhanced-rtmp/docs/legacy/video-file-format-v10-1-spec.pdf)>.
 
 ### [FourCC]
@@ -1162,6 +1447,11 @@ Leiba, B., "Ambiguity of Uppercase vs Lowercase in [RFC](https://datatracker.iet
 Parmar, H., Ed. and M. Thornburgh, Ed., "Adobe’s Real Time Messaging Protocol", December 2012, \
 <[https://veovera.github.io/enhanced-rtmp/docs/legacy/rtmp-v1-0-spec.pdf](https://veovera.github.io/enhanced-rtmp/docs/legacy/rtmp-v1-0-spec.pdf)>.
 
+### [WebCodecs]
+
+W3C, "WebCodecs" \
+<[https://www.w3.org/TR/webcodecs/](https://www.w3.org/TR/webcodecs/)>.
+
 ## Appendix
 
 ## Document Revision History
@@ -1177,5 +1467,8 @@ Parmar, H., Ed. and M. Thornburgh, Ed., "Adobe’s Real Time Messaging Protocol"
 ¦   v2-2024-04-02-a1   ¦ 1. Fixed pseudocode logic relating to VP8 sequence start and coded data.               ¦
 +----------------------+----------------------------------------------------------------------------------------+
 ¦   v2-2024-04-22-a1   ¦ 1. Minor cleanup of normative reference moniker. No changes to logic.                  ¦
++----------------------+----------------------------------------------------------------------------------------+
+¦   v2-2024-05-9-a1    ¦ 1. Added audio sections to Enhanced RTMP Version 2 Alpha.                              ¦
+¦                      ¦ 2. Added WebCodecs reference.                                                          ¦
 +----------------------+----------------------------------------------------------------------------------------+
 ```

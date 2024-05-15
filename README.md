@@ -10,16 +10,19 @@ Founded in 2022, the Veovera Software Organization (VSO) is a dedicated not-for-
 
 ## Abstract
 
-As the media streaming landscape continues to evolve, the VSO has emerged as a pivotal force in modernizing the RTMP/FLV protocol, a cornerstone of streaming technology that had remained largely unaltered for over two decades. Through our pioneering initiatives, we have introduced initial enhancements “[enhanced-rtmp-v1](https://veovera.github.io/enhanced-rtmp/docs/enhanced/enhanced-rtmp-v1)” (or "[enhanced-rtmp-v1.pdf"](https://veovera.github.io/enhanced-rtmp/docs/enhanced/enhanced-rtmp-v1.pdf)) and the latest alpha specification, "[enhanced-rtmp-v2](https://veovera.github.io/enhanced-rtmp/docs/enhanced/enhanced-rtmp-v2)" (or "[enhanced-rtmp-v2.pdf"](https://veovera.github.io/enhanced-rtmp/docs/enhanced/enhanced-rtmp-v2.pdf)). This key publication outlines substantial advancements to [legacy RTMP](https://veovera.org/docs/legacy/), including:
+As the media streaming landscape continues to evolve, the VSO has emerged as a pivotal force in modernizing the RTMP/FLV protocol, a cornerstone of streaming technology that had remained largely unaltered for over two decades. Through our pioneering initiatives, we have introduced initial enhancements “[enhanced-rtmp-v1](https://veovera.github.io/enhanced-rtmp/docs/enhanced/enhanced-rtmp-v1)” (or "[enhanced-rtmp-v1.pdf](https://veovera.github.io/enhanced-rtmp/docs/enhanced/enhanced-rtmp-v1.pdf)”) and the latest alpha specification, "[enhanced-rtmp-v2](https://veovera.github.io/enhanced-rtmp/docs/enhanced/enhanced-rtmp-v2)" (or "[enhanced-rtmp-v2.pdf](https://veovera.github.io/enhanced-rtmp/docs/enhanced/enhanced-rtmp-v2.pdf)”). This key publication outlines substantial advancements to [legacy RTMP](https://veovera.org/docs/legacy/), including:
 
-- Integration of advanced video codecs (VP8, VP9, HEVC, AV1) with High Dynamic Range (HDR) support, catering to modern displays and content requirements.
-- Addition of VideoPacketType.Metadata, expanding the range of supported video metadata types.
-- Introduction of video Multitrack capabilities, allowing for the management and processing of multiple video streams concurrently.
-- Implementation of a Reconnect Request feature, aimed at improving connection stability and resilience.
+- **Advanced Audio Codecs:** Integration of codecs such as AC-3, E-AC-3, Opus, and FLAC, catering to diverse audio quality and compression needs, ensuring compatibility with modern audio playback systems.
+- **Multichannel Audio Configurations:** Addition of multichannel audio configurations, enhancing the auditory experience without sacrificing compatibility with existing setups.
+- **Advanced Video Codecs:** Integration of video codecs like VP8, VP9, HEVC, and AV1 with High Dynamic Range (HDR) support, catering to modern displays and content requirements.
+- **Video Metadata:** Addition of **VideoPacketType.Metadata**, expanding the range of supported video metadata types.
+- **FourCC Signaling:** Addition of FourCC signaling for the advanced codecs mentioned above, as well as for legacy AVC, AAC, and MP3 AV codecs.
+- **Multitrack Capabilities:** Introduction of audio and video Multitrack capabilities, allowing for the management and processing of multiple media streams concurrently enhancing the overall media experience.
+- **Reconnect Request Feature:** Implementation of a Reconnect Request feature, aimed at improving connection stability and resilience.
 
 These enhancements are designed to align RTMP with contemporary streaming technology standards, ensuring its relevance and efficacy in today's digital landscape. \
 &nbsp; \
-Additionally, we are dedicated to pushing the boundaries of audio quality and functionality by integrating leading audio codecs such as Opus, FLAC, AC-3, and E-AC-3 into our offerings. We are also excited about the forthcoming features for multitrack and multichannel audio configurations, aiming to enhance your auditory experience without sacrificing compatibility with existing setups. These audio enhancements, following closely on the heels of our latest update, underscore our commitment to innovation while maintaining backward compatibility. For the latest insights and updates on these exciting developments, we invite you to explore our news [feed](https://veovera.github.io/enhanced-rtmp/docs/news/feed).
+For the latest insights and updates on these exciting developments, we invite you to explore our news [feed](https://veovera.github.io/enhanced-rtmp/docs/news/feed).
 
 ## Community Engagement
 
