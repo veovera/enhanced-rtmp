@@ -164,9 +164,6 @@ Table: Additional codecs for E-RTMP
 +----------------------------------------------+                                                            ¦
 ¦AV1                                           ¦                                                            ¦
 +----------------------------------------------+------------------------------------------------------------+
-¦VVC (a.k.a., H.266)                           ¦- Gaining popularity                                        ¦
-¦                                              ¦- Successor to HEVC                                         ¦
-+----------------------------------------------+------------------------------------------------------------+
 ```
 
 - HDR - to accommodate new video codecs and cater to the existing spectrum of displays
