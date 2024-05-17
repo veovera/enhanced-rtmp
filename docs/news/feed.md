@@ -13,3 +13,7 @@
 ### 2024-03-18
 
 - [Enhanced RTMP V2 (alpha) Announcement](https://github.com/veovera/enhanced-rtmp/discussions/26)
+
+### 2024-05-15
+
+- [Enhanced RTMP V2 (Alpha) Gets Advanced Audio!](https://github.com/veovera/enhanced-rtmp/discussions/28)
