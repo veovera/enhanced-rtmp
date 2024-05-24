@@ -1516,11 +1516,11 @@ W3C, "WebCodecs" \
 +----------------------+----------------------------------------------------------------------------------------+
 ¦                      ¦ 1. Defined the format and behavior of the audio silence message                        ¦
 ¦                      ¦ 2. Defined the meaning of AudioPacketType.SequenceEnd                                  ¦
-¦   v*-2024-05-23-a*   ¦ 3. Cleaned up the definition for the expected Opus sequence start message              ¦
+¦   v2-2024-05-23-a1   ¦ 3. Cleaned up the definition for the expected Opus sequence start message              ¦
 ¦                      ¦ 4. Defined the format of the Opus Coded Data on the wire                               ¦
 ¦                      ¦ 5. Cleaned up the definition for the expected FLAC sequence start message, it was      ¦
 ¦                      ¦    missing a fLaC marker.                                                              ¦
 +----------------------+----------------------------------------------------------------------------------------+
-¦   v*-2024-05-24-a*   ¦ 1. Fixed a bug in pseudocode when parsing FLAC sequence header.                        ¦
+¦   v2-2024-05-24-a1   ¦ 1. Fixed a bug in pseudocode when parsing FLAC sequence header.                        ¦
 +----------------------+----------------------------------------------------------------------------------------+
 ```
