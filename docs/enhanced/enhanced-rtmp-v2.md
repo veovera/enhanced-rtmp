@@ -6,7 +6,7 @@
 
 - [Table of Contents](#table-of-contents)
 - [Document Status](#document-status)
-- [Alpha Version Disclaimer for Enhanced RTMP V\* Specification](#alpha-version-disclaimer-for-enhanced-rtmp-v-specification)
+- [Alpha Version Disclaimer for Enhanced RTMP v\* Specification](#alpha-version-disclaimer-for-enhanced-rtmp-v-specification)
 - [Usage License](#usage-license)
 - [Terminology](#terminology)
 - [Abstract](#abstract)
@@ -35,15 +35,15 @@
 
 **Author**: Slavik Lozben (Veovera Software Organization)(VSO) \
 **Contributors**: Adobe, Google, Twitch, Jean-Baptiste Kempf (FFmpeg, VideoLAN), pkv (OBS), Dennis Sädtler (OBS), Xavier Hallade (Intel Corporation), Luxoft, SplitmediaLabs Limited (XSplit), Craig Barberich (VSO), Michael Thornburgh \
-**Status**: **v2-2024-05-15-a1**
+**Status**: **v2-2024-05-23-a1**
 
-## Alpha Version Disclaimer for Enhanced RTMP V\* Specification
+## Alpha Version Disclaimer for Enhanced RTMP v\* Specification
 
-This document details an alpha version of the Enhanced Real-Time Messaging Protocol (a.k.a., E-RTMP) Version \* specification. As we refine and enhance the protocol, there may be breaking changes introduced to an alpha version based on feedback and further testing. Rest assured, no breaking changes will occur in the General Availability (GA) released versions. \
+This document details an alpha version of the Enhanced Real-Time Messaging Protocol (a.k.a., E-RTMP) version \* specification. As we continue to refine and enhance the protocol, we remain open to implementing necessary updates based on user feedback and further testing. While there is a possibility of introducing breaking changes during the alpha stage, we are committed to maintaining the integrity of the General Availability (GA) versions and strive to ensure they remain free from breaking changes. \
 &nbsp; \
 We encourage developers, implementers, and stakeholders to actively participate in this development phase. Your feedback, whether it be bug reports, feature suggestions, or usability improvements, is invaluable and can be submitted via new issues in our GitHub repository at <[https://github.com/veovera/enhanced-rtmp](https://github.com/veovera/enhanced-rtmp)>. We are committed to transparently communicating updates and changes, ensuring that all stakeholders are informed and involved. \
 &nbsp; \
-Please note that engaging with an alpha version gives you a unique opportunity to influence the final specifications of E-RTMP V\*. We look forward to collaborating with you on the exciting journey towards a more robust and efficient protocol.
+Engaging with the alpha version provides a unique opportunity to influence the final specifications of E-RTMP v\*. We value your input and look forward to collaborating with you on this exciting journey towards developing a more robust and efficient protocol.
 
 ## Usage License
 
@@ -590,29 +590,63 @@ Table: Extended AudioTagHeader
 ¦// process ExAudioTagHeader                                                         ¦  SequenceStart       = 0,                                                          ¦
 ¦//                                                                                  ¦  CodedFrames         = 1,                                                          ¦
 ¦processAudioBody = false                                                            ¦                                                                                    ¦
-¦if (soundFormat == SoundFormat.ExHeader) {                                          ¦  //  2 - Reserved                                                                  ¦
-¦  processAudioBody = true                                                           ¦  //  3 - Reserved                                                                  ¦
+¦if (soundFormat == SoundFormat.ExHeader) {                                          ¦  // RTMP includes a previously undocumented 'audio silence' message. This          ¦
+¦  processAudioBody = true                                                           ¦  // silence message is identified when an audio message contains a zero            ¦
+¦                                                                                    ¦  // payload, indicating a period of silence. The action to take after              ¦
+¦  // The UB[4] bits are interpreted as AudioPacketType                              ¦  // receiving a silence message is system dependent. The semantics of the          ¦
+¦  // instead of sound rate, size and type                                           ¦  // silence message in the Flash Media playback and timing model are as            ¦
+¦  audioPacketType = UB[4] as AudioPacketType                                        ¦  // follows:                                                                       ¦
+¦                                                                                    ¦  //                                                                                ¦
+¦  if (audioPacketType == AudioPacketType.Multitrack) {                              ¦  // - Ensure all buffered audio data is played out before entering the             ¦
+¦    isAudioMultitrack = true;                                                       ¦  //   silence period:                                                              ¦
+¦    audioMultitrackType = UB[4] as AvMultitrackType                                 ¦  //   Make sure that any audio data currently in the buffer is fully               ¦
+¦                                                                                    ¦  //   processed and played. This ensures a clean transition into the               ¦
+¦    // Fetch AudioPacketType for all audio tracks in the audio message.             ¦  //   silence period without cutting off any audio.                                ¦
+¦    // This fetch MUST not result in a AudioPacketType.Multitrack                   ¦  //                                                                                ¦
+¦    audioPacketType = UB[4] as AudioPacketType                                      ¦  // - After playing all buffered audio data, flush the audio decoder:              ¦
+¦                                                                                    ¦  //   Clear the audio decoder to reset its state and prepare it for new            ¦
+¦    if (audioMultitrackType != AvMultitrackType.ManyTracksManyCodecs) {             ¦  //   input after the silence period.                                              ¦
+¦      // The tracks are encoded with the same codec. Fetch the FOURCC for them      ¦  //                                                                                ¦
+¦      audioFourCc = FOURCC as AudioFourCc                                           ¦  // - During the silence period, the audio clock can't be used as the              ¦
+¦    }                                                                               ¦  //   master clock for synchronizing playback:                                     ¦
+¦  } else {                                                                          ¦  //   Switch to using the system's wall-clock time to maintain the correct         ¦
+¦    audioFourCc = FOURCC as AudioFourCc                                             ¦  //   timing for video and other data streams.                                     ¦
+¦  }                                                                                 ¦  //                                                                                ¦
+¦}                                                                                   ¦  // - Don't wait for audio frames for synchronized A+V playback:                   ¦
+¦                                                                                    ¦  //   Normally, audio frames drive the synchronization of audio and video          ¦
+¦                                                                                    ¦  //   (A/V) playback. During the silence period, playback should not stall         ¦
+¦                                                                                    ¦  //   waiting for audio frames. Video and other data streams should                ¦
+¦                                                                                    ¦  //   continue to play based on the wall-clock time, ensuring smooth               ¦
+¦                                                                                    ¦  //   playback without audio.                                                      ¦
+¦                                                                                    ¦  //                                                                                ¦
+¦                                                                                    ¦  // AudioPacketType.SequenceEnd is to have no less than the same meaning as        ¦
+¦                                                                                    ¦  // a silence message. While it may seem redundant, we need to introduce           ¦
+¦                                                                                    ¦  // this enum to ensure we can signal the end of the audio sequence for any        ¦
+¦                                                                                    ¦  // audio track.                                                                   ¦
+¦                                                                                    ¦  SequenceEnd         = 2,                                                          ¦
 ¦                                                                                    ¦                                                                                    ¦
-¦  // The UB[4] bits are interpreted as AudioPacketType                              ¦  MultichannelConfig  = 4,                                                          ¦
-¦  // instead of sound rate, size and type                                           ¦                                                                                    ¦
-¦  audioPacketType = UB[4] as AudioPacketType                                        ¦  // Turns on audio multitrack mode                                                 ¦
+¦                                                                                    ¦  //  3 - Reserved                                                                  ¦
+¦                                                                                    ¦                                                                                    ¦
+¦                                                                                    ¦  MultichannelConfig  = 4,                                                          ¦
+¦                                                                                    ¦                                                                                    ¦
+¦                                                                                    ¦  // Turns on audio multitrack mode                                                 ¦
 ¦                                                                                    ¦  Multitrack          = 5,                                                          ¦
-¦  if (audioPacketType == AudioPacketType.Multitrack) {                              ¦                                                                                    ¦
-¦    isAudioMultitrack = true;                                                       ¦  //  6 - Reserved                                                                  ¦
-¦    audioMultitrackType = UB[4] as AvMultitrackType                                 ¦  // ...                                                                            ¦
+¦                                                                                    ¦                                                                                    ¦
+¦                                                                                    ¦  //  6 - Reserved                                                                  ¦
+¦                                                                                    ¦  // ...                                                                            ¦
 ¦                                                                                    ¦  // 14 - reserved                                                                  ¦
-¦    // Fetch AudioPacketType for all audio tracks in the audio message.             ¦  // 15 - reserved                                                                  ¦
-¦    // This fetch MUST not result in a AudioPacketType.Multitrack                   ¦}                                                                                   ¦
-¦    audioPacketType = UB[4] as AudioPacketType                                      ¦                                                                                    ¦
+¦                                                                                    ¦  // 15 - reserved                                                                  ¦
+¦                                                                                    ¦}                                                                                   ¦
+¦                                                                                    ¦                                                                                    ¦
 ¦                                                                                    ¦enum AudioFourCc {                                                                  ¦
-¦    if (audioMultitrackType != AvMultitrackType.ManyTracksManyCodecs) {             ¦  //                                                                                ¦
-¦      // The tracks are encoded with the same codec. Fetch the FOURCC for them      ¦  // Valid FOURCC values for signaling support of audio codecs                      ¦
-¦      audioFourCc = FOURCC as AudioFourCc                                           ¦  // in the enhanced FourCC pipeline. In this context, support                      ¦
-¦    }                                                                               ¦  // for a FourCC codec MUST be signaled via the enhanced                           ¦
-¦  } else {                                                                          ¦  // 'connect' command.                                                             ¦
-¦    audioFourCc = FOURCC as AudioFourCc                                             ¦  //                                                                                ¦
-¦  }                                                                                 ¦                                                                                    ¦
-¦}                                                                                   ¦  // AC-3/E-AC-3 - <https://en.wikipedia.org/wiki/Dolby_Digital>                    ¦
+¦                                                                                    ¦  //                                                                                ¦
+¦                                                                                    ¦  // Valid FOURCC values for signaling support of audio codecs                      ¦
+¦                                                                                    ¦  // in the enhanced FourCC pipeline. In this context, support                      ¦
+¦                                                                                    ¦  // for a FourCC codec MUST be signaled via the enhanced                           ¦
+¦                                                                                    ¦  // 'connect' command.                                                             ¦
+¦                                                                                    ¦  //                                                                                ¦
+¦                                                                                    ¦                                                                                    ¦
+¦                                                                                    ¦  // AC-3/E-AC-3 - <https://en.wikipedia.org/wiki/Dolby_Digital>                    ¦
 ¦                                                                                    ¦  Ac3         = makeFourCc('ac-3'),                                                 ¦
 ¦                                                                                    ¦  Eac3        = makeFourCc('ec-3'),                                                 ¦
 ¦                                                                                    ¦                                                                                    ¦
@@ -729,44 +763,57 @@ Table: Extended AudioTagHeader
 ¦    }                                                                               ¦  SideRight,                                                                        ¦
 ¦                                                                                    ¦  TopCenter,                                                                        ¦
 ¦    if (audioFourCc == AudioFourCc.Flac) {                                          ¦  TopFrontLeft,                                                                     ¦
-¦      // FlacSequenceHeader is a mandatory metadata block (a.k.a., the STREAMINFO   ¦  TopFrontCenter,                                                                   ¦
-¦      // block). The STREAMINFO block contains information about the whole          ¦  TopFrontRight,                                                                    ¦
-¦      // stream, such as sample rate, number of channels, total number of           ¦  TopBackLeft,                                                                      ¦
-¦      // samples, etc. It MUST be present as the first metadata block in the        ¦  TopBackCenter       = 16,                                                         ¦
-¦      // stream. The Flac audio specific bitstream format is defined                ¦  TopBackRight,                                                                     ¦
-¦      // at <https://xiph.org/flac/format.html>                                     ¦                                                                                    ¦
-¦      flacHeader = [FlacSequenceHeader]                                             ¦  // mappings to complete 22.2 multichannel audio, as                               ¦
-¦    }                                                                               ¦  // standardized in SMPTE ST2036-2-2008                                            ¦
-¦                                                                                    ¦  // see - <https://en.wikipedia.org/wiki/22.2_surround_sound>                      ¦
-¦    if (audioFourCc == AudioFourCc.Opus) {                                          ¦  LowFrequency2       = 18,                                                         ¦
-¦      // Opus defines two mandatory header packets.  The first packet in the        ¦  TopSideLeft,                                                                      ¦
-¦      // logical Ogg bitstream MUST contain the identification (ID) header,         ¦  TopSideRight,                                                                     ¦
-¦      // which uniquely identifies a stream as Opus audio.                          ¦  BottomFrontCenter,                                                                ¦
-¦      //                                                                            ¦  BottomFrontLeft,                                                                  ¦
-¦      // The second packet in the logical Ogg bitstream MUST contain the            ¦  BottomFrontRight,                                                                 ¦
-¦      // comment header, which contains user-supplied metadata.                     ¦                                                                                    ¦
-¦      //                                                                            ¦  // Channel is empty and can be safely skipped.                                    ¦
-¦      // The format for the above headers are defined in Sections 5.1 and 5.2       ¦  Unused              = 0xfe,                                                       ¦
-¦      // at https://datatracker.ietf.org/doc/html/rfc7845.html                      ¦                                                                                    ¦
-¦                                                                                    ¦  // Channel contains data, but its speaker configuration is unknown.               ¦
-¦      // read either identification or comment header                               ¦  Unknown             = 0xff,                                                       ¦
-¦      opusHeader = [OpusSequenceHeader]                                             ¦}                                                                                   ¦
+¦      // FlacSequenceHeader layout is:                                              ¦  TopFrontCenter,                                                                   ¦
+¦      //                                                                            ¦  TopFrontRight,                                                                    ¦
+¦      // The bytes 0x66 0x4C 0x61 0x43 ("fLaC" in ASCII) signature                  ¦  TopBackLeft,                                                                      ¦
+¦      //                                                                            ¦  TopBackCenter       = 16,                                                         ¦
+¦      // Followed by a metadata block (called the STREAMINFO block) as described    ¦  TopBackRight,                                                                     ¦
+¦      // in section 7 of the FLAC specification. The STREAMINFO block contains      ¦                                                                                    ¦
+¦      // information about the whole sequence, such as sample rate, number of       ¦  // mappings to complete 22.2 multichannel audio, as                               ¦
+¦      // channels, total number of samples, etc. It MUST be present as the first    ¦  // standardized in SMPTE ST2036-2-2008                                            ¦
+¦      // metadata block in the sequence. The FLAC audio specific bitstream format   ¦  // see - <https://en.wikipedia.org/wiki/22.2_surround_sound>                      ¦
+¦      // is defined at <https://xiph.org/flac/format.html>                          ¦  LowFrequency2       = 18,                                                         ¦
+¦      flacData = [FlacCodedData]                                                    ¦  TopSideLeft,                                                                      ¦
+¦      flacHeader = [FlacSequenceHeader]                                             ¦  TopSideRight,                                                                     ¦
+¦    }                                                                               ¦  BottomFrontCenter,                                                                ¦
+¦                                                                                    ¦  BottomFrontLeft,                                                                  ¦
+¦    if (audioFourCc == AudioFourCc.Opus) {                                          ¦  BottomFrontRight,                                                                 ¦
+¦      // Opus Sequence header (a.k.a., ID header):                                  ¦                                                                                    ¦
+¦      // - The Opus sequence start is also known as the ID header.                  ¦  // Channel is empty and can be safely skipped.                                    ¦
+¦      // - It contains essential information needed to initialize                   ¦  Unused              = 0xfe,                                                       ¦
+¦      //   the decoder and understand the stream format.                            ¦                                                                                    ¦
+¦      // - For detailed structure, refer to RFC 7845, Section 5.1:                  ¦  // Channel contains data, but its speaker configuration is unknown.               ¦
+¦      //   <https://datatracker.ietf.org/doc/html/rfc7845#section-5.1>              ¦  Unknown             = 0xff,                                                       ¦
+¦      //                                                                            ¦}                                                                                   ¦
+¦      // If the Opus sequence start payload is empty, use the                       ¦                                                                                    ¦
+¦      // AudioPacketType.MultichannelConfig signal for channel                      ¦                                                                                    ¦
+¦      // mapping when present; otherwise, default to mono/stereo mode.              ¦                                                                                    ¦
+¦      opusHeader = [OpusSequenceHeader]                                             ¦                                                                                    ¦
 ¦    }                                                                               ¦                                                                                    ¦
 ¦  }                                                                                 ¦                                                                                    ¦
 ¦                                                                                    ¦                                                                                    ¦
 ¦  if (audioPacketType == AudioPacketType.CodedFrames) {                             ¦                                                                                    ¦
 ¦    if (audioFourCc == AudioFourCc.Ac3 || audioFourCc == AudioFourCc.Eac3) {        ¦                                                                                    ¦
-¦      // body contains audio data as defined by the bitstream syntax                ¦                                                                                    ¦
+¦      // Body contains audio data as defined by the bitstream syntax                ¦                                                                                    ¦
 ¦      // in the ATSC standard for Digital Audio Compression (AC-3, E-AC-3)          ¦                                                                                    ¦
 ¦      ac3Data = [Ac3CodedData]                                                      ¦                                                                                    ¦
 ¦    }                                                                               ¦                                                                                    ¦
 ¦                                                                                    ¦                                                                                    ¦
 ¦    if (audioFourCc == AudioFourCc.Opus) {                                          ¦                                                                                    ¦
-¦      // The Opus encoder produces "packets", which are each a contiguous           ¦                                                                                    ¦
-¦      // set of bytes meant to be transmitted as a single unit. A single            ¦                                                                                    ¦
-¦      // packet may contain multiple audio frames. For details on "packet"          ¦                                                                                    ¦
-¦      // and framing description please refer to the Definition of                  ¦                                                                                    ¦
-¦      // the Opus Audio Codec                                                       ¦                                                                                    ¦
+¦      // Body contains Opus packets. The layout is one Opus                         ¦                                                                                    ¦
+¦      // packet for each of N different streams, where N is                         ¦                                                                                    ¦
+¦      // typically one for mono or stereo, but MAY be greater                       ¦                                                                                    ¦
+¦      // than one for multichannel audio. The value N is                            ¦                                                                                    ¦
+¦      // specified in the ID header (Opus sequence start) or                        ¦                                                                                    ¦
+¦      // via the AudioPacketType.MultichannelConfig signal, and                     ¦                                                                                    ¦
+¦      // is fixed over the entire length of the Opus sequence.                      ¦                                                                                    ¦
+¦      // The first (N - 1) Opus packets, if any, are packed one                     ¦                                                                                    ¦
+¦      // after another using the self-delimiting framing from                       ¦                                                                                    ¦
+¦      // Appendix B of [RFC6716]. The remaining Opus packet is                      ¦                                                                                    ¦
+¦      // packed at the end of the Ogg packet using the regular,                     ¦                                                                                    ¦
+¦      // undelimited framing from Section 3 of [RFC6716]. All                       ¦                                                                                    ¦
+¦      // of the Opus packets in a single audio packet MUST be                       ¦                                                                                    ¦
+¦      // constrained to have the same duration.                                     ¦                                                                                    ¦
 ¦      opusData = [OpusCodedData]                                                    ¦                                                                                    ¦
 ¦    }                                                                               ¦                                                                                    ¦
 ¦                                                                                    ¦                                                                                    ¦
@@ -1467,5 +1514,12 @@ W3C, "WebCodecs" \
 +----------------------+----------------------------------------------------------------------------------------+
 ¦   v2-2024-05-9-a1    ¦ 1. Added audio sections to Enhanced RTMP Version 2 Alpha.                              ¦
 ¦                      ¦ 2. Added WebCodecs reference.                                                          ¦
++----------------------+----------------------------------------------------------------------------------------+
+¦                      ¦ 1. Defined the format and behavior of the audio silence message                        ¦
+¦                      ¦ 2. Defined the meaning of AudioPacketType.SequenceEnd                                  ¦
+¦   v*-2024-05-23-a*   ¦ 3. Cleaned up the definition for the expected Opus sequence start message              ¦
+¦                      ¦ 4. Defined the format of the Opus Coded Data on the wire                               ¦
+¦                      ¦ 5. Cleaned up the definition for the expected FLAC sequence start message, it was      ¦
+¦                      ¦    missing a fLaC marker.                                                              ¦
 +----------------------+----------------------------------------------------------------------------------------+
 ```
