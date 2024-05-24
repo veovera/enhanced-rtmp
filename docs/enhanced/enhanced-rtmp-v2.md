@@ -35,7 +35,7 @@
 
 **Author**: Slavik Lozben (Veovera Software Organization)(VSO) \
 **Contributors**: Adobe, Google, Twitch, Jean-Baptiste Kempf (FFmpeg, VideoLAN), pkv (OBS), Dennis Sädtler (OBS), Xavier Hallade (Intel Corporation), Luxoft, SplitmediaLabs Limited (XSplit), Craig Barberich (VSO), Michael Thornburgh \
-**Status**: **v2-2024-05-23-a1**
+**Status**: **v2-2024-05-24-a1**
 
 ## Alpha Version Disclaimer for Enhanced RTMP v\* Specification
 
@@ -773,19 +773,18 @@ Table: Extended AudioTagHeader
 ¦      // channels, total number of samples, etc. It MUST be present as the first    ¦  // standardized in SMPTE ST2036-2-2008                                            ¦
 ¦      // metadata block in the sequence. The FLAC audio specific bitstream format   ¦  // see - <https://en.wikipedia.org/wiki/22.2_surround_sound>                      ¦
 ¦      // is defined at <https://xiph.org/flac/format.html>                          ¦  LowFrequency2       = 18,                                                         ¦
-¦      flacData = [FlacCodedData]                                                    ¦  TopSideLeft,                                                                      ¦
-¦      flacHeader = [FlacSequenceHeader]                                             ¦  TopSideRight,                                                                     ¦
-¦    }                                                                               ¦  BottomFrontCenter,                                                                ¦
-¦                                                                                    ¦  BottomFrontLeft,                                                                  ¦
-¦    if (audioFourCc == AudioFourCc.Opus) {                                          ¦  BottomFrontRight,                                                                 ¦
-¦      // Opus Sequence header (a.k.a., ID header):                                  ¦                                                                                    ¦
-¦      // - The Opus sequence start is also known as the ID header.                  ¦  // Channel is empty and can be safely skipped.                                    ¦
-¦      // - It contains essential information needed to initialize                   ¦  Unused              = 0xfe,                                                       ¦
-¦      //   the decoder and understand the stream format.                            ¦                                                                                    ¦
-¦      // - For detailed structure, refer to RFC 7845, Section 5.1:                  ¦  // Channel contains data, but its speaker configuration is unknown.               ¦
-¦      //   <https://datatracker.ietf.org/doc/html/rfc7845#section-5.1>              ¦  Unknown             = 0xff,                                                       ¦
-¦      //                                                                            ¦}                                                                                   ¦
-¦      // If the Opus sequence start payload is empty, use the                       ¦                                                                                    ¦
+¦      flacHeader = [FlacSequenceHeader]                                             ¦  TopSideLeft,                                                                      ¦
+¦    }                                                                               ¦  TopSideRight,                                                                     ¦
+¦                                                                                    ¦  BottomFrontCenter,                                                                ¦
+¦    if (audioFourCc == AudioFourCc.Opus) {                                          ¦  BottomFrontLeft,                                                                  ¦
+¦      // Opus Sequence header (a.k.a., ID header):                                  ¦  BottomFrontRight,                                                                 ¦
+¦      // - The Opus sequence start is also known as the ID header.                  ¦                                                                                    ¦
+¦      // - It contains essential information needed to initialize                   ¦  // Channel is empty and can be safely skipped.                                    ¦
+¦      //   the decoder and understand the stream format.                            ¦  Unused              = 0xfe,                                                       ¦
+¦      // - For detailed structure, refer to RFC 7845, Section 5.1:                  ¦                                                                                    ¦
+¦      //   <https://datatracker.ietf.org/doc/html/rfc7845#section-5.1>              ¦  // Channel contains data, but its speaker configuration is unknown.               ¦
+¦      //                                                                            ¦  Unknown             = 0xff,                                                       ¦
+¦      // If the Opus sequence start payload is empty, use the                       ¦}                                                                                   ¦
 ¦      // AudioPacketType.MultichannelConfig signal for channel                      ¦                                                                                    ¦
 ¦      // mapping when present; otherwise, default to mono/stereo mode.              ¦                                                                                    ¦
 ¦      opusHeader = [OpusSequenceHeader]                                             ¦                                                                                    ¦
@@ -1521,5 +1520,7 @@ W3C, "WebCodecs" \
 ¦                      ¦ 4. Defined the format of the Opus Coded Data on the wire                               ¦
 ¦                      ¦ 5. Cleaned up the definition for the expected FLAC sequence start message, it was      ¦
 ¦                      ¦    missing a fLaC marker.                                                              ¦
++----------------------+----------------------------------------------------------------------------------------+
+¦   v*-2024-05-24-a*   ¦ 1. Fixed a bug in pseudocode when parsing FLAC sequence header.                        ¦
 +----------------------+----------------------------------------------------------------------------------------+
 ```
