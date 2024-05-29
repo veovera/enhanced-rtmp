@@ -35,7 +35,7 @@
 
 **Author**: Slavik Lozben (Veovera Software Organization)(VSO) \
 **Contributors**: Adobe, Google, Twitch, Jean-Baptiste Kempf (FFmpeg, VideoLAN), pkv (OBS), Dennis Sädtler (OBS), Xavier Hallade (Intel Corporation), Luxoft, SplitmediaLabs Limited (XSplit), Craig Barberich (VSO), Michael Thornburgh \
-**Status**: **v2-2024-05-24-a1**
+**Status**: **v2-2024-05-29-a1**
 
 ## Alpha Version Disclaimer for Enhanced RTMP v\* Specification
 
@@ -590,29 +590,30 @@ Table: Extended AudioTagHeader
 ¦// process ExAudioTagHeader                                                         ¦  SequenceStart       = 0,                                                          ¦
 ¦//                                                                                  ¦  CodedFrames         = 1,                                                          ¦
 ¦processAudioBody = false                                                            ¦                                                                                    ¦
-¦if (soundFormat == SoundFormat.ExHeader) {                                          ¦  // RTMP includes a previously undocumented 'audio silence' message. This          ¦
-¦  processAudioBody = true                                                           ¦  // silence message is identified when an audio message contains a zero            ¦
-¦                                                                                    ¦  // payload, indicating a period of silence. The action to take after              ¦
-¦  // The UB[4] bits are interpreted as AudioPacketType                              ¦  // receiving a silence message is system dependent. The semantics of the          ¦
-¦  // instead of sound rate, size and type                                           ¦  // silence message in the Flash Media playback and timing model are as            ¦
-¦  audioPacketType = UB[4] as AudioPacketType                                        ¦  // follows:                                                                       ¦
-¦                                                                                    ¦  //                                                                                ¦
-¦  if (audioPacketType == AudioPacketType.Multitrack) {                              ¦  // - Ensure all buffered audio data is played out before entering the             ¦
-¦    isAudioMultitrack = true;                                                       ¦  //   silence period:                                                              ¦
-¦    audioMultitrackType = UB[4] as AvMultitrackType                                 ¦  //   Make sure that any audio data currently in the buffer is fully               ¦
-¦                                                                                    ¦  //   processed and played. This ensures a clean transition into the               ¦
-¦    // Fetch AudioPacketType for all audio tracks in the audio message.             ¦  //   silence period without cutting off any audio.                                ¦
-¦    // This fetch MUST not result in a AudioPacketType.Multitrack                   ¦  //                                                                                ¦
-¦    audioPacketType = UB[4] as AudioPacketType                                      ¦  // - After playing all buffered audio data, flush the audio decoder:              ¦
-¦                                                                                    ¦  //   Clear the audio decoder to reset its state and prepare it for new            ¦
-¦    if (audioMultitrackType != AvMultitrackType.ManyTracksManyCodecs) {             ¦  //   input after the silence period.                                              ¦
-¦      // The tracks are encoded with the same codec. Fetch the FOURCC for them      ¦  //                                                                                ¦
-¦      audioFourCc = FOURCC as AudioFourCc                                           ¦  // - During the silence period, the audio clock can't be used as the              ¦
-¦    }                                                                               ¦  //   master clock for synchronizing playback:                                     ¦
-¦  } else {                                                                          ¦  //   Switch to using the system's wall-clock time to maintain the correct         ¦
-¦    audioFourCc = FOURCC as AudioFourCc                                             ¦  //   timing for video and other data streams.                                     ¦
-¦  }                                                                                 ¦  //                                                                                ¦
-¦}                                                                                   ¦  // - Don't wait for audio frames for synchronized A+V playback:                   ¦
+¦if (soundFormat == SoundFormat.ExHeader) {                                          ¦  // RTMP includes a previously undocumented 'audio silence' message.               ¦
+¦  processAudioBody = true                                                           ¦  // This silence message is identified when an audio message contains              ¦
+¦                                                                                    ¦  // a zero-length payload, or more precisely, an empty audio message               ¦
+¦  // The UB[4] bits are interpreted as AudioPacketType                              ¦  // without an AudioTagHeader, indicating a period of silence. The                 ¦
+¦  // instead of sound rate, size and type                                           ¦  // action to take after receiving a silence message is system                     ¦
+¦  audioPacketType = UB[4] as AudioPacketType                                        ¦  // dependent. The semantics of the silence message in the Flash                   ¦
+¦                                                                                    ¦  // Media playback and timing model are as follows:                                ¦
+¦  if (audioPacketType == AudioPacketType.Multitrack) {                              ¦  //                                                                                ¦
+¦    isAudioMultitrack = true;                                                       ¦  // - Ensure all buffered audio data is played out before entering the             ¦
+¦    audioMultitrackType = UB[4] as AvMultitrackType                                 ¦  //   silence period:                                                              ¦
+¦                                                                                    ¦  //   Make sure that any audio data currently in the buffer is fully               ¦
+¦    // Fetch AudioPacketType for all audio tracks in the audio message.             ¦  //   processed and played. This ensures a clean transition into the               ¦
+¦    // This fetch MUST not result in a AudioPacketType.Multitrack                   ¦  //   silence period without cutting off any audio.                                ¦
+¦    audioPacketType = UB[4] as AudioPacketType                                      ¦  //                                                                                ¦
+¦                                                                                    ¦  // - After playing all buffered audio data, flush the audio decoder:              ¦
+¦    if (audioMultitrackType != AvMultitrackType.ManyTracksManyCodecs) {             ¦  //   Clear the audio decoder to reset its state and prepare it for new            ¦
+¦      // The tracks are encoded with the same codec. Fetch the FOURCC for them      ¦  //   input after the silence period.                                              ¦
+¦      audioFourCc = FOURCC as AudioFourCc                                           ¦  //                                                                                ¦
+¦    }                                                                               ¦  // - During the silence period, the audio clock can't be used as the              ¦
+¦  } else {                                                                          ¦  //   master clock for synchronizing playback:                                     ¦
+¦    audioFourCc = FOURCC as AudioFourCc                                             ¦  //   Switch to using the system's wall-clock time to maintain the correct         ¦
+¦  }                                                                                 ¦  //   timing for video and other data streams.                                     ¦
+¦}                                                                                   ¦  //                                                                                ¦
+¦                                                                                    ¦  // - Don't wait for audio frames for synchronized A+V playback:                   ¦
 ¦                                                                                    ¦  //   Normally, audio frames drive the synchronization of audio and video          ¦
 ¦                                                                                    ¦  //   (A/V) playback. During the silence period, playback should not stall         ¦
 ¦                                                                                    ¦  //   waiting for audio frames. Video and other data streams should                ¦
@@ -1522,5 +1523,9 @@ W3C, "WebCodecs" \
 ¦                      ¦    missing a fLaC marker.                                                              ¦
 +----------------------+----------------------------------------------------------------------------------------+
 ¦   v2-2024-05-24-a1   ¦ 1. Fixed a bug in pseudocode when parsing FLAC sequence header.                        ¦
++----------------------+----------------------------------------------------------------------------------------+
+¦   v2-2024-05-28-a1   ¦ 1. Reworded 'audio silence' message format for more clarity.                           ¦
++----------------------+----------------------------------------------------------------------------------------+
+¦   v2-2024-05-29-a1   ¦ 1. Changed page layout to better support .pdf export. No actual spec changes.          ¦
 +----------------------+----------------------------------------------------------------------------------------+
 ```
