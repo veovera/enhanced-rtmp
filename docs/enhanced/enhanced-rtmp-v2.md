@@ -1,12 +1,13 @@
 <!-- THIS FILE IS GENERATED, DON'T EDIT -->
 
-# Enhanced RTMP
+# Enhanced RTMP (V2)
 
 ## Table of Contents
 
 - [Table of Contents](#table-of-contents)
 - [Document Status](#document-status)
-- [Alpha Version Disclaimer for Enhanced RTMP v\* Specification](#alpha-version-disclaimer-for-enhanced-rtmp-v-specification)
+- [Documentation Versioning](#documentation-versioning)
+- [Alpha Version Disclaimer for Enhanced RTMP v\*](#alpha-version-disclaimer-for-enhanced-rtmp-v)
 - [Usage License](#usage-license)
 - [Terminology](#terminology)
 - [Abstract](#abstract)
@@ -26,24 +27,55 @@
 - [Enhancing NetConnection connect Command](#enhancing-netconnection-connect-command)
 - [Action Message Format (AMF): AMF0 and AMF3](#action-message-format-amf-amf0-and-amf3)
 - [Protocol Versioning](#protocol-versioning)
-- [Documentation Versioning](#documentation-versioning)
 - [References](#references)
 - [Appendix](#appendix)
-- [Document Revision History](#document-revision-history)
+- [Document Revision History and Guidelines](#document-revision-history-and-guidelines)
 
 ## Document Status
 
 **Author**: Slavik Lozben (Veovera Software Organization)(VSO) \
 **Contributors**: Adobe, Google, Twitch, Jean-Baptiste Kempf (FFmpeg, VideoLAN), pkv (OBS), Dennis Sädtler (OBS), Xavier Hallade (Intel Corporation), Luxoft, SplitmediaLabs Limited (XSplit), Craig Barberich (VSO), Michael Thornburgh \
-**Status**: **v2-2024-05-29-a1**
+**Status**: **v2-2024-06-04-a1**
 
-## Alpha Version Disclaimer for Enhanced RTMP v\* Specification
+## Documentation Versioning
 
-This document details an alpha version of the Enhanced Real-Time Messaging Protocol (a.k.a., E-RTMP) version \* specification. As we continue to refine and enhance the protocol, we remain open to implementing necessary updates based on user feedback and further testing. While there is a possibility of introducing breaking changes during the alpha stage, we are committed to maintaining the integrity of the General Availability (GA) versions and strive to ensure they remain free from breaking changes. \
+### Overview
+
+This section outlines our standardized approach for versioning our specification documentation. Effective versioning ensures consistency, enables users to identify the latest version easily, and facilitates collaboration among team members.
+
+### File Naming Convention
+
+We name the documentation files with a clear identifier and the major version number. \
+&nbsp; \
+Example: \
+**enhanced-rtmp-v2.pdf**
+
+### Version Information Inside the Document
+
+We include a dedicated section or metadata within each document to specify the version details which includes the major version number, date, and stage of development (alpha/beta/release). \
+&nbsp; \
+Example: \
+**Status: v2-2024-02-26-a1**
+
+### Calendar Versioning Format Description
+
+The format for versioning documents is structured as follows:
+
+- **v\#-yyy-mm-dd-[a\|b\|r]\#:**
+  - **v\#:** Major version number for tracking the progression of the E-RTMP development.
+  - **yyyy-mm-dd:** Date when the document was updated.
+  - **[a\|b\|r]:** Suffix to distinguish between the alpha, beta, and release stage.
+  - **\#:** Minor version number for a particular date. Increments for multiple versions on the same date.
+
+This format provides a comprehensive overview of each version's status and chronological order, facilitating effective tracking and management of the E-RTMP specification development.
+
+## Alpha Version Disclaimer for Enhanced RTMP v\*
+
+This document details an 'alpha version' of the Enhanced Real-Time Messaging Protocol (a.k.a., E-RTMP) specification, version "\*". As we continue to refine and enhance the protocol, we remain open to implementing necessary updates based on user feedback and further testing. While there is a possibility of introducing breaking changes during the alpha stage, we are committed to maintaining the integrity of the General Availability (GA) versions and strive to ensure they remain free from breaking changes. \
 &nbsp; \
 We encourage developers, implementers, and stakeholders to actively participate in this development phase. Your feedback, whether it be bug reports, feature suggestions, or usability improvements, is invaluable and can be submitted via new issues in our GitHub repository at <[https://github.com/veovera/enhanced-rtmp](https://github.com/veovera/enhanced-rtmp)>. We are committed to transparently communicating updates and changes, ensuring that all stakeholders are informed and involved. \
 &nbsp; \
-Engaging with the alpha version provides a unique opportunity to influence the final specifications of E-RTMP v\*. We value your input and look forward to collaborating with you on this exciting journey towards developing a more robust and efficient protocol.
+Engaging with the alpha version provides a unique opportunity to influence the final specifications of E-RTMP version "\*". We value your input and look forward to collaborating with you on this exciting journey towards developing a more robust and efficient protocol.
 
 ## Usage License
 
@@ -81,11 +113,13 @@ In the rapidly evolving media streaming landscape, there is a pressing need to u
 &nbsp; \
 This document details the comprehensive enhancements made to the RTMP and FLV specifications, aimed at revitalizing the technology for current and future media demands. Our strategic approach prioritizes innovation while maintaining backward compatibility, thereby augmenting RTMP's utility without undermining existing infrastructures. Some of the key advancements include:
 
-- Integration of advanced video codecs (VP8, VP9, HEVC, AV1) with High Dynamic Range (HDR) support, enhancing video quality for modern displays.
-- Incorporation of superior audio codecs (Opus, FLAC, AC-3, E-AC-3) with multichannel support, enriching the auditory experience.
-- Introduction of VideoPacketType.Metadata, broadening the scope of video metadata.
-- Implementation of video and audio multitrack capabilities, facilitating sophisticated media stream management.
-- Establishment of a reconnect request feature, bolstering connection stability and resilience.
+- **Advanced Audio Codecs:** Integration of codecs like AC-3, E-AC-3, Opus, and FLAC to meet diverse audio quality and compression needs, ensuring compatibility with modern systems.
+- **Multichannel Audio Configurations:** Support for multichannel audio to enhance auditory experiences without compromising existing setups.
+- **Advanced Video Codecs:** Introduction of codecs such as VP8, VP9, HEVC, and AV1 with HDR support to meet modern display and content standards.
+- **Video Metadata:** Expansion of VideoPacketType.Metadata to support a broader range of video metadata types.
+- **FourCC Signaling:** Inclusion of FourCC signaling for advanced codecs mentioned above, as well as for legacy codecs such as AVC, AAC, and MP3.
+- **Multitrack Capabilities:** New audio and video multitrack capabilities for concurrent management and processing of multiple media streams, enhancing media experiences.
+- **Reconnect Request Feature:** A new Reconnect Request feature improves connection stability and resilience.
 
 These strategic enhancements position RTMP as a robust, future-proof standard in the streaming technology arena. Veovera is committed to open collaboration and values community input. We encourage participation in the ongoing development process through our [GitHub repository](https://github.com/veovera/enhanced-rtmp), where you can access detailed documentation, contribute to the project, and share insights, fostering a vibrant ecosystem around enhanced E-RTMP.
 
@@ -102,7 +136,7 @@ This document describes enhancements to legacy [[RTMP](#rtmp)] and legacy [[FLV]
 This document employs certain conventions to convey particular meanings and requirements. The following section outlines the notation, terminology, and symbols used throughout to ensure clarity and consistency. These conventions provide insight into the ethos of how the E-RTMP specification has been crafted and should be interpreted.
 
 - **Enhanced RTMP:** refers to a series of improvements made to the legacy Real-Time Messaging Protocol (RTMP), originally developed by Adobe. It's important to note that **enhanced RTMP** is not a brand name but a term used to distinguish this advanced version from the legacy [[RTMP](#rtmp)] specification. Endorsed by Adobe and widely adopted across the industry, enhanced RTMP serves as the current standard for RTMP solutions. This updated protocol includes various enhancements to both RTMP and the [[FLV](#flv)] format. Please be aware that the term **enhanced RTMP** (a.k.a., **E-RTMP**) signifies ongoing updates to RTMP and FLV, and does not pertain to any specific iteration or release.
-- Pseudocode: Pseudocode has been provided to convey logic on how to interpret the E-RTMP or FLV binary format. The code style imitates a cross between TypeScript and C. The pseudocode was written in TypeScript and validated using VSCode to ensure correct syntax and catch any minor typographical errors. Below are some further explanations:
+- Pseudocode: Pseudocode has been provided to convey logic on how to interpret the E-RTMP or FLV binary format. The code style imitates a cross between TypeScript and C. The pseudocode was written in TypeScript and validated using VSCode to ensure correct syntax and catch any minor typographical errors. Below are some further explanations: \
   - Enumerations are used to define valid values
   - Pseudo variables are named in a self-descriptive manner. For instance: \
  \
@@ -116,7 +150,7 @@ The line above indicates that an unsigned 8-bit value is read from the bitstream
 When the client informs the server of the enhancements it supports via the **connect** command, the server processes this command and responds using the same transaction ID. The server's response string will be one of the following: **\_result**, **\_error**, or a specific method name. A command string of **\_result** or **\_error** indicates a response rather than a new command. \
  \
 During this response, the server will include an object containing specific properties as one of the arguments to **\_result**. It is at this point that the server should indicate its support for E-RTMP features. Specifically, the server should denote its capabilities through attributes such as **videoFourCcInfoMap**, **capsEx**, and other defined properties.
-  - The ethos of this pseudocode is to provide a high-level overview of the data structures and operations taking place on the wire. While it accurately represents the bytes being transmitted, it's important to note that the logic is not exhaustive. Specifically, this pseudocode does not cover all possible cases, nor does it always include items such as initialization logic, looping logic or error-handling mechanisms. It serves as a foundational guide that can be implemented in various ways, depending on specific needs and constraints.
+  - The ethos of this pseudocode is to provide a high-level overview of the data structures and operations taking place on the wire. While it accurately represents the bytes being transmitted, it's important to note that the logic is not exhaustive. Specifically, this pseudocode does not cover all possible cases, nor does it always include items such as initialization logic, looping logic or error-handling mechanisms. It serves as a foundational guide that can be implemented in various ways, depending on specific needs and constraints. \
 - **Unrecognized value**: If a value in the bitstream is not understood, the logic must fail gracefully in a manner appropriate for the implementation.
 - **Table naming**: Each table in the document is named according to the specific content or subject it is describing.
 - **Bitstream optimization**: One of the guiding principles of E-RTMP is to optimize the number of bytes transmitted over the wire. While minimizing payload overhead is a priority, it is sometimes more important to simplify the logic or enhance extensibility. For example, although more optimal methods for creating a codec ID than using FOURCC may exist, such approaches could render the enhancement non-standard and more challenging to extend and maintain in the future.
@@ -1409,38 +1443,6 @@ Unfortunately, the above is incomplete and may be somewhat unclear. To clarify, 
 
 There is no need for a version bump within E-RTMP for either the [[RTMP](#rtmp)] handshake sequence or the FLV header file version field. All of the enhancements are triggered via the newly defined additions to the bitstream format which don’t break legacy implementations. E-RTMP is self describing in its capabilities.
 
-## Documentation Versioning
-
-### Overview
-
-This section outlines our standardized approach for versioning our specification documentation. Effective versioning ensures consistency, enables users to identify the latest version easily, and facilitates collaboration among team members.
-
-### File Naming Convention
-
-We name the documentation files with a clear identifier and the major version number. \
-&nbsp; \
-Example: \
-**enhanced-rtmp-v2.pdf**
-
-### Version Information Inside the Document
-
-We include a dedicated section or metadata within each document to specify the version details which includes the major version number, date, and stage of development (alpha/beta/release). \
-&nbsp; \
-Example: \
-**Status: v2-2024-02-26-a1**
-
-### Calendar Versioning Format Description
-
-The format for versioning documents is structured as follows:
-
-- **v\#-yyy-mm-dd-[a\|b\|r]\#:**
-  - **v\#:** Major version number for tracking the progression of the E-RTMP development.
-  - **yyyy-mm-dd:** Date when the document was updated.
-  - **[a\|b\|r]:** Suffix to distinguish between the alpha, beta, and release stage.
-  - **\#:** Minor version number for a particular date. Increments for multiple versions on the same date.
-
-This format provides a comprehensive overview of each version's status and chronological order, facilitating effective tracking and management of the E-RTMP specification development.
-
 ## References
 
 ### [AMF0]
@@ -1498,7 +1500,19 @@ W3C, "WebCodecs" \
 
 ## Appendix
 
-## Document Revision History
+## Document Revision History and Guidelines
+
+The revision history section of this document is maintained to provide a clear and concise record of significant changes throughout its development phases, such as alpha, beta, and release. Here are the key points regarding how we manage this history:
+
+- **Phase-Based Documentation:** Important changes made during each phase (alpha, beta, release) are documented in the revision history to keep readers informed of significant developments.
+- **Transition Between Phases:** When transitioning from one phase to another (e.g., from alpha to beta), we clear the document revision history. This practice helps keep the document uncluttered and focused on the relevant phase.
+- **Exclusion of Minor Changes:** Minor changes that are purely for wording clarification and do not involve adding new features or fixing bugs may be excluded from the revision history.
+- **Commit History in GitHub:** The document and its revision history are maintained in GitHub repository at <[https://github.com/veovera/enhanced-rtmp](https://github.com/veovera/enhanced-rtmp)>. Although the document revision history is cleared periodically, all commits and their messages are preserved in GitHub, ensuring a comprehensive record of all changes made.
+- **Version Changes:** When the version of the specification changes significantly (e.g., from v1 to v2), we again clear the revision history. Despite this, the full history of commits and their messages remains accessible in GitHub.
+
+These guidelines ensure that the revision history in the specification document remains focused, relevant, and easy to navigate, while the complete history of all changes is securely stored and accessible in GitHub. \
+&nbsp; \
+Table: Revision history
 
 ```txt
 +----------------------+----------------------------------------------------------------------------------------+
@@ -1528,4 +1542,8 @@ W3C, "WebCodecs" \
 +----------------------+----------------------------------------------------------------------------------------+
 ¦   v2-2024-05-29-a1   ¦ 1. Changed page layout to better support .pdf export. No actual spec changes.          ¦
 +----------------------+----------------------------------------------------------------------------------------+
+¦      v2-...-a*       ¦ 1. See GitHub for revision history.                                                    ¦
++----------------------+----------------------------------------------------------------------------------------+
 ```
+
+&nbsp;
