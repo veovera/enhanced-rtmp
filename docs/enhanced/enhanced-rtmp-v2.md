@@ -35,7 +35,7 @@
 
 **Author**: Slavik Lozben (Veovera Software Organization)(VSO) \
 **Contributors**: Adobe, Google, Twitch, Jean-Baptiste Kempf (FFmpeg, VideoLAN), pkv (OBS), Dennis Sädtler (OBS), Xavier Hallade (Intel Corporation), Luxoft, SplitmediaLabs Limited (XSplit), Craig Barberich (VSO), Michael Thornburgh \
-**Status**: **v2-2024-06-04-a1**
+**Status**: **v2-2024-06-27-a1**
 
 ## Documentation Versioning
 
@@ -61,8 +61,8 @@ Example: \
 
 The format for versioning documents is structured as follows:
 
-- **v\#-yyy-mm-dd-[a\|b\|r]\#:**
-  - **v\#:** Major version number for tracking the progression of the E-RTMP development.
+- **v#-yyy-mm-dd-[a\|b\|r]#:**
+  - **v#:** Major version number for tracking the progression of the E-RTMP development.
   - **yyyy-mm-dd:** Date when the document was updated.
   - **[a\|b\|r]:** Suffix to distinguish between the alpha, beta, and release stage.
   - **\#:** Minor version number for a particular date. Increments for multiple versions on the same date.
@@ -71,7 +71,7 @@ This format provides a comprehensive overview of each version's status and chron
 
 ## Alpha Version Disclaimer for Enhanced RTMP v\*
 
-This document details an 'alpha version' of the Enhanced Real-Time Messaging Protocol (a.k.a., E-RTMP) specification, version "\*". As we continue to refine and enhance the protocol, we remain open to implementing necessary updates based on user feedback and further testing. While there is a possibility of introducing breaking changes during the alpha stage, we are committed to maintaining the integrity of the General Availability (GA) versions and strive to ensure they remain free from breaking changes. \
+This document details an "alpha version" of the Enhanced Real-Time Messaging Protocol (a.k.a., E-RTMP) specification, version "\*". As we continue to refine and enhance the protocol, we remain open to implementing necessary updates based on user feedback and further testing. While there is a possibility of introducing breaking changes during the alpha stage, we are committed to maintaining the integrity of the General Availability (GA) versions and strive to ensure they remain free from breaking changes. \
 &nbsp; \
 We encourage developers, implementers, and stakeholders to actively participate in this development phase. Your feedback, whether it be bug reports, feature suggestions, or usability improvements, is invaluable and can be submitted via new issues in our GitHub repository at <[https://github.com/veovera/enhanced-rtmp](https://github.com/veovera/enhanced-rtmp)>. We are committed to transparently communicating updates and changes, ensuring that all stakeholders are informed and involved. \
 &nbsp; \
@@ -136,7 +136,8 @@ This document describes enhancements to legacy [[RTMP](#rtmp)] and legacy [[FLV]
 This document employs certain conventions to convey particular meanings and requirements. The following section outlines the notation, terminology, and symbols used throughout to ensure clarity and consistency. These conventions provide insight into the ethos of how the E-RTMP specification has been crafted and should be interpreted.
 
 - **Enhanced RTMP:** refers to a series of improvements made to the legacy Real-Time Messaging Protocol (RTMP), originally developed by Adobe. It's important to note that **enhanced RTMP** is not a brand name but a term used to distinguish this advanced version from the legacy [[RTMP](#rtmp)] specification. Endorsed by Adobe and widely adopted across the industry, enhanced RTMP serves as the current standard for RTMP solutions. This updated protocol includes various enhancements to both RTMP and the [[FLV](#flv)] format. Please be aware that the term **enhanced RTMP** (a.k.a., **E-RTMP**) signifies ongoing updates to RTMP and FLV, and does not pertain to any specific iteration or release.
-- Pseudocode: Pseudocode has been provided to convey logic on how to interpret the E-RTMP or FLV binary format. The code style imitates a cross between TypeScript and C. The pseudocode was written in TypeScript and validated using VSCode to ensure correct syntax and catch any minor typographical errors. Below are some further explanations: \
+- **Pseudocode:** Pseudocode has been provided to convey logic on how to interpret the E-RTMP or FLV binary format. The code style imitates a cross between TypeScript and C. The pseudocode was written in TypeScript and validated using VSCode to ensure correct syntax and catch any minor typographical errors. Below are some further explanations: \
+&nbsp;
   - Enumerations are used to define valid values
   - Pseudo variables are named in a self-descriptive manner. For instance: \
  \
@@ -151,6 +152,7 @@ When the client informs the server of the enhancements it supports via the **con
  \
 During this response, the server will include an object containing specific properties as one of the arguments to **\_result**. It is at this point that the server should indicate its support for E-RTMP features. Specifically, the server should denote its capabilities through attributes such as **videoFourCcInfoMap**, **capsEx**, and other defined properties.
   - The ethos of this pseudocode is to provide a high-level overview of the data structures and operations taking place on the wire. While it accurately represents the bytes being transmitted, it's important to note that the logic is not exhaustive. Specifically, this pseudocode does not cover all possible cases, nor does it always include items such as initialization logic, looping logic or error-handling mechanisms. It serves as a foundational guide that can be implemented in various ways, depending on specific needs and constraints. \
+&nbsp;
 - **Unrecognized value**: If a value in the bitstream is not understood, the logic must fail gracefully in a manner appropriate for the implementation.
 - **Table naming**: Each table in the document is named according to the specific content or subject it is describing.
 - **Bitstream optimization**: One of the guiding principles of E-RTMP is to optimize the number of bytes transmitted over the wire. While minimizing payload overhead is a priority, it is sometimes more important to simplify the logic or enhance extensibility. For example, although more optimal methods for creating a codec ID than using FOURCC may exist, such approaches could render the enhancement non-standard and more challenging to extend and maintain in the future.
@@ -221,7 +223,7 @@ Table: Simple data types
 ¦UB[n]                          ¦Bit field with unsigned n-bit integer, where n is in the range 1 ¦
 ¦                               ¦to 31, excluding 8, 16, 24                                       ¦
 +-------------------------------+-----------------------------------------------------------------+
-¦FOURCC                         ¦Four-character ASCII code, such as ‘av01’, encoded as UI32       ¦
+¦FOURCC                         ¦Four-character ASCII code, such as "av01", encoded as UI32       ¦
 +-------------------------------+-----------------------------------------------------------------+
 ¦SI8                            ¦Signed  8-bit integer                                            ¦
 +-------------------------------+-----------------------------------------------------------------+
@@ -247,13 +249,14 @@ Table: Simple data types
 +-------------------------------+-----------------------------------------------------------------+
 ```
 
+&nbsp; \
 Note: Unless specifically called out, multi-byte integers SHALL be stored in big-endian byte order
 
 ## RTMP Message Format
 
 Adobe's Real-Time Messaging Protocol (RTMP) is an application-level protocol designed for the multiplexing and packetizing of multimedia streams—such as audio, video, and interactive content, for transmission over network protocols like TCP. A fundamental feature of [[RTMP](#rtmp)] is the Chunk Stream, which facilitates the multiplexing, packetizing, and prioritization of messages, integral to the protocol's real-time capabilities. \
 &nbsp; \
-The legacy RTMP specification in [Section 6.1](https://veovera.github.io/enhanced-rtmp/docs/legacy/rtmp-v1-0-spec.pdf#page=22) elaborates on the RTMP Message Format, providing precise encoding guidelines for the RTMP message header, inclusive of field widths and byte order. However, this portrayal might be somewhat confusing because RTMP messages, when transported over the Chunk Stream, don't literally conform to this depicted format. An RTMP Message is divided into two principal components: a message virtual header and a message payload. The 'virtual' descriptor indicates that while RTMP messages are carried within the RTMP Chunk Stream, their headers are conceptually encoded as Chunk Message Headers. When these are decoded from the RTMP Chunk Stream, the underlying transport layer, the resulting format is to be understood as a virtual header. This abstract representation aligns with the structured format and semantics detailed in the legacy RTMP specification. Detailed next is the format of the message virtual header and some additional related information.
+The legacy RTMP specification in [Section 6.1](https://veovera.github.io/enhanced-rtmp/docs/legacy/rtmp-v1-0-spec.pdf#page=22) elaborates on the RTMP Message Format, providing precise encoding guidelines for the RTMP message header, inclusive of field widths and byte order. However, this portrayal might be somewhat confusing because RTMP messages, when transported over the Chunk Stream, don't literally conform to this depicted format. An RTMP Message is divided into two principal components: a message virtual header and a message payload. The "virtual" descriptor indicates that while RTMP messages are carried within the RTMP Chunk Stream, their headers are conceptually encoded as Chunk Message Headers. When these are decoded from the RTMP Chunk Stream, the underlying transport layer, the resulting format is to be understood as a virtual header. This abstract representation aligns with the structured format and semantics detailed in the legacy RTMP specification. Detailed next is the format of the message virtual header and some additional related information.
 
 - Message virtual header
 
@@ -402,7 +405,7 @@ Table: Typical properties found in the **onMetaData** argument object
 ¦                    ¦                               ¦                                                                               ¦
 ¦                    ¦                               ¦When [FourCC] is used to signal the codec, this property is set to a FOURCC    ¦
 ¦                    ¦                               ¦value. Note: A FOURCC value is big endian relative to the underlying ASCII     ¦
-¦                    ¦                               ¦character sequence (e.g., ‘Opus’ == 0x4F707573 == 1332770163.0).               ¦
+¦                    ¦                               ¦character sequence (e.g., "Opus" == 0x4F707573 == 1332770163.0).               ¦
 +--------------------+-------------------------------+-------------------------------------------------------------------------------+
 ¦audiodatarate       ¦number                         ¦Audio bitrate, in kilobits per second                                          ¦
 +--------------------+-------------------------------+-------------------------------------------------------------------------------+
@@ -431,7 +434,7 @@ Table: Typical properties found in the **onMetaData** argument object
 ¦                    ¦                               ¦                                                                               ¦
 ¦                    ¦                               ¦When [FourCC] is used to signal the codec, this property is set to a FOURCC    ¦
 ¦                    ¦                               ¦value. Note: A FOURCC value is big endian relative to the underlying ASCII     ¦
-¦                    ¦                               ¦character sequence (e.g., 'av01' == 0x61763031 == 1635135537.0).               ¦
+¦                    ¦                               ¦character sequence (e.g., "av01" == 0x61763031 == 1635135537.0).               ¦
 +--------------------+-------------------------------+-------------------------------------------------------------------------------+
 ¦videodatarate       ¦number                         ¦Video bitrate, in kilobits per second                                          ¦
 +--------------------+-------------------------------+-------------------------------------------------------------------------------+
@@ -440,7 +443,7 @@ Table: Typical properties found in the **onMetaData** argument object
 ```
 
 &nbsp; \
-Note: The properties **audiocodecid** and **videocodecid** have been enhanced to support FOURCC (Four-byte ASCII code) values. These values are interpreted as UI32 (e.g., 'av01').
+Note: The properties **audiocodecid** and **videocodecid** have been enhanced to support FOURCC (Four-byte ASCII code) values. These values are interpreted as UI32 (e.g., "av01").
 
 ## Reconnect Request
 
@@ -490,18 +493,18 @@ Table: Info Object parameter for onStatus command when handling reconnect
 +----------------+-----------+-------------------------------------------------------------+------------------------------------------------+
 ¦    Property    ¦   Type    ¦                         Description                         ¦                 Example Value                  ¦
 +----------------+-----------+-------------------------------------------------------------+------------------------------------------------+
-¦tcUrl           ¦string     ¦Absolute or relative URI reference of the server to which to ¦1. rtmp://foo.mydomain.com:1935/realtimeapp     ¦
-¦(optional)      ¦           ¦reconnect. If not specified, use the tcUrl for the current   ¦2. rtmp://127.0.0.1/realtimeapp                 ¦
-¦                ¦           ¦connection. A relative URI reference should be resolved      ¦3. //192.0.2.0/realtimeapp                      ¦
-¦                ¦           ¦relative to the tcUrl for the current connection.            ¦4. /realtimeapp                                 ¦
+¦tcUrl           ¦string     ¦Absolute or relative URI reference of the server to which to ¦1. "rtmp://foo.mydomain.com:1935/realtimeapp"   ¦
+¦(optional)      ¦           ¦reconnect. If not specified, use the tcUrl for the current   ¦2. "rtmp://127.0.0.1/realtimeapp"               ¦
+¦                ¦           ¦connection. A relative URI reference should be resolved      ¦3. "//192.0.2.0/realtimeapp"                    ¦
+¦                ¦           ¦relative to the tcUrl for the current connection.            ¦4. "/realtimeapp"                               ¦
 +----------------+-----------+-------------------------------------------------------------+------------------------------------------------+
-¦code            ¦string     ¦A string identifying the event that occurred. To reconnect   ¦NetConnection.Connect.ReconnectRequest          ¦
+¦code            ¦string     ¦A string identifying the event that occurred. To reconnect   ¦"NetConnection.Connect.ReconnectRequest"        ¦
 ¦                ¦           ¦code MUST be set to "NetConnection.Connect.ReconnectRequest" ¦                                                ¦
 +----------------+-----------+-------------------------------------------------------------+------------------------------------------------+
 ¦description     ¦string     ¦A string containing human-readable information about the     ¦The streaming server is undergoing updates.     ¦
 ¦(optional)      ¦           ¦message. Not every information object includes this property.¦                                                ¦
 +----------------+-----------+-------------------------------------------------------------+------------------------------------------------+
-¦level           ¦string     ¦A string indicating the severity of the event. To reconnect  ¦status                                          ¦
+¦level           ¦string     ¦A string indicating the severity of the event. To reconnect  ¦"status"                                        ¦
 ¦                ¦           ¦the level MUST be set to "status".                           ¦                                                ¦
 +----------------+-----------+-------------------------------------------------------------+------------------------------------------------+
 ```
@@ -544,12 +547,12 @@ Table: **infoObject** for **onStatus** command
 +----------------+-----------+-------------------------------------------------------------+------------------------------------------------+
 ¦    Property    ¦   Type    ¦                         Description                         ¦                 Example Value                  ¦
 +----------------+-----------+-------------------------------------------------------------+------------------------------------------------+
-¦code            ¦string     ¦A string identifying the event that occurred.                ¦NetConnection.Connect.Success                   ¦
+¦code            ¦string     ¦A string identifying the event that occurred.                ¦"NetConnection.Connect.Success"                 ¦
 +----------------+-----------+-------------------------------------------------------------+------------------------------------------------+
 ¦description     ¦string     ¦A string containing human-readable information about the     ¦The connection attempt succeeded.               ¦
 ¦(optional)      ¦           ¦message. Not every information object includes this property.¦                                                ¦
 +----------------+-----------+-------------------------------------------------------------+------------------------------------------------+
-¦level           ¦string     ¦There are three established values for level: "status",      ¦status                                          ¦
+¦level           ¦string     ¦There are three established values for level: "status",      ¦"status"                                        ¦
 ¦                ¦           ¦"warning", and "error".                                      ¦                                                ¦
 +----------------+-----------+-------------------------------------------------------------+------------------------------------------------+
 ```
@@ -563,22 +566,22 @@ Table: **code**, **level** and **description** values for **infoObject** used by
 +-----------------------------------------+-------------+-----------------------------------------------------------------------------------------------+
 ¦                  Code                   ¦    Level    ¦                                          Description                                          ¦
 +-----------------------------------------+-------------+-----------------------------------------------------------------------------------------------+
-¦NetConnection.Call.Failed                ¦error        ¦The NetConnection.call() method was not able to invoke the server-side method or command.      ¦
+¦"NetConnection.Call.Failed"              ¦"error"      ¦The NetConnection.call() method was not able to invoke the server-side method or command.      ¦
 +-----------------------------------------+-------------+-----------------------------------------------------------------------------------------------+
-¦NetConnection.Connect.AppShutdown        ¦error        ¦The application has been shut down (for example, if the application is out of memory resources ¦
+¦"NetConnection.Connect.AppShutdown"      ¦"error"      ¦The application has been shut down (for example, if the application is out of memory resources ¦
 ¦                                         ¦             ¦and must shut down to prevent the server from crashing) or the server has shut down.           ¦
 +-----------------------------------------+-------------+-----------------------------------------------------------------------------------------------+
-¦NetConnection.Connect.Closed             ¦status       ¦The connection was closed successfully.                                                        ¦
+¦"NetConnection.Connect.Closed"           ¦"status"     ¦The connection was closed successfully.                                                        ¦
 +-----------------------------------------+-------------+-----------------------------------------------------------------------------------------------+
-¦NetConnection.Connect.Failed             ¦error        ¦The connection attempt failed.                                                                 ¦
+¦"NetConnection.Connect.Failed"           ¦"error"      ¦The connection attempt failed.                                                                 ¦
 +-----------------------------------------+-------------+-----------------------------------------------------------------------------------------------+
-¦NetConnection.Connect.Rejected           ¦error        ¦The client does not have permission to connect to the application.                             ¦
+¦"NetConnection.Connect.Rejected"         ¦"error"      ¦The client does not have permission to connect to the application.                             ¦
 +-----------------------------------------+-------------+-----------------------------------------------------------------------------------------------+
-¦NetConnection.Connect.Success            ¦status       ¦The connection attempt succeeded.                                                              ¦
+¦"NetConnection.Connect.Success"          ¦"status"     ¦The connection attempt succeeded.                                                              ¦
 +-----------------------------------------+-------------+-----------------------------------------------------------------------------------------------+
-¦NetConnection.Connect.ReconnectRequest   ¦status       ¦The server is requesting the client to reconnect.                                              ¦
+¦"NetConnection.Connect.ReconnectRequest" ¦"status"     ¦The server is requesting the client to reconnect.                                              ¦
 +-----------------------------------------+-------------+-----------------------------------------------------------------------------------------------+
-¦NetConnection.Proxy.NotResponding        ¦error        ¦The proxy server is not responding. See the ProxyStream class.                                 ¦
+¦"NetConnection.Proxy.NotResponding"      ¦"error"      ¦The proxy server is not responding. See the ProxyStream class.                                 ¦
 +-----------------------------------------+-------------+-----------------------------------------------------------------------------------------------+
 ```
 
@@ -624,7 +627,7 @@ Table: Extended AudioTagHeader
 ¦// process ExAudioTagHeader                                                         ¦  SequenceStart       = 0,                                                          ¦
 ¦//                                                                                  ¦  CodedFrames         = 1,                                                          ¦
 ¦processAudioBody = false                                                            ¦                                                                                    ¦
-¦if (soundFormat == SoundFormat.ExHeader) {                                          ¦  // RTMP includes a previously undocumented 'audio silence' message.               ¦
+¦if (soundFormat == SoundFormat.ExHeader) {                                          ¦  // RTMP includes a previously undocumented "audio silence" message.               ¦
 ¦  processAudioBody = true                                                           ¦  // This silence message is identified when an audio message contains              ¦
 ¦                                                                                    ¦  // a zero-length payload, or more precisely, an empty audio message               ¦
 ¦  // The UB[4] bits are interpreted as AudioPacketType                              ¦  // without an AudioTagHeader, indicating a period of silence. The                 ¦
@@ -678,28 +681,28 @@ Table: Extended AudioTagHeader
 ¦                                                                                    ¦  // Valid FOURCC values for signaling support of audio codecs                      ¦
 ¦                                                                                    ¦  // in the enhanced FourCC pipeline. In this context, support                      ¦
 ¦                                                                                    ¦  // for a FourCC codec MUST be signaled via the enhanced                           ¦
-¦                                                                                    ¦  // 'connect' command.                                                             ¦
+¦                                                                                    ¦  // "connect" command.                                                             ¦
 ¦                                                                                    ¦  //                                                                                ¦
 ¦                                                                                    ¦                                                                                    ¦
 ¦                                                                                    ¦  // AC-3/E-AC-3 - <https://en.wikipedia.org/wiki/Dolby_Digital>                    ¦
-¦                                                                                    ¦  Ac3         = makeFourCc('ac-3'),                                                 ¦
-¦                                                                                    ¦  Eac3        = makeFourCc('ec-3'),                                                 ¦
+¦                                                                                    ¦  Ac3         = makeFourCc("ac-3"),                                                 ¦
+¦                                                                                    ¦  Eac3        = makeFourCc("ec-3"),                                                 ¦
 ¦                                                                                    ¦                                                                                    ¦
 ¦                                                                                    ¦  // Opus audio - <https://opus-codec.org/>                                         ¦
-¦                                                                                    ¦  Opus        = makeFourCc('Opus'),                                                 ¦
+¦                                                                                    ¦  Opus        = makeFourCc("Opus"),                                                 ¦
 ¦                                                                                    ¦                                                                                    ¦
 ¦                                                                                    ¦  // Mp3 audio - <https://en.wikipedia.org/wiki/MP3>                                ¦
-¦                                                                                    ¦  Mp3         = makeFourCc('.mp3'),                                                 ¦
+¦                                                                                    ¦  Mp3         = makeFourCc(".mp3"),                                                 ¦
 ¦                                                                                    ¦                                                                                    ¦
 ¦                                                                                    ¦  // Free Lossless Audio Codec - <https://xiph.org/flac/format.html>                ¦
-¦                                                                                    ¦  Flac        = makeFourCc('fLaC'),                                                 ¦
+¦                                                                                    ¦  Flac        = makeFourCc("fLaC"),                                                 ¦
 ¦                                                                                    ¦                                                                                    ¦
 ¦                                                                                    ¦  // Advanced Audio Coding - <https://en.wikipedia.org/wiki/Advanced_Audio_Coding>  ¦
 ¦                                                                                    ¦  // The following AAC profiles, denoted by their object types, are supported       ¦
 ¦                                                                                    ¦  // 1 = main profile                                                               ¦
 ¦                                                                                    ¦  // 2 = low complexity, a.k.a., LC                                                 ¦
 ¦                                                                                    ¦  // 5 = high efficiency / scale band replication, a.k.a., HE / SBR                 ¦
-¦                                                                                    ¦  Aac         = makeFourCc('mp4a'),                                                 ¦
+¦                                                                                    ¦  Aac         = makeFourCc("mp4a"),                                                 ¦
 ¦                                                                                    ¦}                                                                                   ¦
 ¦                                                                                    ¦                                                                                    ¦
 ¦                                                                                    ¦enum AvMultitrackType {                                                             ¦
@@ -745,13 +748,13 @@ Table: Extended AudioTagHeader
 ¦    audioTrackId = UI8                                                              ¦  //                                                                                ¦
 ¦                                                                                    ¦  // Mask used to indicate which channels are present in the stream.                ¦
 ¦    if (audioMultitrackType != AvMultitrackType.OneTrack) {                         ¦  //                                                                                ¦
-¦      // The 'sizeOfAudioTrack' specifies the size in bytes of the                  ¦                                                                                    ¦
+¦      // The `sizeOfAudioTrack` specifies the size in bytes of the                  ¦                                                                                    ¦
 ¦      // current track that is being processed. This size starts                    ¦  // masks for commonly used speaker configurations                                 ¦
-¦      // counting immediately after the position where the 'sizeOfAudioTrack'       ¦  // <https://en.wikipedia.org/wiki/Surround_sound#Standard_speaker_channels>       ¦
+¦      // counting immediately after the position where the `sizeOfAudioTrack`       ¦  // <https://en.wikipedia.org/wiki/Surround_sound#Standard_speaker_channels>       ¦
 ¦      // value is located. You can use this value as an offset to locate the        ¦  FrontLeft           = 0x000001,                                                   ¦
 ¦      // next audio track in a multitrack system. The data pointer is               ¦  FrontRight          = 0x000002,                                                   ¦
 ¦      // positioned immediately after this field. Depending on the MultiTrack       ¦  FrontCenter         = 0x000004,                                                   ¦
-¦      // type, the offset points to either a 'fourCc' or a 'trackId.'               ¦  LowFrequency1       = 0x000008,                                                   ¦
+¦      // type, the offset points to either a `fourCc` or a `trackId.`               ¦  LowFrequency1       = 0x000008,                                                   ¦
 ¦      sizeOfAudioTrack = UI24                                                       ¦  BackLeft            = 0x000010,                                                   ¦
 ¦    }                                                                               ¦  BackRight           = 0x000020,                                                   ¦
 ¦  }                                                                                 ¦  FrontLeftCenter     = 0x000040,                                                   ¦
@@ -998,14 +1001,14 @@ Table: Extended VideoTagHeader
 ¦                                                                                    ¦  // Valid FOURCC values for signaling support of video codecs                      ¦
 ¦                                                                                    ¦  // in the enhanced FourCC pipeline. In this context, support                      ¦
 ¦                                                                                    ¦  // for a FourCC codec MUST be signaled via the enhanced                           ¦
-¦                                                                                    ¦  // 'connect' command.                                                             ¦
+¦                                                                                    ¦  // "connect" command.                                                             ¦
 ¦                                                                                    ¦  //                                                                                ¦
 ¦                                                                                    ¦                                                                                    ¦
-¦                                                                                    ¦  Vp8         = makeFourCc('vp08'),                                                 ¦
-¦                                                                                    ¦  Vp9         = makeFourCc('vp09'),                                                 ¦
-¦                                                                                    ¦  Av1         = makeFourCc('av01'),                                                 ¦
-¦                                                                                    ¦  Avc         = makeFourCc('avc1'),                                                 ¦
-¦                                                                                    ¦  Hevc        = makeFourCc('hvc1'),                                                 ¦
+¦                                                                                    ¦  Vp8         = makeFourCc("vp08"),                                                 ¦
+¦                                                                                    ¦  Vp9         = makeFourCc("vp09"),                                                 ¦
+¦                                                                                    ¦  Av1         = makeFourCc("av01"),                                                 ¦
+¦                                                                                    ¦  Avc         = makeFourCc("avc1"),                                                 ¦
+¦                                                                                    ¦  Hevc        = makeFourCc("hvc1"),                                                 ¦
 ¦                                                                                    ¦}                                                                                   ¦
 ¦                                                                                    ¦                                                                                    ¦
 ¦                                                                                    ¦enum AvMultitrackType {                                                             ¦
@@ -1052,13 +1055,13 @@ Table: Extended VideoTagHeader
 ¦                                                                                                                                                                         ¦
 ¦                                                                                                                                                                         ¦
 ¦    if (videoMultitrackType != AvMultitrackType.OneTrack) {                                                                                                              ¦
-¦      // The 'sizeOfVideoTrack' specifies the size in bytes of the                                                                                                       ¦
+¦      // The `sizeOfVideoTrack` specifies the size in bytes of the                                                                                                       ¦
 ¦      // current track that is being processed. This size starts                                                                                                         ¦
-¦      // counting immediately after the position where the 'sizeOfVideoTrack'                                                                                            ¦
+¦      // counting immediately after the position where the `sizeOfVideoTrack`                                                                                            ¦
 ¦      // value is located. You can use this value as an offset to locate the                                                                                             ¦
 ¦      // next video track in a multitrack system. The data pointer is                                                                                                    ¦
 ¦      // positioned immediately after this field. Depending on the MultiTrack                                                                                            ¦
-¦      // type, the offset points to either a 'fourCc' or a 'trackId.'                                                                                                    ¦
+¦      // type, the offset points to either a `fourCc` or a `trackId.`                                                                                                    ¦
 ¦      sizeOfVideoTrack = UI24                                                                                                                                            ¦
 ¦    }                                                                                                                                                                    ¦
 ¦  }                                                                                                                                                                      ¦
@@ -1181,7 +1184,7 @@ Table: Extended VideoTagHeader
 
 ## Metadata Frame
 
-To support various types of video metadata, the legacy [[FLV](#flv)] specification has been enhanced. The VideoTagHeader has been extended to define a new **VideoPacketType.Metadata** (see ExVideoTagHeader table in [Enhanced Video](#enhanced-video) section) whose payload will contain an AMF-encoded metadata. The metadata will be represented by a series of [name, value] pairs. For now the only defined [name, value] pair is ["colorInfo", Object]. When leveraging PacketTypeMetadata to deliver HDR metadata, the metadata MUST be sent prior to the video sequence, scene, frame or such that it affects. Each time a new **colorInfo** object is received it invalidates and replaces the current one. To reset to the original color state you can send **colorInfo** with a value of Undefined (the RECOMMENDED approach) or an empty object (i.e., **{}**). \
+To support various types of video metadata, the legacy [[FLV](#flv)] specification has been enhanced. The VideoTagHeader has been extended to define a new **VideoPacketType.Metadata** (see ExVideoTagHeader table in [Enhanced Video](#enhanced-video) section) whose payload will contain an AMF-encoded metadata. The metadata will be represented by a series of [name, value] pairs. For now the only defined [name, value] pair is ["colorInfo", `Object`]. When leveraging PacketTypeMetadata to deliver HDR metadata, the metadata MUST be sent prior to the video sequence, scene, frame or such that it affects. Each time a new **colorInfo** object is received it invalidates and replaces the current one. To reset to the original color state you can send **colorInfo** with a value of Undefined (the RECOMMENDED approach) or an empty object (i.e., **{}**). \
 &nbsp; \
 It is intentional to leverage a video message to deliver PacketTypeMetadata instead of other [[RTMP](#rtmp)] Message types. One benefit of leveraging a video message is to avoid any racing conditions between video messages and other RTMP message types. Given this, once your **colorInfo** object is parsed, the read values MUST be processed in time to affect the first frame of the video section which follows the **colorInfo** object. \
 &nbsp; \
@@ -1336,15 +1339,15 @@ Table: New name-value pair that can be set in the Command Object
 ¦      Property       ¦           Type            ¦                            Description                            ¦                    Example Value                     ¦
 +---------------------+---------------------------+-------------------------------------------------------------------+------------------------------------------------------+
 ¦fourCcList           ¦Strict Array of strings    ¦Used to declare the enhanced list of supported codecs when         ¦e.g., 1                                               ¦
-¦                     ¦                           ¦connecting to the server. The fourCcList property is a strict array¦[ ‘av01’, ‘vp09, ‘hvc1’,                              ¦
-¦                     ¦                           ¦of dense ordinal indices. Each entry in the array is of string     ¦  ‘Avc1’, ‘ac-3’, ‘ec-3’,                             ¦
-¦                     ¦                           ¦type, specifically a [FourCC] value (i.e., a string that is a      ¦  ‘Opus’, ‘.mp3’, ‘fLaC’,                             ¦
-¦                     ¦                           ¦sequence of four bytes), representing a supported audio/video      ¦  ‘Aac’ ]                                             ¦
+¦                     ¦                           ¦connecting to the server. The fourCcList property is a strict array¦[ "av01", "vp09", "hvc1",                             ¦
+¦                     ¦                           ¦of dense ordinal indices. Each entry in the array is of string     ¦  "Avc1", "ac-3", "ec-3",                             ¦
+¦                     ¦                           ¦type, specifically a [FourCC] value (i.e., a string that is a      ¦  "Opus", ".mp3", "fLaC",                             ¦
+¦                     ¦                           ¦sequence of four bytes), representing a supported audio/video      ¦  "Aac" ]                                             ¦
 ¦                     ¦                           ¦codec.                                                             ¦                                                      ¦
 ¦                     ¦                           ¦                                                                   ¦e.g., 2                                               ¦
 ¦                     ¦                           ¦In the context of E-RTMP, clients capable of receiving any codec   ¦[ * ]                                                 ¦
 ¦                     ¦                           ¦(e.g., recorders or forwarders) may set a FourCC value to the      ¦                                                      ¦
-¦                     ¦                           ¦wildcard value of '*'.                                             ¦                                                      ¦
+¦                     ¦                           ¦wildcard value of "*".                                             ¦                                                      ¦
 ¦                     ¦                           ¦                                                                   ¦                                                      ¦
 ¦                     ¦                           ¦Note: The fourCcList property was introduced in the original       ¦                                                      ¦
 ¦                     ¦                           ¦E-RTMP. Going forward, it is RECOMMENDED on the client side to     ¦                                                      ¦
@@ -1356,26 +1359,26 @@ Table: New name-value pair that can be set in the Command Object
 ¦videoFourCcInfoMap,  ¦Object                     ¦The [audio|video]FourCcInfoMap property is designed to enable      ¦e.g., 1                                               ¦
 ¦audioFourCcInfoMap   ¦                           ¦setting capability flags for each supported codec in the context of¦videoFourCcInfoMap = {                                ¦
 ¦                     ¦                           ¦E-RTMP streaming. A FourCC key is a four-character code used to    ¦  // can forward any video codec                      ¦
-¦                     ¦                           ¦specify a video or audio codec. The names of the object properties ¦  '*': FourCcInfoMask.CanForward,                     ¦
+¦                     ¦                           ¦specify a video or audio codec. The names of the object properties ¦  "*": FourCcInfoMask.CanForward,                     ¦
 ¦                     ¦                           ¦are strings that correspond to these FourCC keys. Each object      ¦                                                      ¦
-¦                     ¦                           ¦property holds a numeric value that represents a set of capability ¦  // can decode, encode, forward (see '*') VP9 codec  ¦
-¦                     ¦                           ¦flags. These flags can be combined using a Bitwise OR operation.   ¦  'vp09': FourCcInfoMask.CanDecode |                  ¦
+¦                     ¦                           ¦property holds a numeric value that represents a set of capability ¦  // can decode, encode, forward (see "*") VP9 codec  ¦
+¦                     ¦                           ¦flags. These flags can be combined using a Bitwise OR operation.   ¦  "vp09": FourCcInfoMask.CanDecode |                  ¦
 ¦                     ¦                           ¦                                                                   ¦          FourCcInfoMask.CanEncode,                   ¦
 ¦                     ¦                           ¦Refer to the enum FourCcInfoMask for the available flags:          ¦}                                                     ¦
 ¦                     ¦                           ¦                                                                   ¦                                                      ¦
 ¦                     ¦                           ¦enum FourCcInfoMask {                                              ¦e.g., 2                                               ¦
 ¦                     ¦                           ¦  CanDecode   = 0x01,                                              ¦audioFourCcInfoMap = {                                ¦
 ¦                     ¦                           ¦  CanEncode   = 0x02,                                              ¦  // can forward any audio codec                      ¦
-¦                     ¦                           ¦  CanForward  = 0x04,                                              ¦  '*': FourCcInfoMask.CanForward,                     ¦
+¦                     ¦                           ¦  CanForward  = 0x04,                                              ¦  "*": FourCcInfoMask.CanForward,                     ¦
 ¦                     ¦                           ¦}                                                                  ¦                                                      ¦
-¦                     ¦                           ¦                                                                   ¦  // can decode, encode, forward (see '*') Opus codec ¦
-¦                     ¦                           ¦Capability flags define specific functionalities, such as the      ¦  'Opus': FourCcInfoMask.CanDecode |                  ¦
+¦                     ¦                           ¦                                                                   ¦  // can decode, encode, forward (see "*") Opus codec ¦
+¦                     ¦                           ¦Capability flags define specific functionalities, such as the      ¦  "Opus": FourCcInfoMask.CanDecode |                  ¦
 ¦                     ¦                           ¦ability to decode, encode, or forward.                             ¦          FourCcInfoMask.CanEncode,                   ¦
 ¦                     ¦                           ¦                                                                   ¦}                                                     ¦
-¦                     ¦                           ¦A FourCC key set to the wildcard character '*' acts as a catch-all ¦                                                      ¦
+¦                     ¦                           ¦A FourCC key set to the wildcard character "*" acts as a catch-all ¦                                                      ¦
 ¦                     ¦                           ¦for any codec. When this wildcard key exists, it overrides the     ¦                                                      ¦
 ¦                     ¦                           ¦flags set on properties for specific codecs. For example, if the   ¦                                                      ¦
-¦                     ¦                           ¦flag for the '*' property is set to FourCcInfoMask.CanForward, all ¦                                                      ¦
+¦                     ¦                           ¦flag for the "*" property is set to FourCcInfoMask.CanForward, all ¦                                                      ¦
 ¦                     ¦                           ¦codecs will be forwarded regardless of individual flags set on     ¦                                                      ¦
 ¦                     ¦                           ¦their specific properties.                                         ¦                                                      ¦
 +---------------------+---------------------------+-------------------------------------------------------------------+------------------------------------------------------+
@@ -1506,7 +1509,7 @@ The revision history section of this document is maintained to provide a clear a
 
 - **Phase-Based Documentation:** Important changes made during each phase (alpha, beta, release) are documented in the revision history to keep readers informed of significant developments.
 - **Transition Between Phases:** When transitioning from one phase to another (e.g., from alpha to beta), we clear the document revision history. This practice helps keep the document uncluttered and focused on the relevant phase.
-- **Exclusion of Minor Changes:** Minor changes that are purely for wording clarification and do not involve adding new features or fixing bugs may be excluded from the revision history.
+- **Exclusion of Minor Changes:** Minor changes that are purely for wording clarification and do not involve adding new features or fixing bugs may be excluded from the revision history. Developers should prioritize ignoring formatting diffs when reviewing changes, as these do not affect logic or introduce new features. Focusing on substantive updates ensures efficient review and clear understanding of impactful modifications.
 - **Commit History in GitHub:** The document and its revision history are maintained in GitHub repository at <[https://github.com/veovera/enhanced-rtmp](https://github.com/veovera/enhanced-rtmp)>. Although the document revision history is cleared periodically, all commits and their messages are preserved in GitHub, ensuring a comprehensive record of all changes made.
 - **Version Changes:** When the version of the specification changes significantly (e.g., from v1 to v2), we again clear the revision history. Despite this, the full history of commits and their messages remains accessible in GitHub.
 
@@ -1538,12 +1541,10 @@ Table: Revision history
 +----------------------+----------------------------------------------------------------------------------------+
 ¦   v2-2024-05-24-a1   ¦ 1. Fixed a bug in pseudocode when parsing FLAC sequence header.                        ¦
 +----------------------+----------------------------------------------------------------------------------------+
-¦   v2-2024-05-28-a1   ¦ 1. Reworded 'audio silence' message format for more clarity.                           ¦
+¦   v2-2024-05-28-a1   ¦ 1. Reworded "audio silence" message format for more clarity.                           ¦
 +----------------------+----------------------------------------------------------------------------------------+
 ¦   v2-2024-05-29-a1   ¦ 1. Changed page layout to better support .pdf export. No actual spec changes.          ¦
 +----------------------+----------------------------------------------------------------------------------------+
 ¦      v2-...-a*       ¦ 1. See GitHub for revision history.                                                    ¦
 +----------------------+----------------------------------------------------------------------------------------+
 ```
-
-&nbsp;
