@@ -35,7 +35,7 @@
 
 **Author**: Slavik Lozben (Veovera Software Organization)(VSO) \
 **Contributors**: Adobe, Google, Twitch, Jean-Baptiste Kempf (FFmpeg, VideoLAN), pkv (OBS), Dennis Sädtler (OBS), Xavier Hallade (Intel Corporation), Luxoft, SplitmediaLabs Limited (XSplit), Craig Barberich (VSO), Michael Thornburgh \
-**Status**: **v2-2024-06-27-a1**
+**Status**: **v2-2024-06-28-a1**
 
 ## Documentation Versioning
 
@@ -249,8 +249,7 @@ Table: Simple data types
 +-------------------------------+-----------------------------------------------------------------+
 ```
 
-&nbsp; \
-Note: Unless specifically called out, multi-byte integers SHALL be stored in big-endian byte order
+>Note: Unless specifically called out, multi-byte integers SHALL be stored in big-endian byte order
 
 ## RTMP Message Format
 
@@ -283,8 +282,10 @@ The legacy RTMP specification in [Section 6.1](https://veovera.github.io/enhance
 
 ## An Overview of the FLV File Format
 
-[[FLV](#flv)] file is a container for AV (Audio and Video) data. The file consists of alternating back-pointers and tags, each accompanied by data related to that tag. Each TagType within a FLV file is unsigned and defined by 5 bits. AUDIODATA has a TagType of 8, and VIDEODATA has a TagType of 9. Note: These TagTypes map to the same values of **MessageType ID**, defined by UI8, in the legacy [[RTMP](#rtmp)] specification. This alignment is by design. \
-&nbsp; \
+[[FLV](#flv)] file is a container for AV (Audio and Video) data. The file consists of alternating back-pointers and tags, each accompanied by data related to that tag. Each TagType within a FLV file is unsigned and defined by 5 bits. AUDIODATA has a TagType of 8, and VIDEODATA has a TagType of 9.
+
+>Note: These TagTypes map to the same values of **MessageType ID**, defined by UI8, in the legacy [[RTMP](#rtmp)] specification. This alignment is by design.
+
 Tag Types of 8 or 9 are accompanied by an AudioTagHeader or VideoTagHeader. It's common to think of RTMP in conjunction with FLV. However, RTMP is a protocol, and [[FLV](#flv)] is a file container. This distinction is why they are originally defined in separate specifications. This enhancement spec aims to improve both RTMP and FLV.
 
 ### Pre 2023 AudioTagHeader Format
@@ -442,8 +443,7 @@ Table: Typical properties found in the **onMetaData** argument object
 +--------------------+-------------------------------+-------------------------------------------------------------------------------+
 ```
 
-&nbsp; \
-Note: The properties **audiocodecid** and **videocodecid** have been enhanced to support FOURCC (Four-byte ASCII code) values. These values are interpreted as UI32 (e.g., "av01").
+>Note: The properties **audiocodecid** and **videocodecid** have been enhanced to support FOURCC (Four-byte ASCII code) values. These values are interpreted as UI32 (e.g., "av01").
 
 ## Reconnect Request
 
@@ -589,10 +589,10 @@ Table: **code**, **level** and **description** values for **infoObject** used by
 
 The AudioTagHeader has been extended to define additional audio codecs, multichannel audio, multitrack capabilities, signaling support, and additional miscellaneous enhancements, while ensuring backward compatibility. This extension is termed the ExAudioTagHeader and is designed to be future-proof, allowing for the definition of additional audio codecs, features, and corresponding signaling. \
 &nbsp; \
-During the parsing process, the logic MUST handle unexpected or unknown elements gracefully. Specifically, if any critical signaling or flags (e.g., AudioPacketType and AudioFourCc) are not recognized, the system MUST fail in a controlled and predictable manner. \
-&nbsp; \
-IMPORTANT: A single audio message for a unique timestamp may include a batch of AudioPacketType values (e.g., multiple TrackId values). When parsing an audio message, the bitstream MUST be processed completely to ensure all payload data has been handled. \
-&nbsp; \
+During the parsing process, the logic MUST handle unexpected or unknown elements gracefully. Specifically, if any critical signaling or flags (e.g., AudioPacketType and AudioFourCc) are not recognized, the system MUST fail in a controlled and predictable manner.
+
+>IMPORTANT: A single audio message for a unique timestamp may include a batch of AudioPacketType values (e.g., multiple TrackId values). When parsing an audio message, the bitstream MUST be processed completely to ensure all payload data has been handled.
+
 Table: Extended AudioTagHeader
 
 ```txt
@@ -744,7 +744,7 @@ Table: Extended AudioTagHeader
 ¦    // interpretations, including but not limited to bitrate,                       ¦  Custom      = 2                                                                   ¦
 ¦    // resolution, default angle, and language. This recommendation                 ¦}                                                                                   ¦
 ¦    // serves as a guideline intended to standardize track numbering                ¦                                                                                    ¦
-¦    // across various applications.                                                 ¦num AudioChannelMask {                                                              ¦
+¦    // across various applications.                                                 ¦enum AudioChannelMask {                                                             ¦
 ¦    audioTrackId = UI8                                                              ¦  //                                                                                ¦
 ¦                                                                                    ¦  // Mask used to indicate which channels are present in the stream.                ¦
 ¦    if (audioMultitrackType != AvMultitrackType.OneTrack) {                         ¦  //                                                                                ¦
@@ -894,10 +894,10 @@ Table: Extended AudioTagHeader
 
 The VideoTagHeader has been extended to define additional video codecs, multitrack capabilities, signaling support, and additional miscellaneous enhancements, while ensuring backward compatibility. This extension is termed the ExVideoTagHeader and is designed to be future-proof, allowing for the definition of additional video codecs, features, and corresponding signaling. \
 &nbsp; \
-During the parsing process, the logic MUST handle unexpected or unknown elements gracefully. Specifically, if any critical signaling or flags (e.g., VideoFrameType, VideoPacketType, or VideoFourCc) are not recognized, the system MUST fail in a controlled and predictable manner. \
-&nbsp; \
-IMPORTANT: A single video message for a unique timestamp may include a batch of VideoPacketType values (e.g., multiple TrackId values, Metadata values). When parsing a video message, the bitstream MUST be processed completely to ensure all payload data has been handled. \
-&nbsp; \
+During the parsing process, the logic MUST handle unexpected or unknown elements gracefully. Specifically, if any critical signaling or flags (e.g., VideoFrameType, VideoPacketType, or VideoFourCc) are not recognized, the system MUST fail in a controlled and predictable manner.
+
+>IMPORTANT: A single video message for a unique timestamp may include a batch of VideoPacketType values (e.g., multiple TrackId values, Metadata values). When parsing a video message, the bitstream MUST be processed completely to ensure all payload data has been handled.
+
 Table: Extended VideoTagHeader
 
 ```txt
@@ -1188,12 +1188,12 @@ To support various types of video metadata, the legacy [[FLV](#flv)] specificati
 &nbsp; \
 It is intentional to leverage a video message to deliver PacketTypeMetadata instead of other [[RTMP](#rtmp)] Message types. One benefit of leveraging a video message is to avoid any racing conditions between video messages and other RTMP message types. Given this, once your **colorInfo** object is parsed, the read values MUST be processed in time to affect the first frame of the video section which follows the **colorInfo** object. \
 &nbsp; \
-The **colorInfo** object provides HDR metadata to enable a higher quality image source conforming to BT.2020 (a.k.a., Rec. 2020) standard. The properties of the **colorInfo** object, which are encoded in an AMF message format, are defined below. \
-&nbsp; \
-Note:
+The **colorInfo** object provides HDR metadata to enable a higher quality image source conforming to BT.2020 (a.k.a., Rec. 2020) standard. The properties of the **colorInfo** object, which are encoded in an AMF message format, are defined below.
 
-- For content creators: Whenever it behooves to add video hint information via metadata (ex. HDR) to the FLV container it is RECOMMENDED to add it via VideoPacketType.Metadata. This may be done in addition (or instead) to encoding the metadata directly into the codec bitstream.
-- The object encoding format (i.e., AMF0 or AMF3) is signaled during the [connect](https://veovera.github.io/enhanced-rtmp/original-rtmp-related-specs/rtmp-v1-0-spec.pdf#page=29) command.
+>Note:
+>
+>- For content creators: Whenever it behooves to add video hint information via metadata (ex. HDR) to the FLV container it is RECOMMENDED to add it via VideoPacketType.Metadata. This may be done in addition (or instead) to encoding the metadata directly into the codec bitstream.
+>- The object encoding format (i.e., AMF0 or AMF3) is signaled during the [connect](https://veovera.github.io/enhanced-rtmp/original-rtmp-related-specs/rtmp-v1-0-spec.pdf#page=29) command.
 
 ```js
 type ColorInfo = {
