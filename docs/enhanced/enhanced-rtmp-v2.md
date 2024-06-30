@@ -35,7 +35,7 @@
 
 **Author**: Slavik Lozben (Veovera Software Organization)(VSO) \
 **Contributors**: Adobe, Google, Twitch, Jean-Baptiste Kempf (FFmpeg, VideoLAN), pkv (OBS), Dennis Sädtler (OBS), Xavier Hallade (Intel Corporation), Luxoft, SplitmediaLabs Limited (XSplit), Craig Barberich (VSO), Michael Thornburgh \
-**Status**: **v2-2024-06-28-a1**
+**Status**: **v2-2024-06-30-a1**
 
 ## Documentation Versioning
 
@@ -137,22 +137,22 @@ This document employs certain conventions to convey particular meanings and requ
 
 - **Enhanced RTMP:** refers to a series of improvements made to the legacy Real-Time Messaging Protocol (RTMP), originally developed by Adobe. It's important to note that **enhanced RTMP** is not a brand name but a term used to distinguish this advanced version from the legacy [[RTMP](#rtmp)] specification. Endorsed by Adobe and widely adopted across the industry, enhanced RTMP serves as the current standard for RTMP solutions. This updated protocol includes various enhancements to both RTMP and the [[FLV](#flv)] format. Please be aware that the term **enhanced RTMP** (a.k.a., **E-RTMP**) signifies ongoing updates to RTMP and FLV, and does not pertain to any specific iteration or release.
 - **Pseudocode:** Pseudocode has been provided to convey logic on how to interpret the E-RTMP or FLV binary format. The code style imitates a cross between TypeScript and C. The pseudocode was written in TypeScript and validated using VSCode to ensure correct syntax and catch any minor typographical errors. Below are some further explanations: \
-&nbsp;
+  &nbsp;
   - Enumerations are used to define valid values
   - Pseudo variables are named in a self-descriptive manner. For instance: \
- \
-**videoCommand = UI8 as VideoCommand** \
- \
-The line above indicates that an unsigned 8-bit value is read from the bitstream. The legal values correspond to the enumerations within the **VideoCommand** set, and the pseudo variable **videoCommand** now holds that value.
+     \
+    **videoCommand = UI8 as VideoCommand** \
+     \
+    The line above indicates that an unsigned 8-bit value is read from the bitstream. The legal values correspond to the enumerations within the **VideoCommand** set, and the pseudo variable **videoCommand** now holds that value.
   - The pseudocode is written from the point of view of reading (a.k.a., parsing) the bitstream. If you are writing the bitstream, you can swap source with destination variables.
   - E-RTMP typically employs camelCase naming conventions for variables. In contrast, the naming convention for legacy RTMP specification is usually preserved as is.
   - Handshake and [Enhancing NetConnection **connect** command](#enhancing-netconnection-connect-command): The E-RTMP specification generally prioritizes the client's perspective over that of the server. To shift this focus and view the interaction from the server's side, the server should echo back certain enhancement information. \
- \
-When the client informs the server of the enhancements it supports via the **connect** command, the server processes this command and responds using the same transaction ID. The server's response string will be one of the following: **\_result**, **\_error**, or a specific method name. A command string of **\_result** or **\_error** indicates a response rather than a new command. \
- \
-During this response, the server will include an object containing specific properties as one of the arguments to **\_result**. It is at this point that the server should indicate its support for E-RTMP features. Specifically, the server should denote its capabilities through attributes such as **videoFourCcInfoMap**, **capsEx**, and other defined properties.
+     \
+    When the client informs the server of the enhancements it supports via the **connect** command, the server processes this command and responds using the same transaction ID. The server's response string will be one of the following: **\_result**, **\_error**, or a specific method name. A command string of **\_result** or **\_error** indicates a response rather than a new command. \
+     \
+    During this response, the server will include an object containing specific properties as one of the arguments to **\_result**. It is at this point that the server should indicate its support for E-RTMP features. Specifically, the server should denote its capabilities through attributes such as **videoFourCcInfoMap**, **capsEx**, and other defined properties.
   - The ethos of this pseudocode is to provide a high-level overview of the data structures and operations taking place on the wire. While it accurately represents the bytes being transmitted, it's important to note that the logic is not exhaustive. Specifically, this pseudocode does not cover all possible cases, nor does it always include items such as initialization logic, looping logic or error-handling mechanisms. It serves as a foundational guide that can be implemented in various ways, depending on specific needs and constraints. \
-&nbsp;
+    &nbsp;
 - **Unrecognized value**: If a value in the bitstream is not understood, the logic must fail gracefully in a manner appropriate for the implementation.
 - **Table naming**: Each table in the document is named according to the specific content or subject it is describing.
 - **Bitstream optimization**: One of the guiding principles of E-RTMP is to optimize the number of bytes transmitted over the wire. While minimizing payload overhead is a priority, it is sometimes more important to simplify the logic or enhance extensibility. For example, although more optimal methods for creating a codec ID than using FOURCC may exist, such approaches could render the enhancement non-standard and more challenging to extend and maintain in the future.
@@ -161,6 +161,28 @@ During this response, the server will include an object containing specific prop
 - **Default values**: Unless explicitly called out, there should be no assumptions made regarding default values, such as null or undefined.
 - **Legacy vs. Enhanced Properties**: In the documentation, an effort has been made to distinguish between legacy properties and newly defined ones through color coding, such as using bold text or different background colors for enhancements. While this color coding is not guaranteed to be consistent, the distinctions between values defined in E-RTMP should be readily apparent.
 - **Capability flags:** The capabilities flags, exchanged during a connect handshake, may not cover all possible functionalities. For instance, a client might indicate support for multitrack processing without specifying its ability to encode or decode multitrack streams. In scenarios where a client, capable of issuing a play command, declares multitrack support, it MUST be equipped to handle the playback of such streams. Similarly, if a client is aware of the server's multitrack capabilities, it MAY opt to publish a multitrack stream.
+- **Quotation Marks Guidelines:** The conventions for using double quotes (") and back quotes (`) in this document to ensure clarity and consistency are:
+
+  - **Double quotes** are used for:
+    - **Direct Quotations:** Quoting speech or text from other sources. \
+      **E.g.,** The researcher stated, "The results are preliminary but promising."
+    - **Titles and Special Terms:** Highlighting titles of works, specific technical terms, or specific phrases. \
+      **E.g.,** "Adobe Flash Video File Format Specification, Version 10.1", August 2010.
+    - **Longer Phrases:** Quoting longer phrases or sentences within the text. \
+      **E.g.,** The project manager explained, "The next phase of the project will involve comprehensive testing and validation to ensure all components are functioning as expected."
+    - **Emphasizing Terms:** Highlighting specific terms, jargon, or phrases within a sentence. \
+      **E.g.,** The terms "REQUIRED" or "SHALL", means that the definition is an absolute requirement of the specification.
+    - **Inline Quotes:** Quoting short phrases or single words within a sentence to draw attention. \
+      **E.g.,** RTMP includes a previously undocumented "audio silence" message
+    - **Nested Quotes:** When you need to include a quote within another quote. \
+      **E.g.,** She said, "It's important to understand 'quantum mechanics' to advance in this field."
+  - **Back quotes are used for:**
+    - **Inline Code and Commands:** Highlighting inline code snippets, commands, and special syntax within documentation. \
+      **E.g.,** Use the `ls -la` command to list all files in the directory.
+    - **Denoting Values:** Clearly distinguishing values, variables, or parameters within the text. \
+      **E.g.,** The `sizeOfAudioTrack` specifies the size in bytes of the current track that is being processed. \
+       \
+      When using back quotes in Markdown, the enclosed text will be formatted as inline code. This is particularly useful for highlighting code snippets, commands, and values. The back quotes ensure that the text within them stands out from the regular content.
 
 ## Contextualizing Enhancements
 
