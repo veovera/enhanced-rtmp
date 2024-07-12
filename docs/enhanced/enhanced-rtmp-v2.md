@@ -13,10 +13,9 @@
 - [Abstract](#abstract)
 - [Introduction](#introduction)
 - [Conventions](#conventions)
-- [Contextualizing Enhancements](#contextualizing-enhancements)
 - [Simple Data Types](#simple-data-types)
 - [RTMP Message Format](#rtmp-message-format)
-- [An Overview of the FLV File Format](#an-overview-of-the-flv-file-format)
+- [FLV File Format Overview](#flv-file-format-overview)
 - [Enhancements to RTMP and FLV](#enhancements-to-rtmp-and-flv)
 - [Enhancing onMetaData](#enhancing-onmetadata)
 - [Reconnect Request](#reconnect-request)
@@ -35,7 +34,7 @@
 
 **Author**: Slavik Lozben (Veovera Software Organization)(VSO) \
 **Contributors**: Adobe, Google, Twitch, Jean-Baptiste Kempf (FFmpeg, VideoLAN), pkv (OBS), Dennis Sädtler (OBS), Xavier Hallade (Intel Corporation), Luxoft, SplitmediaLabs Limited (XSplit), Craig Barberich (VSO), Michael Thornburgh \
-**Status**: **v2-2024-06-30-a1**
+**Status**: **v2-2024-07-12-a1**
 
 ## Documentation Versioning
 
@@ -71,7 +70,7 @@ This format provides a comprehensive overview of each version's status and chron
 
 ## Alpha Version Disclaimer for Enhanced RTMP v\*
 
-This document details an "alpha version" of the Enhanced Real-Time Messaging Protocol (a.k.a., E-RTMP) specification, version "\*". As we continue to refine and enhance the protocol, we remain open to implementing necessary updates based on user feedback and further testing. While there is a possibility of introducing breaking changes during the alpha stage, we are committed to maintaining the integrity of the General Availability (GA) versions and strive to ensure they remain free from breaking changes. \
+This document details an alpha version of the enhanced Real-Time Messaging Protocol (a.k.a., E-RTMP) specification, version "\*". As we continue to refine and enhance the protocol, we remain open to implementing necessary updates based on user feedback and further testing. While there is a possibility of introducing breaking changes during the alpha stage, we are committed to maintaining the integrity of the General Availability (GA) versions and strive to ensure they remain free from breaking changes. \
 &nbsp; \
 We encourage developers, implementers, and stakeholders to actively participate in this development phase. Your feedback, whether it be bug reports, feature suggestions, or usability improvements, is invaluable and can be submitted via new issues in our GitHub repository at <[https://github.com/veovera/enhanced-rtmp](https://github.com/veovera/enhanced-rtmp)>. We are committed to transparently communicating updates and changes, ensuring that all stakeholders are informed and involved. \
 &nbsp; \
@@ -97,100 +96,33 @@ limitations under the License.
 
 The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in [BCP 14](https://datatracker.ietf.org/doc/html/bcp14) [[RFC2119](#rfc2119)] [[RFC8174](#rfc8174)] when, and only when, they appear in all capitals, as shown here. Definitions below are reproduced from [[RFC2119](#rfc2119)].
 
-- **MUST** - This word, or the terms "REQUIRED" or "SHALL", means that the definition is an absolute requirement of the specification.
-- **MUST NOT** - This phrase, or the phrase "SHALL NOT", means that the definition is an absolute prohibition of the specification.
-- **SHOULD** - This word, or the adjective "RECOMMENDED", means that there may exist valid reasons in particular circumstances to ignore a particular item, but the full implications must be understood and carefully weighed before choosing a different course.
-- **SHOULD NOT** - This phrase, or the phrase "NOT RECOMMENDED", means that there may exist valid reasons in particular circumstances when the particular behavior is acceptable or even useful, but the full implications should be understood and the case carefully weighed before implementing any behavior described with this label.
-- **MAY** - This word, or the adjective "OPTIONAL", means that an item is truly optional. One vendor may choose to include the item because a particular marketplace requires it or because the vendor feels that it enhances the product while another vendor may omit the same item. An implementation which does not include a particular option MUST be prepared to interoperate with another implementation which does include the option, though perhaps with reduced functionality. In the same vein an implementation which does include a particular option MUST be prepared to interoperate with another implementation which does not include the option (except, of course, for the feature the option provides.)
+- **MUST**: This word, or the terms "REQUIRED" or "SHALL", means that the definition is an absolute requirement of the specification.
+- **MUST NOT**: This phrase, or the phrase "SHALL NOT", means that the definition is an absolute prohibition of the specification.
+- **SHOULD**: This word, or the adjective "RECOMMENDED", means that there may exist valid reasons in particular circumstances to ignore a particular item, but the full implications must be understood and carefully weighed before choosing a different course.
+- **SHOULD NOT**: This phrase, or the phrase "NOT RECOMMENDED", means that there may exist valid reasons in particular circumstances when the particular behavior is acceptable or even useful, but the full implications should be understood and the case carefully weighed before implementing any behavior described with this label.
+- **MAY**: This word, or the adjective "OPTIONAL", means that an item is truly optional. One vendor may choose to include the item because a particular marketplace requires it or because the vendor feels that it enhances the product while another vendor may omit the same item. An implementation which does not include a particular option MUST be prepared to interoperate with another implementation which does include the option, though perhaps with reduced functionality. In the same vein an implementation which does include a particular option MUST be prepared to interoperate with another implementation which does not include the option (except, of course, for the feature the option provides.)
 
 Additionally we add the keyword [[DEPRECATED](#deprecated)] to the set of keywords above.
 
-- **DEPRECATED** - This word means a discouragement of use of some terminology, feature, design, or practice, typically because it has been superseded or is no longer considered efficient or safe, without completely removing it or prohibiting its use. Typically, deprecated materials are not completely removed to ensure legacy compatibility or back-up practice in case new methods are not functional in an odd scenario. It can also imply that a feature, design, or practice will be removed or discontinued entirely in the future.
+- **DEPRECATED**: This word means a discouragement of use of some terminology, feature, design, or practice, typically because it has been superseded or is no longer considered efficient or safe, without completely removing it or prohibiting its use. Typically, deprecated materials are not completely removed to ensure legacy compatibility or back-up practice in case new methods are not functional in an odd scenario. It can also imply that a feature, design, or practice will be removed or discontinued entirely in the future.
 
 ## Abstract
 
-In the rapidly evolving media streaming landscape, there is a pressing need to update legacy protocols to align with modern technological standards. The Real-Time Messaging Protocol [[RTMP](#rtmp)] and Flash Video [[FLV](#flv)] file format, introduced in 2002, have been pivotal and continue to be vital especially in live broadcasting. Despite RTMP widespread use, it has shown signs of aging, particularly in the lack of support for contemporary video codecs (VP8, VP9, HEVC, AV1) and audio codecs (Opus, FLAC, AC-3, E-AC-3). Recognizing this, Veovera Software Organization (VSO), in collaboration with industry giants like Adobe, YouTube, and Twitch, and other key stakeholders, has embarked on a mission to rejuvenate RTMP, ensuring it meets the demands of contemporary streaming needs. \
+In the rapidly evolving media streaming landscape, there is a pressing need to update legacy protocols to align with modern technological standards. The Real-Time Messaging Protocol [[RTMP](#rtmp)] and Flash Video [[FLV](#flv)] file format, introduced in 2002, have been pivotal and continue to be vital especially in live broadcasting. Despite RTMP widespread use, it has shown signs of aging, particularly in the lack of support for contemporary video codecs (e.g., VP8, VP9, HEVC, AV1) and audio codecs (Opus, FLAC, AC-3, E-AC-3). Recognizing this, Veovera Software Organization (VSO), in collaboration with industry giants like Adobe, YouTube, and Twitch, and other key stakeholders, has embarked on a mission to rejuvenate RTMP, ensuring it meets the demands of contemporary streaming needs. \
 &nbsp; \
 This document details the comprehensive enhancements made to the RTMP and FLV specifications, aimed at revitalizing the technology for current and future media demands. Our strategic approach prioritizes innovation while maintaining backward compatibility, thereby augmenting RTMP's utility without undermining existing infrastructures. Some of the key advancements include:
 
-- **Advanced Audio Codecs:** Integration of codecs like AC-3, E-AC-3, Opus, and FLAC to meet diverse audio quality and compression needs, ensuring compatibility with modern systems.
-- **Multichannel Audio Configurations:** Support for multichannel audio to enhance auditory experiences without compromising existing setups.
-- **Advanced Video Codecs:** Introduction of codecs such as VP8, VP9, HEVC, and AV1 with HDR support to meet modern display and content standards.
-- **Video Metadata:** Expansion of VideoPacketType.Metadata to support a broader range of video metadata types.
-- **FourCC Signaling:** Inclusion of FourCC signaling for advanced codecs mentioned above, as well as for legacy codecs such as AVC, AAC, and MP3.
-- **Multitrack Capabilities:** New audio and video multitrack capabilities for concurrent management and processing of multiple media streams, enhancing media experiences.
-- **Reconnect Request Feature:** A new Reconnect Request feature improves connection stability and resilience.
+- **Advanced Audio Codecs**: Integration of codecs like AC-3, E-AC-3, Opus, and FLAC to meet diverse audio quality and compression needs, ensuring compatibility with modern systems.
+- **Multichannel Audio Configurations**: Support for multichannel audio to enhance auditory experiences without compromising existing setups.
+- **Advanced Video Codecs**: Introduction of codecs such as VP8, VP9, HEVC and AV1 with HDR support to meet modern display and content standards.
+- **Video Metadata**: Expansion of **VideoPacketType.Metadata** to support a broader range of video metadata types.
+- **FourCC Signaling**: Inclusion of FourCC signaling for advanced codecs mentioned above, as well as for legacy codecs such as AVC, AAC, and MP3.
+- **Multitrack Capabilities**: New audio and video multitrack capabilities for concurrent management and processing of multiple media streams, enhancing media experiences.
+- **Reconnect Request Feature**: A new Reconnect Request feature improves connection stability and resilience.
 
-These strategic enhancements position RTMP as a robust, future-proof standard in the streaming technology arena. Veovera is committed to open collaboration and values community input. We encourage participation in the ongoing development process through our [GitHub repository](https://github.com/veovera/enhanced-rtmp), where you can access detailed documentation, contribute to the project, and share insights, fostering a vibrant ecosystem around enhanced E-RTMP.
-
-## Introduction
-
-This document describes enhancements to legacy [[RTMP](#rtmp)] and legacy [[FLV](#flv)], introducing support for new media codecs, HDR capability, and more. A primary objective is to ensure these enhancements do not introduce breaking changes for established clients or the content they stream. As such, legacy RTMP and legacy FLV specifications remain integral to the RTMP ecosystem. While this updated specification aims to minimize redundancy with previous versions, when combined with previous-generation documentation, it provides a comprehensive overview of the RTMP solution. We've drawn from several legacy references, which are as follows:
-
-- Adobe Legacy [[RTMP](#rtmp)] Specification
-- Adobe Legacy [[FLV](#flv)] Specification
-- Additional [[LEGACY](#legacy)] Specifications
-
-## Conventions
-
-This document employs certain conventions to convey particular meanings and requirements. The following section outlines the notation, terminology, and symbols used throughout to ensure clarity and consistency. These conventions provide insight into the ethos of how the E-RTMP specification has been crafted and should be interpreted.
-
-- **Enhanced RTMP:** refers to a series of improvements made to the legacy Real-Time Messaging Protocol (RTMP), originally developed by Adobe. It's important to note that **enhanced RTMP** is not a brand name but a term used to distinguish this advanced version from the legacy [[RTMP](#rtmp)] specification. Endorsed by Adobe and widely adopted across the industry, enhanced RTMP serves as the current standard for RTMP solutions. This updated protocol includes various enhancements to both RTMP and the [[FLV](#flv)] format. Please be aware that the term **enhanced RTMP** (a.k.a., **E-RTMP**) signifies ongoing updates to RTMP and FLV, and does not pertain to any specific iteration or release.
-- **Pseudocode:** Pseudocode has been provided to convey logic on how to interpret the E-RTMP or FLV binary format. The code style imitates a cross between TypeScript and C. The pseudocode was written in TypeScript and validated using VSCode to ensure correct syntax and catch any minor typographical errors. Below are some further explanations: \
-  &nbsp;
-  - Enumerations are used to define valid values
-  - Pseudo variables are named in a self-descriptive manner. For instance: \
-     \
-    **videoCommand = UI8 as VideoCommand** \
-     \
-    The line above indicates that an unsigned 8-bit value is read from the bitstream. The legal values correspond to the enumerations within the **VideoCommand** set, and the pseudo variable **videoCommand** now holds that value.
-  - The pseudocode is written from the point of view of reading (a.k.a., parsing) the bitstream. If you are writing the bitstream, you can swap source with destination variables.
-  - E-RTMP typically employs camelCase naming conventions for variables. In contrast, the naming convention for legacy RTMP specification is usually preserved as is.
-  - Handshake and [Enhancing NetConnection **connect** command](#enhancing-netconnection-connect-command): The E-RTMP specification generally prioritizes the client's perspective over that of the server. To shift this focus and view the interaction from the server's side, the server should echo back certain enhancement information. \
-     \
-    When the client informs the server of the enhancements it supports via the **connect** command, the server processes this command and responds using the same transaction ID. The server's response string will be one of the following: **\_result**, **\_error**, or a specific method name. A command string of **\_result** or **\_error** indicates a response rather than a new command. \
-     \
-    During this response, the server will include an object containing specific properties as one of the arguments to **\_result**. It is at this point that the server should indicate its support for E-RTMP features. Specifically, the server should denote its capabilities through attributes such as **videoFourCcInfoMap**, **capsEx**, and other defined properties.
-  - The ethos of this pseudocode is to provide a high-level overview of the data structures and operations taking place on the wire. While it accurately represents the bytes being transmitted, it's important to note that the logic is not exhaustive. Specifically, this pseudocode does not cover all possible cases, nor does it always include items such as initialization logic, looping logic or error-handling mechanisms. It serves as a foundational guide that can be implemented in various ways, depending on specific needs and constraints. \
-    &nbsp;
-- **Unrecognized value**: If a value in the bitstream is not understood, the logic must fail gracefully in a manner appropriate for the implementation.
-- **Table naming**: Each table in the document is named according to the specific content or subject it is describing.
-- **Bitstream optimization**: One of the guiding principles of E-RTMP is to optimize the number of bytes transmitted over the wire. While minimizing payload overhead is a priority, it is sometimes more important to simplify the logic or enhance extensibility. For example, although more optimal methods for creating a codec ID than using FOURCC may exist, such approaches could render the enhancement non-standard and more challenging to extend and maintain in the future.
-- **Capitalization rules**: Another guiding principle in the E-RTMP is the standardization of capitalization for types. The original documentation capitalized types such as Number, String, and Boolean, and even included various other spellings. The E-RTMP adopts lowercase spelling for terms, such as number, string, and boolean. This change emphasizes that these types are simple, not objects.
-- **ECMA Array vs Object:** In the world of AMF (Action Message Format), both ECMA Array and Object are used to store collections of properties. A property is simply a pairing of a name with a value. In enhanced RTMP, the term **Object** is specifically used to indicate the Object Type. In the past, people have sometimes used **ECMA Array** and **Object** as if they were the same thing. However, for better coding practices, it's recommended to use **Object** when you're creating AMF data. When you're reading or decoding AMF data, you should be prepared to handle either **ECMA Array** or **Object** for greater flexibility and robustness.
-- **Default values**: Unless explicitly called out, there should be no assumptions made regarding default values, such as null or undefined.
-- **Legacy vs. Enhanced Properties**: In the documentation, an effort has been made to distinguish between legacy properties and newly defined ones through color coding, such as using bold text or different background colors for enhancements. While this color coding is not guaranteed to be consistent, the distinctions between values defined in E-RTMP should be readily apparent.
-- **Capability flags:** The capabilities flags, exchanged during a connect handshake, may not cover all possible functionalities. For instance, a client might indicate support for multitrack processing without specifying its ability to encode or decode multitrack streams. In scenarios where a client, capable of issuing a play command, declares multitrack support, it MUST be equipped to handle the playback of such streams. Similarly, if a client is aware of the server's multitrack capabilities, it MAY opt to publish a multitrack stream.
-- **Quotation Marks Guidelines:** The conventions for using double quotes (") and back quotes (`) in this document to ensure clarity and consistency are:
-
-  - **Double quotes** are used for:
-    - **Direct Quotations:** Quoting speech or text from other sources. \
-      **E.g.,** The researcher stated, "The results are preliminary but promising."
-    - **Titles and Special Terms:** Highlighting titles of works, specific technical terms, or specific phrases. \
-      **E.g.,** "Adobe Flash Video File Format Specification, Version 10.1", August 2010.
-    - **Longer Phrases:** Quoting longer phrases or sentences within the text. \
-      **E.g.,** The project manager explained, "The next phase of the project will involve comprehensive testing and validation to ensure all components are functioning as expected."
-    - **Emphasizing Terms:** Highlighting specific terms, jargon, or phrases within a sentence. \
-      **E.g.,** The terms "REQUIRED" or "SHALL", means that the definition is an absolute requirement of the specification.
-    - **Inline Quotes:** Quoting short phrases or single words within a sentence to draw attention. \
-      **E.g.,** RTMP includes a previously undocumented "audio silence" message
-    - **Nested Quotes:** When you need to include a quote within another quote. \
-      **E.g.,** She said, "It's important to understand 'quantum mechanics' to advance in this field."
-  - **Back quotes are used for:**
-    - **Inline Code and Commands:** Highlighting inline code snippets, commands, and special syntax within documentation. \
-      **E.g.,** Use the `ls -la` command to list all files in the directory.
-    - **Denoting Values:** Clearly distinguishing values, variables, or parameters within the text. \
-      **E.g.,** The `sizeOfAudioTrack` specifies the size in bytes of the current track that is being processed. \
-       \
-      When using back quotes in Markdown, the enclosed text will be formatted as inline code. This is particularly useful for highlighting code snippets, commands, and values. The back quotes ensure that the text within them stands out from the regular content.
-
-## Contextualizing Enhancements
-
-In the following section, we'll outline key enhancements. The aim is to give readers a clear snapshot of the E-RTMP objectives and intentions before diving into the rest of the detailed specifications.
-
-- Newly introduced codecs
-
-Table: Additional codecs for E-RTMP
+The additional audio and video codecs supported by enhanced RTMP are summarized in the following table: \
+&nbsp; \
+**Table**: Additional audio and video codecs for E-RTMP
 
 ```txt
 +----------------------------------------------+------------------------------------------------------------+
@@ -224,17 +156,58 @@ Table: Additional codecs for E-RTMP
 +----------------------------------------------+------------------------------------------------------------+
 ```
 
-- HDR - to accommodate new video codecs and cater to the existing spectrum of displays
-- VideoPacketType.Metadata - to accommodate diverse video metadata types
-- Multichannel configuration - to specify the number of channels and their sequence
-- Multitrack - to provide the ability to manage or process multiple audio or video tracks
-- and more…
+&nbsp; \
+These strategic enhancements position RTMP as a robust, future-proof standard in the streaming technology arena. Veovera is committed to open collaboration and values community input. We encourage participation in the ongoing development process through our [GitHub repository](https://github.com/veovera/enhanced-rtmp), where you can access detailed documentation, contribute to the project, and share insights, fostering a vibrant ecosystem around enhanced E-RTMP.
+
+## Introduction
+
+This document describes enhancements to legacy [[RTMP](#rtmp)] and legacy [[FLV](#flv)], introducing support for new media codecs, HDR capability, and more. A primary objective is to ensure these enhancements do not introduce breaking changes for established clients or the content they stream. As such, legacy RTMP and legacy FLV specifications remain integral to the RTMP ecosystem. While this updated specification aims to minimize redundancy with previous versions, when combined with previous-generation documentation, it provides a comprehensive overview of the RTMP solution. We've drawn from several legacy references, which are as follows:
+
+- Adobe legacy [[RTMP](#rtmp)] specification
+- Adobe legacy [[FLV](#flv)] specification
+- Additional [[LEGACY](#legacy)] specifications
+
+## Conventions
+
+This document employs certain conventions to convey particular meanings and requirements. The following section outlines the notation, terminology, and symbols used throughout to ensure clarity and consistency. These conventions provide insight into the ethos of how the E-RTMP specification has been crafted and should be interpreted.
+
+- **Enhanced RTMP**: refers to a series of improvements made to the legacy Real-Time Messaging Protocol [[RTMP](#rtmp)], originally developed by Adobe. It's important to note that "enhanced RTMP" is not a brand name but a term used to distinguish this advanced version from the legacy RTMP specification. Endorsed by Adobe and widely adopted across the industry, enhanced RTMP serves as the current standard for RTMP solutions. This updated protocol includes various enhancements to both legacy RTMP and the legacy [[FLV](#flv)] formats. Please be aware that the term "enhanced RTMP" (a.k.a., E-RTMP) signifies ongoing updates to RTMP and FLV, and does not pertain to any specific iteration or release.
+- **Pseudocode**: Pseudocode has been provided to convey logic on how to interpret the E-RTMP binary format. The code style imitates a cross between TypeScript and C. The pseudocode was written in TypeScript and validated using VSCode to ensure correct syntax and catch any minor typographical errors. Below are some further explanations:
+
+  - Enumerations are used to define valid values
+  - Pseudo variables are named in a self-descriptive manner. For instance: \
+     \
+    **`videoCommand = UI8 as VideoCommand`** \
+     \
+    The line above indicates that an unsigned 8-bit value is read from the bitstream. The legal values correspond to the enumerations within the **VideoCommand** set, and the pseudo variable **videoCommand** now holds that value.
+  - The pseudocode is written from the point of view of reading (a.k.a., parsing) the bitstream. If you are writing the bitstream, you can swap source with destination variables.
+  - E-RTMP typically employs camelCase naming conventions for variables. In contrast, the naming convention for legacy RTMP specification is usually preserved as is.
+  - Handshake and [Enhancing NetConnection **connect** command](#enhancing-netconnection-connect-command): The E-RTMP specification generally prioritizes the client's perspective over that of the server. To shift this focus and view the interaction from the server's side, the server should echo back certain enhancement information. \
+     \
+    When the client informs the server of the enhancements it supports via the **connect** command, the server processes this command and responds using the same transaction ID. The server's response string will be one of the following: **\_result**, **\_error**, or a specific method name. A command string of **\_result** or **\_error** indicates a response rather than a new command. \
+     \
+    During this response, the server will include an object containing specific properties as one of the arguments to **\_result**. It is at this point that the server should indicate its support for E-RTMP features. Specifically, the server should denote its capabilities through attributes such as **videoFourCcInfoMap**, **capsEx**, and other defined properties.
+  - The ethos of this pseudocode is to provide a high-level overview of the data structures and operations taking place on the wire. While it accurately represents the bytes being transmitted, it's important to note that the logic is not exhaustive. Specifically, this pseudocode does not cover all possible cases, nor does it always include items such as initialization logic, looping logic or error-handling mechanisms. It serves as a foundational guide that can be implemented in various ways, depending on specific needs and constraints.
+
+- **Unrecognized value**: If a value in the bitstream is not understood, the logic must fail gracefully in a manner appropriate for the implementation.
+- **Table naming**: Each table in the document is named according to the specific content or subject it is describing.
+- **Bitstream optimization**: One of the guiding principles of E-RTMP is to optimize the number of bytes transmitted over the wire. While minimizing payload overhead is a priority, it is sometimes more important to simplify the logic or enhance extensibility. For example, although more optimal methods for creating a codec ID than using FOURCC may exist, such approaches could render the enhancement non-standard and more challenging to extend and maintain in the future.
+- **Capitalization rules**: Another guiding principle in the E-RTMP is the standardization of capitalization for types. The original documentation capitalized types such as Number, String, and Boolean, and even included various other spellings. The E-RTMP adopts lowercase spelling for terms, such as number, string, and boolean. This change emphasizes that these types are simple, not objects.
+- **ECMA Array vs Object**: In the world of AMF (Action Message Format), both ECMA Array and Object are used to store collections of properties. A property is simply a pairing of a name with a value. In enhanced RTMP, the term Object is specifically used to indicate the Object Type. In the past, people have sometimes used ECMA Array and Object as if they were the same thing. However, for better coding practices, it's recommended to use Object when you're creating AMF data. When you're reading or decoding AMF data, you should be prepared to handle either ECMA Array or Object for greater flexibility and robustness.
+- **Default values**: Unless explicitly called out, there should be no assumptions made regarding default values, such as null or undefined.
+- **Legacy vs. Enhanced Properties**: In the documentation, an effort has been made to distinguish between legacy properties and newly defined ones through color coding, such as using bold text or different background colors for enhancements. While this color coding is not guaranteed to be consistent, the distinctions between values defined in E-RTMP should be readily apparent.
+- **Capability flags**: The capabilities flags, exchanged during a connect handshake, may not cover all possible functionalities. For instance, a client might indicate support for multitrack processing without specifying its ability to encode or decode multitrack streams. In scenarios where a client, capable of issuing a play command, declares multitrack support, it MUST be equipped to handle the playback of such streams. Similarly, if a client is aware of the server's multitrack capabilities, it MAY opt to publish a multitrack stream.
+- **Quotation Marks and Emphasis Guidelines**: Ultimately, the context should drive the meaning, but we make an effort to leverage quotation marks and emphasis (i.e., **bold**) to maintain readability. We aim to avoid syntactic sugar as much as possible to ensure the document remains straightforward, easy to read, scan, and understand. The conventions for using double quotes ("), back quotes (`), and emphasis in this document to ensure clarity and consistency are as follows:
+
+  - **Double quotes are used for:** direct quotations, titles of short works, and when referencing a specific term or phrase.
+  - **Back quotes are used for:** code snippets, commands, or technical terms.
+  - **Bold is used for:** emphasis on important terms or phrases. Sometimes, back quotes and bold can be interchanged for ease of reading.
 
 ## Simple Data Types
 
-The following data types are used in [[RTMP](#rtmp)] bitstreams and [[FLV](#flv)] files. FOURCC was introduced to support E-RTMP and FLV. \
+The following data types are used in [[RTMP](#rtmp)] bitstreams and [[FLV](#flv)] files. FOURCC was introduced to support E-RTMP. \
 &nbsp; \
-Table: Simple data types
+**Table**: Simple data types
 
 ```txt
 +-------------------------------+-----------------------------------------------------------------+
@@ -271,11 +244,11 @@ Table: Simple data types
 +-------------------------------+-----------------------------------------------------------------+
 ```
 
->Note: Unless specifically called out, multi-byte integers SHALL be stored in big-endian byte order
+>**Note:** Unless specifically called out, multi-byte integers SHALL be stored in big-endian byte order
 
 ## RTMP Message Format
 
-Adobe's Real-Time Messaging Protocol (RTMP) is an application-level protocol designed for the multiplexing and packetizing of multimedia streams—such as audio, video, and interactive content, for transmission over network protocols like TCP. A fundamental feature of [[RTMP](#rtmp)] is the Chunk Stream, which facilitates the multiplexing, packetizing, and prioritization of messages, integral to the protocol's real-time capabilities. \
+Adobe's Real-Time Messaging Protocol [[RTMP](#rtmp)] is an application-level protocol designed for the multiplexing and packetizing of multimedia streams—such as audio, video, and interactive content, for transmission over network protocols like TCP. A fundamental feature of RTMP is the Chunk Stream, which facilitates the multiplexing, packetizing, and prioritization of messages, integral to the protocol's real-time capabilities. \
 &nbsp; \
 The legacy RTMP specification in [Section 6.1](https://veovera.github.io/enhanced-rtmp/docs/legacy/rtmp-v1-0-spec.pdf#page=22) elaborates on the RTMP Message Format, providing precise encoding guidelines for the RTMP message header, inclusive of field widths and byte order. However, this portrayal might be somewhat confusing because RTMP messages, when transported over the Chunk Stream, don't literally conform to this depicted format. An RTMP Message is divided into two principal components: a message virtual header and a message payload. The "virtual" descriptor indicates that while RTMP messages are carried within the RTMP Chunk Stream, their headers are conceptually encoded as Chunk Message Headers. When these are decoded from the RTMP Chunk Stream, the underlying transport layer, the resulting format is to be understood as a virtual header. This abstract representation aligns with the structured format and semantics detailed in the legacy RTMP specification. Detailed next is the format of the message virtual header and some additional related information.
 
@@ -302,19 +275,19 @@ The legacy RTMP specification in [Section 6.1](https://veovera.github.io/enhance
 - The message payload follows the header and may contain various types of content, such as compressed audio or video data. RTMP itself does not recognize or process the payload's content. If new codec types are to be added, they must be defined where the actual payload internals are outlined. FLV is a container file format where the specifics of the AV payload, including the codecs, are defined.
 - Please refer to the legacy RTMP specification (in various locations) and the legacy [[FLV](#flv)] specification (Annex E) for details on the endianness (a.k.a., byte order) of the data format on the wire.
 
-## An Overview of the FLV File Format
+## FLV File Format Overview
 
-[[FLV](#flv)] file is a container for AV (Audio and Video) data. The file consists of alternating back-pointers and tags, each accompanied by data related to that tag. Each TagType within a FLV file is unsigned and defined by 5 bits. AUDIODATA has a TagType of 8, and VIDEODATA has a TagType of 9.
+An [[FLV](#flv)] file is a container for AV (Audio and Video) data. The file consists of alternating back-pointers and tags, each accompanied by data related to that tag. Each **TagType** within an FLV file is unsigned and defined by 5 bits. **AUDIODATA** has a **TagType** of 8, and **VIDEODATA** has a **TagType** of 9.
 
->Note: These TagTypes map to the same values of **MessageType ID**, defined by UI8, in the legacy [[RTMP](#rtmp)] specification. This alignment is by design.
+>**Note:** Each **TagType** corresponds directly to the same **MessageType ID**, defined by UI8, in the [[RTMP](#rtmp)] specification. This alignment is intentional.
 
-Tag Types of 8 or 9 are accompanied by an AudioTagHeader or VideoTagHeader. It's common to think of RTMP in conjunction with FLV. However, RTMP is a protocol, and [[FLV](#flv)] is a file container. This distinction is why they are originally defined in separate specifications. This enhancement spec aims to improve both RTMP and FLV.
+**TagType** values of 8 or 9 are accompanied by an **AudioTagHeader** or **VideoTagHeader** respectively. While RTMP is commonly associated with FLV, it is important to note that RTMP is a protocol, whereas FLV is a file container format. This distinction is why they were originally defined in separate specifications. This enhancement specification aims to improve both RTMP and FLV.
 
 ### Pre 2023 AudioTagHeader Format
 
-Below is the AudioTagHeader format for the pre 2023 (a.k.a., legacy) FLV specification: \
+Below is the **AudioTagHeader** format for the legacy FLV specification: \
 &nbsp; \
-Table: FLV specification [AudioTagHeader](https://veovera.github.io/enhanced-rtmp/docs/legacy/video-file-format-v10-1-spec.pdf#page=76)
+**Table**: FLV specification [**AudioTagHeader**](https://veovera.github.io/enhanced-rtmp/docs/legacy/video-file-format-v10-1-spec.pdf#page=76)
 
 ```txt
 +------------------+----------------------+----------------------------------------------------------+
@@ -361,13 +334,11 @@ Table: FLV specification [AudioTagHeader](https://veovera.github.io/enhanced-rtm
 +------------------+----------------------+----------------------------------------------------------+
 ```
 
-### &nbsp;
-
 ### Pre 2023 VideoTagHeader Format
 
-Below is the VideoTagHeader format for the pre 2023 (a.k.a., legacy) FLV specification: \
+Below is the **VideoTagHeader** format for the legacy FLV specification: \
 &nbsp; \
-Table: FLV specification [VideoTagHeader](https://veovera.github.io/enhanced-rtmp/docs/legacy/video-file-format-v10-1-spec.pdf#page=78)
+**Table**: FLV specification [**VideoTagHeader**](https://veovera.github.io/enhanced-rtmp/docs/legacy/video-file-format-v10-1-spec.pdf#page=78)
 
 ```txt
 +------------------+----------------------+-----------------------------------------------------------+
@@ -406,17 +377,17 @@ Table: FLV specification [VideoTagHeader](https://veovera.github.io/enhanced-rtm
 
 ## Enhancements to RTMP and FLV
 
-Within the following sections, this document provides a comprehensive overview of the enhancements made to [[RTMP](#rtmp)] and [[FLV](#flv)]. These improvements are discussed in detail, highlighting their impact and benefits.
+Within the following sections, this document provides a comprehensive overview of the enhancements made to [[RTMP](#rtmp)] and [[FLV](#flv)]. Together, these improvements constitute the enhanced RTMP also known as E-RTMP. These enhancements are discussed in detail, highlighting their impact and benefits.
 
 ## Enhancing onMetaData
 
-[[FLV](#flv)] metadata SHALL be encapsulated within a [SCRIPTDATA](https://veovera.github.io/enhanced-rtmp/docs/legacy/video-file-format-v10-1-spec.pdf#page=80) segment, which includes a [ScriptTagBody](https://veovera.github.io/enhanced-rtmp/docs/legacy/video-file-format-v10-1-spec.pdf#page=80) encoded in the Action Message Format (AMF). Importantly, this metadata SHALL always remain unencrypted, even when the FLV content itself is encrypted. This design choice is essential for allowing various FLV parsers to successfully stream the FLV content and for enabling media players to provide contextual information to the user. \
+[[FLV](#flv)] metadata SHALL be encapsulated within a [**SCRIPTDATA**](https://veovera.github.io/enhanced-rtmp/docs/legacy/video-file-format-v10-1-spec.pdf#page=80) segment, which includes a [**ScriptTagBody**](https://veovera.github.io/enhanced-rtmp/docs/legacy/video-file-format-v10-1-spec.pdf#page=80) encoded in the Action Message Format (AMF). Importantly, this metadata SHALL always remain unencrypted, even when the FLV content itself is encrypted. This design choice is essential for allowing various FLV parsers to successfully stream the FLV content and for enabling media players to provide contextual information to the user. \
 &nbsp; \
 The **ScriptTagBody** is structured to encapsulate method invocations. It consists of an item containing a method name (e.g., **onMetaData**) along with a corresponding set of arguments. \
 &nbsp; \
 To signal FLV metadata, the item within the **ScriptTagBody** MUST encapsulate the method name **onMetaData**, along with a single argument of type ECMA array. This array holds metadata properties, the availability of which may vary depending on the software used to create the FLV. Typical **onMetaData** argument properties include, but are not limited to: \
 &nbsp; \
-Table: Typical properties found in the **onMetaData** argument object
+**Table**: Typical properties found in the **onMetaData** argument object
 
 ```txt
 +--------------------+-------------------------------+-------------------------------------------------------------------------------+
@@ -465,7 +436,7 @@ Table: Typical properties found in the **onMetaData** argument object
 +--------------------+-------------------------------+-------------------------------------------------------------------------------+
 ```
 
->Note: The properties **audiocodecid** and **videocodecid** have been enhanced to support FOURCC (Four-byte ASCII code) values. These values are interpreted as UI32 (e.g., "av01").
+>**Note:** The properties **audiocodecid** and **videocodecid** have been enhanced to support FOURCC (Four-byte ASCII code) values. These values are interpreted as UI32 (e.g., "av01").
 
 ## Reconnect Request
 
@@ -482,20 +453,20 @@ To accommodate these needs, a **NetConnection.Connect.ReconnectRequest** status 
 
 **NetConnection** establishes a bidirectional link between a client and a server, allowing for asynchronous Remote Procedure Calls (RPCs). The following commands (a.k.a., predefined RPCs) can be issued via **NetConnection**:
 
-- connect
-- createStream
-- deleteStream
-- onStatus
+- **connect**
+- **createStream**
+- **deleteStream**
+- **onStatus**
 
 The **onStatus** command has been enhanced to include the capability to request a client to reconnect. Servers can issue an **onStatus** command to prompt clients to adapt to changes in **NetConnection** status. The structure of this command, as relayed from the server to the client, is outlined below: \
 &nbsp; \
-Table: Server to client, NetConnection onStatus command
+**Table**: Server to client, **NetConnection** **onStatus** command
 
 ```txt
 +----------------------+--------------+-----------------------------------------------------------------------------------------------+
 ¦      Field Name      ¦     Type     ¦                                          Description                                          ¦
 +----------------------+--------------+-----------------------------------------------------------------------------------------------+
-¦Command Name          ¦string        ¦Name of the command. Set to "onStatus"                                                         ¦
+¦Command Name          ¦string        ¦Name of the command. Set to onStatus                                                           ¦
 +----------------------+--------------+-----------------------------------------------------------------------------------------------+
 ¦Transaction ID        ¦number        ¦Transaction ID set to 0. (i.e., no response needed)                                            ¦
 +----------------------+--------------+-----------------------------------------------------------------------------------------------+
@@ -509,25 +480,25 @@ Table: Server to client, NetConnection onStatus command
 &nbsp; \
 The following is a description of AMF-encoded name-value pairs in the Info Object for the **onStatus** command when handling reconnect. It MAY contain other properties as appropriate to the client. \
 &nbsp; \
-Table: Info Object parameter for onStatus command when handling reconnect
+**Table**: Info Object parameter for **onStatus** command when handling reconnect
 
 ```txt
 +----------------+-----------+-------------------------------------------------------------+------------------------------------------------+
 ¦    Property    ¦   Type    ¦                         Description                         ¦                 Example Value                  ¦
 +----------------+-----------+-------------------------------------------------------------+------------------------------------------------+
-¦tcUrl           ¦string     ¦Absolute or relative URI reference of the server to which to ¦1. "rtmp://foo.mydomain.com:1935/realtimeapp"   ¦
-¦(optional)      ¦           ¦reconnect. If not specified, use the tcUrl for the current   ¦2. "rtmp://127.0.0.1/realtimeapp"               ¦
-¦                ¦           ¦connection. A relative URI reference should be resolved      ¦3. "//192.0.2.0/realtimeapp"                    ¦
-¦                ¦           ¦relative to the tcUrl for the current connection.            ¦4. "/realtimeapp"                               ¦
+¦tcUrl           ¦string     ¦Absolute or relative URI reference of the server to which to ¦1. rtmp://foo.mydomain.com:1935/realtimeapp     ¦
+¦(optional)      ¦           ¦reconnect. If not specified, use the tcUrl for the current   ¦2. rtmp://127.0.0.1/realtimeapp                 ¦
+¦                ¦           ¦connection. A relative URI reference should be resolved      ¦3. //192.0.2.0/realtimeapp                      ¦
+¦                ¦           ¦relative to the tcUrl for the current connection.            ¦4. /realtimeapp                                 ¦
 +----------------+-----------+-------------------------------------------------------------+------------------------------------------------+
-¦code            ¦string     ¦A string identifying the event that occurred. To reconnect   ¦"NetConnection.Connect.ReconnectRequest"        ¦
-¦                ¦           ¦code MUST be set to "NetConnection.Connect.ReconnectRequest" ¦                                                ¦
+¦code            ¦string     ¦A string identifying the event that occurred. To reconnect   ¦NetConnection.Connect.ReconnectRequest          ¦
+¦                ¦           ¦code MUST be set to NetConnection.Connect.ReconnectRequest   ¦                                                ¦
 +----------------+-----------+-------------------------------------------------------------+------------------------------------------------+
 ¦description     ¦string     ¦A string containing human-readable information about the     ¦The streaming server is undergoing updates.     ¦
 ¦(optional)      ¦           ¦message. Not every information object includes this property.¦                                                ¦
 +----------------+-----------+-------------------------------------------------------------+------------------------------------------------+
-¦level           ¦string     ¦A string indicating the severity of the event. To reconnect  ¦"status"                                        ¦
-¦                ¦           ¦the level MUST be set to "status".                           ¦                                                ¦
+¦level           ¦string     ¦A string indicating the severity of the event. To reconnect  ¦status                                          ¦
+¦                ¦           ¦the level MUST be set to status.                             ¦                                                ¦
 +----------------+-----------+-------------------------------------------------------------+------------------------------------------------+
 ```
 
@@ -547,10 +518,10 @@ Both clients and servers can initiate RPCs at the receiving end, with some RPCs 
 &nbsp; \
 When using the **onStatus** command, the goal is to inform the client about the status of the connection. Each dispatched command message comprises the following elements:
 
-- Command Name: type **string**
-- Transaction ID: type **number**
-- Command Object (set to null when dispatching an onStatus command): type **Object**
-- Info Object (which can be viewed as Optional Arguments): type **Object**
+- **Command Name**: type string
+- **Transaction ID**: type number
+- **Command Object** (set to null when dispatching an onStatus command): type Object
+- **Info Object** (which can be viewed as Optional Arguments): type Object
 
 Both the Command Object and the Info Object offer additional context and details for the command. The **onStatus** command is triggered whenever there's a status change or an error concerning the **NetConnection**. To handle this information, you should define a callback function.
 
@@ -563,59 +534,59 @@ nc.onStatus = function(infoObject) {
 
 **infoObject** is an AMF-encoded object with properties that provide information about the status of a **NetConnection**. It contains at least the following three properties, but MAY contain other properties as appropriate to the client. \
 &nbsp; \
-Table: **infoObject** for **onStatus** command
+**Table**: **infoObject** for **onStatus** command
 
 ```txt
 +----------------+-----------+-------------------------------------------------------------+------------------------------------------------+
 ¦    Property    ¦   Type    ¦                         Description                         ¦                 Example Value                  ¦
 +----------------+-----------+-------------------------------------------------------------+------------------------------------------------+
-¦code            ¦string     ¦A string identifying the event that occurred.                ¦"NetConnection.Connect.Success"                 ¦
+¦code            ¦string     ¦A string identifying the event that occurred.                ¦NetConnection.Connect.Success                   ¦
 +----------------+-----------+-------------------------------------------------------------+------------------------------------------------+
 ¦description     ¦string     ¦A string containing human-readable information about the     ¦The connection attempt succeeded.               ¦
 ¦(optional)      ¦           ¦message. Not every information object includes this property.¦                                                ¦
 +----------------+-----------+-------------------------------------------------------------+------------------------------------------------+
-¦level           ¦string     ¦There are three established values for level: "status",      ¦"status"                                        ¦
-¦                ¦           ¦"warning", and "error".                                      ¦                                                ¦
+¦level           ¦string     ¦There are three established values for level: status,        ¦status                                          ¦
+¦                ¦           ¦warning, and error.                                          ¦                                                ¦
 +----------------+-----------+-------------------------------------------------------------+------------------------------------------------+
 ```
 
 &nbsp; \
 The table below provides examples of **code**, **level**, and **description** property values. Please note that this is not an exhaustive list, and not all entries may apply to every type of client. Additionally, the **description** property values included are merely illustrative examples; developers are responsible for conveying the appropriate meaning in their specific solutions. \
 &nbsp; \
-Table: **code**, **level** and **description** values for **infoObject** used by **onStatus**
+**Table**: **code**, **level** and description values for **infoObject** used by **onStatus**
 
 ```txt
 +-----------------------------------------+-------------+-----------------------------------------------------------------------------------------------+
 ¦                  Code                   ¦    Level    ¦                                          Description                                          ¦
 +-----------------------------------------+-------------+-----------------------------------------------------------------------------------------------+
-¦"NetConnection.Call.Failed"              ¦"error"      ¦The NetConnection.call() method was not able to invoke the server-side method or command.      ¦
+¦NetConnection.Call.Failed                ¦error        ¦The NetConnection.call() method was not able to invoke the server-side method or command.      ¦
 +-----------------------------------------+-------------+-----------------------------------------------------------------------------------------------+
-¦"NetConnection.Connect.AppShutdown"      ¦"error"      ¦The application has been shut down (for example, if the application is out of memory resources ¦
+¦NetConnection.Connect.AppShutdown        ¦error        ¦The application has been shut down (for example, if the application is out of memory resources ¦
 ¦                                         ¦             ¦and must shut down to prevent the server from crashing) or the server has shut down.           ¦
 +-----------------------------------------+-------------+-----------------------------------------------------------------------------------------------+
-¦"NetConnection.Connect.Closed"           ¦"status"     ¦The connection was closed successfully.                                                        ¦
+¦NetConnection.Connect.Closed             ¦status       ¦The connection was closed successfully.                                                        ¦
 +-----------------------------------------+-------------+-----------------------------------------------------------------------------------------------+
-¦"NetConnection.Connect.Failed"           ¦"error"      ¦The connection attempt failed.                                                                 ¦
+¦NetConnection.Connect.Failed             ¦error        ¦The connection attempt failed.                                                                 ¦
 +-----------------------------------------+-------------+-----------------------------------------------------------------------------------------------+
-¦"NetConnection.Connect.Rejected"         ¦"error"      ¦The client does not have permission to connect to the application.                             ¦
+¦NetConnection.Connect.Rejected           ¦error        ¦The client does not have permission to connect to the application.                             ¦
 +-----------------------------------------+-------------+-----------------------------------------------------------------------------------------------+
-¦"NetConnection.Connect.Success"          ¦"status"     ¦The connection attempt succeeded.                                                              ¦
+¦NetConnection.Connect.Success            ¦status       ¦The connection attempt succeeded.                                                              ¦
 +-----------------------------------------+-------------+-----------------------------------------------------------------------------------------------+
-¦"NetConnection.Connect.ReconnectRequest" ¦"status"     ¦The server is requesting the client to reconnect.                                              ¦
+¦NetConnection.Connect.ReconnectRequest   ¦status       ¦The server is requesting the client to reconnect.                                              ¦
 +-----------------------------------------+-------------+-----------------------------------------------------------------------------------------------+
-¦"NetConnection.Proxy.NotResponding"      ¦"error"      ¦The proxy server is not responding. See the ProxyStream class.                                 ¦
+¦NetConnection.Proxy.NotResponding        ¦error        ¦The proxy server is not responding. See the ProxyStream class.                                 ¦
 +-----------------------------------------+-------------+-----------------------------------------------------------------------------------------------+
 ```
 
 ## Enhanced Audio
 
-The AudioTagHeader has been extended to define additional audio codecs, multichannel audio, multitrack capabilities, signaling support, and additional miscellaneous enhancements, while ensuring backward compatibility. This extension is termed the ExAudioTagHeader and is designed to be future-proof, allowing for the definition of additional audio codecs, features, and corresponding signaling. \
+The **AudioTagHeader** has been extended to define additional audio codecs, multichannel audio, multitrack capabilities, signaling support, and additional miscellaneous enhancements, while ensuring backward compatibility. This extension is termed the **ExAudioTagHeader** and is designed to be future-proof, allowing for the definition of additional audio codecs, features, and corresponding signaling. \
 &nbsp; \
 During the parsing process, the logic MUST handle unexpected or unknown elements gracefully. Specifically, if any critical signaling or flags (e.g., AudioPacketType and AudioFourCc) are not recognized, the system MUST fail in a controlled and predictable manner.
 
->IMPORTANT: A single audio message for a unique timestamp may include a batch of AudioPacketType values (e.g., multiple TrackId values). When parsing an audio message, the bitstream MUST be processed completely to ensure all payload data has been handled.
+>**Important:** A single audio message for a unique timestamp may include a batch of AudioPacketType values (e.g., multiple **TrackId** values). When parsing an audio message, the bitstream MUST be processed completely to ensure all payload data has been handled.
 
-Table: Extended AudioTagHeader
+**Table**: Extended **AudioTagHeader**
 
 ```txt
 +------------------------------------------------------------------------------------+------------------------------------------------------------------------------------+
@@ -914,13 +885,13 @@ Table: Extended AudioTagHeader
 
 ## Enhanced Video
 
-The VideoTagHeader has been extended to define additional video codecs, multitrack capabilities, signaling support, and additional miscellaneous enhancements, while ensuring backward compatibility. This extension is termed the ExVideoTagHeader and is designed to be future-proof, allowing for the definition of additional video codecs, features, and corresponding signaling. \
+The **VideoTagHeader** has been extended to define additional video codecs, multitrack capabilities, signaling support, and additional miscellaneous enhancements, while ensuring backward compatibility. This extension is termed the **ExVideoTagHeader** and is designed to be future-proof, allowing for the definition of additional video codecs, features, and corresponding signaling. \
 &nbsp; \
-During the parsing process, the logic MUST handle unexpected or unknown elements gracefully. Specifically, if any critical signaling or flags (e.g., VideoFrameType, VideoPacketType, or VideoFourCc) are not recognized, the system MUST fail in a controlled and predictable manner.
+During the parsing process, the logic MUST handle unexpected or unknown elements gracefully. Specifically, if any critical signaling or flags (e.g., **VideoFrameType**, **VideoPacketType**, or **VideoFourCc**) are not recognized, the system MUST fail in a controlled and predictable manner.
 
->IMPORTANT: A single video message for a unique timestamp may include a batch of VideoPacketType values (e.g., multiple TrackId values, Metadata values). When parsing a video message, the bitstream MUST be processed completely to ensure all payload data has been handled.
+>**Important:** A single video message for a unique timestamp may include a batch of **VideoPacketType** values (e.g., multiple **TrackId** values, **Metadata** values). When parsing a video message, the bitstream MUST be processed completely to ensure all payload data has been handled.
 
-Table: Extended VideoTagHeader
+**Table**: Extended **VideoTagHeader**
 
 ```txt
 +------------------------------------------------------------------------------------+------------------------------------------------------------------------------------+
@@ -1206,16 +1177,16 @@ Table: Extended VideoTagHeader
 
 ## Metadata Frame
 
-To support various types of video metadata, the legacy [[FLV](#flv)] specification has been enhanced. The VideoTagHeader has been extended to define a new **VideoPacketType.Metadata** (see ExVideoTagHeader table in [Enhanced Video](#enhanced-video) section) whose payload will contain an AMF-encoded metadata. The metadata will be represented by a series of [name, value] pairs. For now the only defined [name, value] pair is ["colorInfo", `Object`]. When leveraging PacketTypeMetadata to deliver HDR metadata, the metadata MUST be sent prior to the video sequence, scene, frame or such that it affects. Each time a new **colorInfo** object is received it invalidates and replaces the current one. To reset to the original color state you can send **colorInfo** with a value of Undefined (the RECOMMENDED approach) or an empty object (i.e., **{}**). \
+To support various types of video metadata, the legacy [[FLV](#flv)] specification has been enhanced. The VideoTagHeader has been extended to define a new **VideoPacketType.Metadata** (see ExVideoTagHeader table in [Enhanced Video](#enhanced-video) section) whose payload will contain an AMF-encoded metadata. The metadata will be represented by a series of [name, value] pairs. For now the only defined [name, value] pair is **["colorInfo", Object]**. When leveraging **VideoPacketType.Metadata** to deliver HDR metadata, the metadata MUST be sent prior to the video sequence, scene, frame or such that it affects. Each time a new **colorInfo** object is received it invalidates and replaces the current one. To reset to the original color state you can send **colorInfo** with a value of Undefined (the RECOMMENDED approach) or an empty object (i.e., **{}**). \
 &nbsp; \
-It is intentional to leverage a video message to deliver PacketTypeMetadata instead of other [[RTMP](#rtmp)] Message types. One benefit of leveraging a video message is to avoid any racing conditions between video messages and other RTMP message types. Given this, once your **colorInfo** object is parsed, the read values MUST be processed in time to affect the first frame of the video section which follows the **colorInfo** object. \
+It is intentional to leverage a video message to deliver **VideoPacketType.Metadata** instead of other [[RTMP](#rtmp)] Message types. One benefit of leveraging a video message is to avoid any racing conditions between video messages and other RTMP message types. Given this, once your **colorInfo** object is parsed, the read values MUST be processed in time to affect the first frame of the video section which follows the **colorInfo** object. \
 &nbsp; \
 The **colorInfo** object provides HDR metadata to enable a higher quality image source conforming to BT.2020 (a.k.a., Rec. 2020) standard. The properties of the **colorInfo** object, which are encoded in an AMF message format, are defined below.
 
->Note:
+>**Note:**
 >
->- For content creators: Whenever it behooves to add video hint information via metadata (ex. HDR) to the FLV container it is RECOMMENDED to add it via VideoPacketType.Metadata. This may be done in addition (or instead) to encoding the metadata directly into the codec bitstream.
->- The object encoding format (i.e., AMF0 or AMF3) is signaled during the [connect](https://veovera.github.io/enhanced-rtmp/original-rtmp-related-specs/rtmp-v1-0-spec.pdf#page=29) command.
+>- For content creators: Whenever it behooves to add video hint information via metadata (e.g., HDR) to the FLV container it is RECOMMENDED to add it via **VideoPacketType.Metadata**. This may be done in addition (or instead) to encoding the metadata directly into the codec bitstream.
+>- The object encoding format (i.e., AMF0 or AMF3) is signaled during the [**connect**](https://veovera.github.io/enhanced-rtmp/original-rtmp-related-specs/rtmp-v1-0-spec.pdf#page=29) command.
 
 ```js
 type ColorInfo = {
@@ -1234,7 +1205,7 @@ type ColorInfo = {
     // indicates the chromaticity coordinates of the source color primaries
     colorPrimaries:           number, // enumeration [0-255]
 
-    // opto-electronic transfer characteristic function (ex. PQ, HLG)
+    // opto-electronic transfer characteristic function (e.g., PQ, HLG)
     transferCharacteristics:  number, // enumeration [0-255]
 
     // matrix coefficients used in deriving luma and chroma signals
@@ -1304,7 +1275,7 @@ type ColorInfo = {
 }
 ```
 
-Table: Flag values for the videoFunction property
+**Table**: Flag values for the **videoFunction** property
 
 ```txt
 +-----------------------------------------------------+-------------------------------------------------------------------+-------------+
@@ -1334,17 +1305,17 @@ It's important to note that multitrack support is designed to augment, not repla
 
 ### Sample Multitrack Use Cases
 
-- **Adaptive Bitrate Streaming:** Multitrack support allows the client to send Adaptive Bitrate (ABR) ladders, thus avoiding the need for server-side transcoding and reducing quality loss. This also facilitates sending content with multiple codecs like AV1, HEVC, and VP9.
-- **Device Specific Streaming:** The feature allows for the streaming of different aspect ratios, tailored for various device profiles, enabling more dynamic and flexible presentations.
-- **Frame-Level Synchronization:** For example, you can synchronize multiple camera views in a concert.
+- **Adaptive Bitrate Streaming**: Multitrack support allows the client to send Adaptive Bitrate (ABR) ladders, thus avoiding the need for server-side transcoding and reducing quality loss. This also facilitates sending content with multiple codecs like AV1, HEVC, and VP9.
+- **Device Specific Streaming**: The feature allows for the streaming of different aspect ratios, tailored for various device profiles, enabling more dynamic and flexible presentations.
+- **Frame-Level Synchronization**: For example, you can synchronize multiple camera views in a concert.
 - **Multi-Language Support**: Support for multiple audio tracks in a single [[FLV](#flv)] file is now available, eliminating the need for multiple file versions.
 
 ### Additional Multitrack Details
 
-- **Video Messages:** Each video message should include a **trackId** (refer to the **videoPacketType.Multitrack** entry in the **ExVideoTagHeader** table within the [Enhanced Video](#enhanced-video) section for video bitstream signaling) as it is not persistent across messages.
-- **Audio Messages:** Similarly, each audio message should include a **trackId** (refer to the **AudioPacketType.Multitrack** in the **ExAudioTagHeader** table within the [Enhanced Audio](#enhanced-audio) section for audio bitstream signaling).
-- **Payload Parsing:** All tracks within a single timestamp must be processed to ensure comprehensive media handling.
-- **Track Ordering:** For identifying the highest priority (a.k.a., default track) or highest quality track, it is RECOMMENDED to use **trackId** set to zero. For tracks of lesser priority or quality, use multiple instances of **trackId** with ascending numerical values. The concept of **priority** or **quality** can have multiple interpretations, including but not limited to bitrate, resolution, default angle, and language. This recommendation serves as a guideline intended to standardize track numbering across various applications.
+- **Video Messages**: Each video message MUST include a **trackId** (refer to the **videoPacketType.Multitrack** entry in the **ExVideoTagHeader** table within the [Enhanced Video](#enhanced-video) section for video bitstream signaling) as it is not persistent across messages.
+- **Audio Messages**: Similarly, each audio message MUST include a **trackId** (refer to the **AudioPacketType.Multitrack** in the **ExAudioTagHeader** table within the [Enhanced Audio](#enhanced-audio) section for audio bitstream signaling).
+- **Payload Parsing**: All tracks within a single timestamp MUST be processed to ensure comprehensive media handling.
+- **Track Ordering**: For identifying the highest priority (a.k.a., default track) or highest quality track, it is RECOMMENDED to use **trackId** set to zero. For tracks of lesser priority or quality, use multiple instances of **trackId** with ascending numerical values. The concept of **priority** or **quality** can have multiple interpretations, including but not limited to bitrate, resolution, default angle, and language. This recommendation serves as a guideline intended to standardize track numbering across various applications.
 
 ### General Guidelines
 
@@ -1354,21 +1325,21 @@ Multitrack capabilities in E-RTMP offer a wide range of possibilities, from adap
 
 When a client connects to an E-RTMP server, it sends a [**connect**](https://veovera.github.io/enhanced-rtmp/docs/legacy/rtmp-v1-0-spec.pdf#page=29) command to the server. The command structure sent from the client to the server contains a Command Object, comprising name-value pairs. This is where the client indicates the audio and video codecs it supports. To declare support for newly defined codecs or other enhancements supported by the client, this name-value pair list must be extended. Below is the description of a new name-value pair used in the Command Object of the **connect** command. \
 &nbsp; \
-Table: New name-value pair that can be set in the Command Object
+**Table:** New name-value pair that can be set in the Command Object
 
 ```txt
 +---------------------+---------------------------+-------------------------------------------------------------------+------------------------------------------------------+
 ¦      Property       ¦           Type            ¦                            Description                            ¦                    Example Value                     ¦
 +---------------------+---------------------------+-------------------------------------------------------------------+------------------------------------------------------+
 ¦fourCcList           ¦Strict Array of strings    ¦Used to declare the enhanced list of supported codecs when         ¦e.g., 1                                               ¦
-¦                     ¦                           ¦connecting to the server. The fourCcList property is a strict array¦[ "av01", "vp09", "hvc1",                             ¦
-¦                     ¦                           ¦of dense ordinal indices. Each entry in the array is of string     ¦  "Avc1", "ac-3", "ec-3",                             ¦
-¦                     ¦                           ¦type, specifically a [FourCC] value (i.e., a string that is a      ¦  "Opus", ".mp3", "fLaC",                             ¦
-¦                     ¦                           ¦sequence of four bytes), representing a supported audio/video      ¦  "Aac" ]                                             ¦
-¦                     ¦                           ¦codec.                                                             ¦                                                      ¦
-¦                     ¦                           ¦                                                                   ¦e.g., 2                                               ¦
-¦                     ¦                           ¦In the context of E-RTMP, clients capable of receiving any codec   ¦[ * ]                                                 ¦
-¦                     ¦                           ¦(e.g., recorders or forwarders) may set a FourCC value to the      ¦                                                      ¦
+¦                     ¦                           ¦connecting to the server. The fourCcList property is a strict array¦[                                                     ¦
+¦                     ¦                           ¦of dense ordinal indices. Each entry in the array is of string     ¦  "av01", "vp09", "vp08", "Hvc1",                     ¦
+¦                     ¦                           ¦type, specifically a [FourCC] value (i.e., a string that is a      ¦  "Avc1", "ac-3", "ec-3", "Opus",                     ¦
+¦                     ¦                           ¦sequence of four bytes), representing a supported audio/video      ¦  ".mp3", "fLaC", "Aac"                               ¦
+¦                     ¦                           ¦codec.                                                             ¦]                                                     ¦
+¦                     ¦                           ¦                                                                   ¦                                                      ¦
+¦                     ¦                           ¦In the context of E-RTMP, clients capable of receiving any codec   ¦e.g., 2                                               ¦
+¦                     ¦                           ¦(e.g., recorders or forwarders) may set a FourCC value to the      ¦[ "*" ]                                               ¦
 ¦                     ¦                           ¦wildcard value of "*".                                             ¦                                                      ¦
 ¦                     ¦                           ¦                                                                   ¦                                                      ¦
 ¦                     ¦                           ¦Note: The fourCcList property was introduced in the original       ¦                                                      ¦
@@ -1406,11 +1377,12 @@ Table: New name-value pair that can be set in the Command Object
 +---------------------+---------------------------+-------------------------------------------------------------------+------------------------------------------------------+
 ¦capsEx               ¦number                     ¦The value represents capability flags which can be combined via a  ¦CapsExMask.Reconnect | CapsExMask.Multitrack          ¦
 ¦                     ¦                           ¦Bitwise OR to indicate which extended set of capabilities (i.e.,   ¦                                                      ¦
-¦                     ¦                           ¦beyond the legacy RTMP specification) are supported via E-RTMP. See¦                                                      ¦
-¦                     ¦                           ¦enum CapsExMask for the enumerated values representing the assigned¦                                                      ¦
-¦                     ¦                           ¦bits. If the extended capabilities are expressed elsewhere they    ¦                                                      ¦
-¦                     ¦                           ¦will not appear here (e.g., fourCc, hdr or VideoPacketType.Metadata¦                                                      ¦
-¦                     ¦                           ¦support is not expressed in this property).                        ¦                                                      ¦
+¦                     ¦                           ¦beyond the legacy [RTMP] specification) are supported via E-RTMP.  ¦                                                      ¦
+¦                     ¦                           ¦See enum CapsExMask for the enumerated values representing the     ¦                                                      ¦
+¦                     ¦                           ¦assigned bits. If the extended capabilities are expressed elsewhere¦                                                      ¦
+¦                     ¦                           ¦they will not appear here (e.g., FourCC, HDR or                    ¦                                                      ¦
+¦                     ¦                           ¦VideoPacketType.Metadata support is not expressed in this          ¦                                                      ¦
+¦                     ¦                           ¦property).                                                         ¦                                                      ¦
 ¦                     ¦                           ¦                                                                   ¦                                                      ¦
 ¦                     ¦                           ¦enum CapsExMask {                                                  ¦                                                      ¦
 ¦                     ¦                           ¦  Reconnect   = 0x01    // See reconnect section                   ¦                                                      ¦
@@ -1420,11 +1392,11 @@ Table: New name-value pair that can be set in the Command Object
 ```
 
 &nbsp; \
-As you can see, the client declares to the server what enhancements it supports. The server responds with a command, either **\_result** or **\_error**, to indicate whether the response is a result or an error. During the response, the server provides some properties within an Object as one of the parameters. This is where the server needs to state its support for E-RTMP. The server SHOULD state its support via attributes such as videoFourCcInfoMap, capsEx, and similar properties.
+As you can see, the client declares to the server what enhancements it supports. The server responds with a command, either **\_result** or **\_error**, to indicate whether the response is a result or an error. During the response, the server provides some properties within an Object as one of the parameters. This is where the server needs to state its support for E-RTMP. The server SHOULD state its support via attributes such as **videoFourCcInfoMap**, **capsEx**, and similar properties.
 
 ## Action Message Format (AMF): AMF0 and AMF3
 
-Action Message Format (AMF) is a compact binary format used to serialize [SCRIPTDATA](https://veovera.github.io/enhanced-rtmp/docs/legacy/video-file-format-v10-1-spec.pdf#page=80). It has two specifications: [[AMF0](#amf0)] and [[AMF3](#amf3)]. AMF3 improves on AMF0 by optimizing the payload size on the wire. To understand the full scope of these optimizations, please refer to the AMF0 and AMF3 specifications. \
+Action Message Format (AMF) is a compact binary format used to serialize [**SCRIPTDATA**](https://veovera.github.io/enhanced-rtmp/docs/legacy/video-file-format-v10-1-spec.pdf#page=80). It has two specifications: [[AMF0](#amf0)] and [[AMF3](#amf3)]. AMF3 improves on AMF0 by optimizing the payload size on the wire. To understand the full scope of these optimizations, please refer to the AMF0 and AMF3 specifications. \
 &nbsp; \
 Supporting AMF3 in the [[RTMP](#rtmp)] and [[FLV](#flv)] is beneficial due to its optimization over AMF0. Understanding the ecosystem is crucial before adding AMF3 support to RTMP or FLV.
 
@@ -1440,9 +1412,9 @@ RTMP has had AMF3 as part of its specification for some time now. During the han
 
 ### Enabling AMF3 in FLV
 
-Prior to Y2023, the [[FLV](#flv)] file format did not have AMF3 as part of its SCRIPTDATA specification. To ensure support for AMF3 in FLV:
+Prior to Y2023, the FLV file format did not have AMF3 as part of its **SCRIPTDATA** specification. To ensure support for AMF3 in FLV:
 
-- Add a new FLV TagType 15 (i.e., in addition to TagType 18), which supports SCRIPTDATA encoded via AMF3 (i.e., similar to the way Data Message is handled).
+- Add a new FLV **TagType** 15 (i.e., in addition to **TagType** 18), which supports **SCRIPTDATA** encoded via AMF3 (i.e., similar to the way Data Message is handled).
 
 ### Important AMF3-encoded Historical Specification Clarification
 
@@ -1455,14 +1427,14 @@ Established, pre E-RTMP, specifications state the following:
   - 18 for AMF0 encoding.
   - 15 for AMF3 encoding.
 - The message types 19 for AMF0 and 16 for AMF3 are reserved for Shared Object events.
-- AMF0 was extended to allow an AMF0 encoding context to be switched to AMF3. A new type marker, [avmplus-object-marker](https://veovera.github.io/enhanced-rtmp/docs/legacy/amf0-file-format-spec.pdf#page=8) (byte 0x11), was added. The presence of this marker signifies that the following value is encoded in AMF3. Legacy AMF0 systems that haven't been updated to support AMF3 should throw an unknown type error.
+- AMF0 was extended to allow an AMF0 encoding context to be switched to AMF3. A new type marker, [**avmplus-object-marker**](https://veovera.github.io/enhanced-rtmp/docs/legacy/amf0-file-format-spec.pdf#page=8) **(byte 0x11)**, was added. The presence of this marker signifies that the following value is encoded in AMF3. Legacy AMF0 systems that haven't been updated to support AMF3 should throw an unknown type error.
 
 Unfortunately, the above is incomplete and may be somewhat unclear. To clarify, in addition to the above:
 
 - Object Encoding property in the Command Object of the **connect** command indicates the type of serialization (a.k.a., encoding) supported by the client or server:
   - A value of 0 (default and optional) indicates support for AMF0 encoding and message types of 18, 19 and 20.
   - A value of 3 indicates support for both AMF0 and AMF3 encoding and message types of (18, 15), (19, 16) and (20, 17).
-- Message payload for message types of 15, 16 and 17 starts with a format selector byte. Currently, only format 0 is defined to indicate AMF0-encoded values. It's possible to signal a switch to AMF3 serialization by prefixing an AMF3 value with an AMF0 avmplus-object-marker (byte 0x11). The switch isn't sticky, and parsing MUST return to AMF0 encoding mode once the AMF3 value is serialized. This means that every AMF3 encoded value MUST be prefixed with an avmplus-object-marker (byte 0x11) as defined in AMF0.
+- Message payload for message types of 15, 16 and 17 starts with a format selector byte. Currently, only format 0 is defined to indicate AMF0-encoded values. It's possible to signal a switch to AMF3 serialization by prefixing an AMF3 value with an AMF0 **avmplus-object-marker (byte 0x11)**. The switch isn't sticky, and parsing MUST return to AMF0 encoding mode once the AMF3 value is serialized. This means that every AMF3 encoded value MUST be prefixed with an **avmplus-object-marker (byte 0x11)** as defined in AMF0.
 
 ## Protocol Versioning
 
@@ -1483,7 +1455,7 @@ Adobe Systems Inc. "Action Message Format – AMF 3", June 2006, \
 ### [DEPRECATED]
 
 Deprecation, \
-<[https://en.wikipedia.org/wiki/Deprecation](https://en.wikipedia.org/wiki/Deprecation)>
+<[https://en.wikipedia.org/wiki/Deprecation](https://en.wikipedia.org/wiki/Deprecation)>.
 
 ### [FLV]
 
