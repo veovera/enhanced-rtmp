@@ -14,6 +14,9 @@
 
 - [Enhanced RTMP V2 (alpha) Announcement](https://github.com/veovera/enhanced-rtmp/discussions/26)
 
+### 2024-03-29
+- [OBS Studio 29.1 adds support for streaming AV1/HEVC over RTMP.](https://obsproject.com/forum/threads/obs-studio-29-1-rc1.165547/)
+
 ### 2024-05-15
 
 - [Enhanced RTMP V2 (Alpha) Gets Advanced Audio!](https://github.com/veovera/enhanced-rtmp/discussions/28)
