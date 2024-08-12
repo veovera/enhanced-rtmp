@@ -34,7 +34,7 @@
 
 **Author**: Slavik Lozben (Veovera Software Organization)(VSO) \
 **Contributors**: Adobe, Google, Twitch, Jean-Baptiste Kempf (FFmpeg, VideoLAN), pkv (OBS), Dennis Sädtler (OBS), Xavier Hallade (Intel Corporation), Luxoft, SplitmediaLabs Limited (XSplit), Craig Barberich (VSO), Michael Thornburgh \
-**Status**: **v2-2024-07-12-a1**
+**Status**: **v2-2024-08-12-a1**
 
 ## Documentation Versioning
 
@@ -598,7 +598,7 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 ¦  // See AudioTagHeader of the legacy [FLV] specification for for detailed format   ¦  Mp3                 = 2,                                                          ¦
 ¦  // of the four bits used for soundRate/soundSize/soundType                        ¦  LPcmLittleEndian    = 3,                                                          ¦
 ¦  //                                                                                ¦  Nellymoser16KMono   = 4,                                                          ¦
-¦  // Note: soundRate, soundSize and soundType formats have not changed.             ¦  Nellymoser8KMono    = 5,                                                          ¦
+¦  // NOTE: soundRate, soundSize and soundType formats have not changed.             ¦  Nellymoser8KMono    = 5,                                                          ¦
 ¦  // if (soundFormat == SoundFormat.ExHeader) we switch into FOURCC audio mode      ¦  Nellymoser          = 6,                                                          ¦
 ¦  // as defined below. This means that soundRate, soundSize and soundType           ¦  G711ALaw            = 7,                                                          ¦
 ¦  // bits are not interpreted, instead the UB[4] bits are interpreted as an         ¦  G711MuLaw           = 8,                                                          ¦
@@ -627,76 +627,78 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 ¦  // instead of sound rate, size and type                                           ¦  // action to take after receiving a silence message is system                     ¦
 ¦  audioPacketType = UB[4] as AudioPacketType                                        ¦  // dependent. The semantics of the silence message in the Flash                   ¦
 ¦                                                                                    ¦  // Media playback and timing model are as follows:                                ¦
-¦  if (audioPacketType == AudioPacketType.Multitrack) {                              ¦  //                                                                                ¦
-¦    isAudioMultitrack = true;                                                       ¦  // - Ensure all buffered audio data is played out before entering the             ¦
-¦    audioMultitrackType = UB[4] as AvMultitrackType                                 ¦  //   silence period:                                                              ¦
-¦                                                                                    ¦  //   Make sure that any audio data currently in the buffer is fully               ¦
-¦    // Fetch AudioPacketType for all audio tracks in the audio message.             ¦  //   processed and played. This ensures a clean transition into the               ¦
-¦    // This fetch MUST not result in a AudioPacketType.Multitrack                   ¦  //   silence period without cutting off any audio.                                ¦
-¦    audioPacketType = UB[4] as AudioPacketType                                      ¦  //                                                                                ¦
-¦                                                                                    ¦  // - After playing all buffered audio data, flush the audio decoder:              ¦
-¦    if (audioMultitrackType != AvMultitrackType.ManyTracksManyCodecs) {             ¦  //   Clear the audio decoder to reset its state and prepare it for new            ¦
-¦      // The tracks are encoded with the same codec. Fetch the FOURCC for them      ¦  //   input after the silence period.                                              ¦
-¦      audioFourCc = FOURCC as AudioFourCc                                           ¦  //                                                                                ¦
-¦    }                                                                               ¦  // - During the silence period, the audio clock can't be used as the              ¦
-¦  } else {                                                                          ¦  //   master clock for synchronizing playback:                                     ¦
-¦    audioFourCc = FOURCC as AudioFourCc                                             ¦  //   Switch to using the system's wall-clock time to maintain the correct         ¦
-¦  }                                                                                 ¦  //   timing for video and other data streams.                                     ¦
-¦}                                                                                   ¦  //                                                                                ¦
-¦                                                                                    ¦  // - Don't wait for audio frames for synchronized A+V playback:                   ¦
-¦                                                                                    ¦  //   Normally, audio frames drive the synchronization of audio and video          ¦
-¦                                                                                    ¦  //   (A/V) playback. During the silence period, playback should not stall         ¦
-¦                                                                                    ¦  //   waiting for audio frames. Video and other data streams should                ¦
-¦                                                                                    ¦  //   continue to play based on the wall-clock time, ensuring smooth               ¦
-¦                                                                                    ¦  //   playback without audio.                                                      ¦
 ¦                                                                                    ¦  //                                                                                ¦
-¦                                                                                    ¦  // AudioPacketType.SequenceEnd is to have no less than the same meaning as        ¦
-¦                                                                                    ¦  // a silence message. While it may seem redundant, we need to introduce           ¦
-¦                                                                                    ¦  // this enum to ensure we can signal the end of the audio sequence for any        ¦
-¦                                                                                    ¦  // audio track.                                                                   ¦
-¦                                                                                    ¦  SequenceEnd         = 2,                                                          ¦
-¦                                                                                    ¦                                                                                    ¦
-¦                                                                                    ¦  //  3 - Reserved                                                                  ¦
-¦                                                                                    ¦                                                                                    ¦
-¦                                                                                    ¦  MultichannelConfig  = 4,                                                          ¦
-¦                                                                                    ¦                                                                                    ¦
-¦                                                                                    ¦  // Turns on audio multitrack mode                                                 ¦
-¦                                                                                    ¦  Multitrack          = 5,                                                          ¦
-¦                                                                                    ¦                                                                                    ¦
-¦                                                                                    ¦  //  6 - Reserved                                                                  ¦
-¦                                                                                    ¦  // ...                                                                            ¦
-¦                                                                                    ¦  // 14 - reserved                                                                  ¦
+¦  if (audioPacketType == AudioPacketType.TimestampOffsets) {                        ¦  // - Ensure all buffered audio data is played out before entering the             ¦
+¦    do {                                                                            ¦  //   silence period:                                                              ¦
+¦      // Fetch the next bit to determine if additional offsets need to be processed ¦  //   Make sure that any audio data currently in the buffer is fully               ¦
+¦      hasMoreOffsets = UB[1];                                                       ¦  //   processed and played. This ensures a clean transition into the               ¦
+¦                                                                                    ¦  //   silence period without cutting off any audio.                                ¦
+¦      // Fetch the next UB[3] bits as the timestamp offset type                     ¦  //                                                                                ¦
+¦      audioTimestampOffsetType = UB[3] as TimestampOffsetType;                      ¦  // - After playing all buffered audio data, flush the audio decoder:              ¦
+¦                                                                                    ¦  //   Clear the audio decoder to reset its state and prepare it for new            ¦
+¦      if (audioTimestampOffsetType == TimestampOffsetType.Nano) {                   ¦  //   input after the silence period.                                              ¦
+¦        // Handle TimestampOffsetType.Nano                                          ¦  //                                                                                ¦
+¦        //                                                                          ¦  // - During the silence period, the audio clock can't be used as the              ¦
+¦        // The TimestampOffsetType.Nano signal is used to correct RTMP’s timescale  ¦  //   master clock for synchronizing playback:                                     ¦
+¦        // limitations and improve compatibility with formats like MP4 and M2TS, as ¦  //   Switch to using the system's wall-clock time to maintain the correct         ¦
+¦        // well as environments like Safari's Media Source Extensions. This type is ¦  //   timing for video and other data streams.                                     ¦
+¦        // followed by an unsigned 20-bit nanosecond offset for RTMP timestamps.    ¦  //                                                                                ¦
+¦        // Both the enum and the offset are optional and are intended to fine-tune  ¦  // - Don't wait for audio frames for synchronized A+V playback:                   ¦
+¦        // the presentation time of each media message, providing higher precision  ¦  //   Normally, audio frames drive the synchronization of audio and video          ¦
+¦        // synchronization.                                                         ¦  //   (A/V) playback. During the silence period, playback should not stall         ¦
+¦        //                                                                          ¦  //   waiting for audio frames. Video and other data streams should                ¦
+¦        // The offset in nanoseconds affects the presentation time of each media    ¦  //   continue to play based on the wall-clock time, ensuring smooth               ¦
+¦        // sample, ensuring that audio, video, and data remain synchronized during  ¦  //   playback without audio.                                                      ¦
+¦        // playback. By applying this offset to the media message timestamp,        ¦  //                                                                                ¦
+¦        // synchronization can be maintained across different media formats and     ¦  // AudioPacketType.SequenceEnd is to have no less than the same meaning as        ¦
+¦        // playback environments without altering the core RTMP timestamps. This    ¦  // a silence message. While it may seem redundant, we need to introduce           ¦
+¦        // offset should only be applied to the current media message(s) with the   ¦  // this enum to ensure we can signal the end of the audio sequence for any        ¦
+¦        // same RTMP timestamp.                                                     ¦  // audio track.                                                                   ¦
+¦        //                                                                          ¦  SequenceEnd         = 2,                                                          ¦
+¦        // If the same TimestampOffsetType is encountered more than once in the same¦                                                                                    ¦
+¦        // packet, we combine the bits left-to-right to create a larger value. This ¦  //  3 - Reserved                                                                  ¦
+¦        // ensures that the first offset is placed in the more significant bits, and¦                                                                                    ¦
+¦        // subsequent offsets are appended to the right. This is useful if there is ¦  MultichannelConfig  = 4,                                                          ¦
+¦        // a need to offset the presentation by more than 1 millisecond, which might¦                                                                                    ¦
+¦        // be required in unique solutions where the presentation time needs to be  ¦  // Turns on audio multitrack mode                                                 ¦
+¦        // offset for reasons beyond precision (e.g., significant delays or         ¦  Multitrack          = 5,                                                          ¦
+¦        // corrections).                                                            ¦                                                                                    ¦
+¦        //                                                                          ¦  // Signals timestamp offsets for fine tuning synchronization                      ¦
+¦        // We considered options such as not allowing this, replacing the old value,¦  TimestampOffsets = 6,                                                             ¦
+¦        // or adding this additional capability. Although it may be rarely needed,  ¦                                                                                    ¦
+¦        // we ultimately chose to support additional capability by combining the    ¦  // ...                                                                            ¦
+¦        // offsets.                                                                 ¦  // 14 - reserved                                                                  ¦
 ¦                                                                                    ¦  // 15 - reserved                                                                  ¦
-¦                                                                                    ¦}                                                                                   ¦
-¦                                                                                    ¦                                                                                    ¦
+¦        // Fetch the unsigned 20-bit nanosecond offset                              ¦}                                                                                   ¦
+¦        audioTimestampNanoOffset = UB[20];                                          ¦                                                                                    ¦
 ¦                                                                                    ¦enum AudioFourCc {                                                                  ¦
 ¦                                                                                    ¦  //                                                                                ¦
-¦                                                                                    ¦  // Valid FOURCC values for signaling support of audio codecs                      ¦
-¦                                                                                    ¦  // in the enhanced FourCC pipeline. In this context, support                      ¦
-¦                                                                                    ¦  // for a FourCC codec MUST be signaled via the enhanced                           ¦
-¦                                                                                    ¦  // "connect" command.                                                             ¦
+¦        // TODO: Integrate the Nano offset with the timestamp handling              ¦  // Valid FOURCC values for signaling support of audio codecs                      ¦
+¦        // logic to adjust the presentation time of the media samples accordingly.  ¦  // in the enhanced FourCC pipeline. In this context, support                      ¦
+¦      }                                                                             ¦  // for a FourCC codec MUST be signaled via the enhanced                           ¦
+¦    } while (hasMoreOffsets);                                                       ¦  // "connect" command.                                                             ¦
 ¦                                                                                    ¦  //                                                                                ¦
-¦                                                                                    ¦                                                                                    ¦
-¦                                                                                    ¦  // AC-3/E-AC-3 - <https://en.wikipedia.org/wiki/Dolby_Digital>                    ¦
-¦                                                                                    ¦  Ac3         = makeFourCc("ac-3"),                                                 ¦
+¦    // Fetch audioPacketType once more after processing audio timestamp offsets     ¦                                                                                    ¦
+¦    audioPacketType = UB[4] as AudioPacketType;                                     ¦  // AC-3/E-AC-3 - <https://en.wikipedia.org/wiki/Dolby_Digital>                    ¦
+¦  }                                                                                 ¦  Ac3         = makeFourCc("ac-3"),                                                 ¦
 ¦                                                                                    ¦  Eac3        = makeFourCc("ec-3"),                                                 ¦
 ¦                                                                                    ¦                                                                                    ¦
-¦                                                                                    ¦  // Opus audio - <https://opus-codec.org/>                                         ¦
-¦                                                                                    ¦  Opus        = makeFourCc("Opus"),                                                 ¦
-¦                                                                                    ¦                                                                                    ¦
+¦  if (audioPacketType == AudioPacketType.Multitrack) {                              ¦  // Opus audio - <https://opus-codec.org/>                                         ¦
+¦    isAudioMultitrack = true;                                                       ¦  Opus        = makeFourCc("Opus"),                                                 ¦
+¦    audioMultitrackType = UB[4] as AvMultitrackType                                 ¦                                                                                    ¦
 ¦                                                                                    ¦  // Mp3 audio - <https://en.wikipedia.org/wiki/MP3>                                ¦
-¦                                                                                    ¦  Mp3         = makeFourCc(".mp3"),                                                 ¦
-¦                                                                                    ¦                                                                                    ¦
-¦                                                                                    ¦  // Free Lossless Audio Codec - <https://xiph.org/flac/format.html>                ¦
+¦    // Fetch AudioPacketType for all audio tracks in the audio message.             ¦  Mp3         = makeFourCc(".mp3"),                                                 ¦
+¦    // This fetch MUST not result in a AudioPacketType.Multitrack                   ¦                                                                                    ¦
+¦    audioPacketType = UB[4] as AudioPacketType                                      ¦  // Free Lossless Audio Codec - <https://xiph.org/flac/format.html>                ¦
 ¦                                                                                    ¦  Flac        = makeFourCc("fLaC"),                                                 ¦
-¦                                                                                    ¦                                                                                    ¦
-¦                                                                                    ¦  // Advanced Audio Coding - <https://en.wikipedia.org/wiki/Advanced_Audio_Coding>  ¦
-¦                                                                                    ¦  // The following AAC profiles, denoted by their object types, are supported       ¦
-¦                                                                                    ¦  // 1 = main profile                                                               ¦
-¦                                                                                    ¦  // 2 = low complexity, a.k.a., LC                                                 ¦
-¦                                                                                    ¦  // 5 = high efficiency / scale band replication, a.k.a., HE / SBR                 ¦
-¦                                                                                    ¦  Aac         = makeFourCc("mp4a"),                                                 ¦
-¦                                                                                    ¦}                                                                                   ¦
+¦    if (audioMultitrackType != AvMultitrackType.ManyTracksManyCodecs) {             ¦                                                                                    ¦
+¦      // The tracks are encoded with the same codec. Fetch the FOURCC for them      ¦  // Advanced Audio Coding - <https://en.wikipedia.org/wiki/Advanced_Audio_Coding>  ¦
+¦      audioFourCc = FOURCC as AudioFourCc                                           ¦  // The following AAC profiles, denoted by their object types, are supported       ¦
+¦    }                                                                               ¦  // 1 = main profile                                                               ¦
+¦  } else {                                                                          ¦  // 2 = low complexity, a.k.a., LC                                                 ¦
+¦    audioFourCc = FOURCC as AudioFourCc                                             ¦  // 5 = high efficiency / scale band replication, a.k.a., HE / SBR                 ¦
+¦  }                                                                                 ¦  Aac         = makeFourCc("mp4a"),                                                 ¦
+¦}                                                                                   ¦}                                                                                   ¦
 ¦                                                                                    ¦                                                                                    ¦
 ¦                                                                                    ¦enum AvMultitrackType {                                                             ¦
 ¦                                                                                    ¦  //                                                                                ¦
@@ -710,6 +712,13 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 ¦                                                                                    ¦  //  3 - Reserved                                                                  ¦
 ¦                                                                                    ¦  // ...                                                                            ¦
 ¦                                                                                    ¦  // 15 - Reserved                                                                  ¦
+¦                                                                                    ¦}                                                                                   ¦
+¦                                                                                    ¦                                                                                    ¦
+¦                                                                                    ¦enum TimestampOffsetType {                                                          ¦
+¦                                                                                    ¦  Nano = 0,                                                                         ¦
+¦                                                                                    ¦  // ...                                                                            ¦
+¦                                                                                    ¦  // 6 - reserved                                                                   ¦
+¦                                                                                    ¦  // 7 - reserved                                                                   ¦
 ¦                                                                                    ¦}                                                                                   ¦
 +------------------------------------------------------------------------------------+------------------------------------------------------------------------------------+
 ¦                                                                         ExAudioTagBody Section                                                                          ¦
@@ -735,95 +744,95 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 ¦    // multiple instances of trackId with ascending numerical values.               ¦  // order and is stored as an explicit map.                                        ¦
 ¦    // The concept of priority or quality can have multiple                         ¦  //                                                                                ¦
 ¦    // interpretations, including but not limited to bitrate,                       ¦  Custom      = 2                                                                   ¦
-¦    // resolution, default angle, and language. This recommendation                 ¦}                                                                                   ¦
-¦    // serves as a guideline intended to standardize track numbering                ¦                                                                                    ¦
-¦    // across various applications.                                                 ¦enum AudioChannelMask {                                                             ¦
-¦    audioTrackId = UI8                                                              ¦  //                                                                                ¦
-¦                                                                                    ¦  // Mask used to indicate which channels are present in the stream.                ¦
-¦    if (audioMultitrackType != AvMultitrackType.OneTrack) {                         ¦  //                                                                                ¦
-¦      // The `sizeOfAudioTrack` specifies the size in bytes of the                  ¦                                                                                    ¦
-¦      // current track that is being processed. This size starts                    ¦  // masks for commonly used speaker configurations                                 ¦
-¦      // counting immediately after the position where the `sizeOfAudioTrack`       ¦  // <https://en.wikipedia.org/wiki/Surround_sound#Standard_speaker_channels>       ¦
-¦      // value is located. You can use this value as an offset to locate the        ¦  FrontLeft           = 0x000001,                                                   ¦
-¦      // next audio track in a multitrack system. The data pointer is               ¦  FrontRight          = 0x000002,                                                   ¦
-¦      // positioned immediately after this field. Depending on the MultiTrack       ¦  FrontCenter         = 0x000004,                                                   ¦
-¦      // type, the offset points to either a `fourCc` or a `trackId.`               ¦  LowFrequency1       = 0x000008,                                                   ¦
-¦      sizeOfAudioTrack = UI24                                                       ¦  BackLeft            = 0x000010,                                                   ¦
-¦    }                                                                               ¦  BackRight           = 0x000020,                                                   ¦
-¦  }                                                                                 ¦  FrontLeftCenter     = 0x000040,                                                   ¦
-¦                                                                                    ¦  FrontRightCenter    = 0x000080,                                                   ¦
-¦  if (audioPacketType == AudioPacketType.MultichannelConfig) {                      ¦  BackCenter          = 0x000100,                                                   ¦
-¦    //                                                                              ¦  SideLeft            = 0x000200,                                                   ¦
-¦    // Specify a speaker for a channel as it appears in the bitstream.              ¦  SideRight           = 0x000400,                                                   ¦
-¦    // This is needed if the codec is not self-describing for channel mapping       ¦  TopCenter           = 0x000800,                                                   ¦
-¦    //                                                                              ¦  TopFrontLeft        = 0x001000,                                                   ¦
-¦                                                                                    ¦  TopFrontCenter      = 0x002000,                                                   ¦
-¦    // set audio channel order                                                      ¦  TopFrontRight       = 0x004000,                                                   ¦
-¦    audioChannelOrder = UI8 as AudioChannelOrder                                    ¦  TopBackLeft         = 0x008000,                                                   ¦
-¦                                                                                    ¦  TopBackCenter       = 0x010000,                                                   ¦
-¦    // number of channels                                                           ¦  TopBackRight        = 0x020000,                                                   ¦
-¦    channelCount = UI8                                                              ¦                                                                                    ¦
-¦                                                                                    ¦  // Completes 22.2 multichannel audio,                                             ¦
-¦    if (audioChannelOrder == AudioChannelOrder.Custom) {                            ¦  // as standardized in SMPTE ST2036-2-2008                                         ¦
-¦      // Each entry specifies the speaker layout (see AudioChannel enum above       ¦  // see - <https://en.wikipedia.org/wiki/22.2_surround_sound>                      ¦
-¦      // for layout definition) in the order that it appears in the bitstream.      ¦  LowFrequency2       = 0x040000,                                                   ¦
-¦      // First entry (i.e., index 0) specifies the speaker layout for channel 1.    ¦  TopSideLeft         = 0x080000,                                                   ¦
-¦      // Subsequent entries specify the speaker layout for the next channels        ¦  TopSideRight        = 0x100000,                                                   ¦
-¦      // (e.g., second entry for channel 2, third entry for channel 3, etc.).       ¦  BottomFrontCenter   = 0x200000,                                                   ¦
-¦      audioChannelMapping = UI8[channelCount] as AudioChannel                       ¦  BottomFrontLeft     = 0x400000,                                                   ¦
-¦    }                                                                               ¦  BottomFrontRight    = 0x800000,                                                   ¦
+¦    // resolution, default angle, and language. This recommendation                 ¦                                                                                    ¦
+¦    // serves as a guideline intended to standardize track numbering                ¦  //  3 - Reserved                                                                  ¦
+¦    // across various applications.                                                 ¦  // ...                                                                            ¦
+¦    audioTrackId = UI8                                                              ¦  // 15 - reserved                                                                  ¦
 ¦                                                                                    ¦}                                                                                   ¦
-¦    if (audioChannelOrder == AudioChannelOrder.Native) {                            ¦                                                                                    ¦
-¦      // audioChannelFlags indicates which channels are present in the              ¦enum AudioChannel {                                                                 ¦
-¦      // multi-channel stream. You can perform a Bitwise AND                        ¦  //                                                                                ¦
-¦      // (i.e., audioChannelFlags & AudioChannelMask.xxx) to see if a               ¦  // Channel mappings enums                                                         ¦
-¦      // specific audio channel is present                                          ¦  //                                                                                ¦
-¦      audioChannelFlags = UI32                                                      ¦                                                                                    ¦
-¦    }                                                                               ¦  // commonly used speaker configurations                                           ¦
+¦    if (audioMultitrackType != AvMultitrackType.OneTrack) {                         ¦                                                                                    ¦
+¦      // The `sizeOfAudioTrack` specifies the size in bytes of the                  ¦enum AudioChannelMask {                                                             ¦
+¦      // current track that is being processed. This size starts                    ¦  //                                                                                ¦
+¦      // counting immediately after the position where the `sizeOfAudioTrack`       ¦  // Mask used to indicate which channels are present in the stream.                ¦
+¦      // value is located. You can use this value as an offset to locate the        ¦  //                                                                                ¦
+¦      // next audio track in a multitrack system. The data pointer is               ¦                                                                                    ¦
+¦      // positioned immediately after this field. Depending on the MultiTrack       ¦  // masks for commonly used speaker configurations                                 ¦
+¦      // type, the offset points to either a `fourCc` or a `trackId.`               ¦  // <https://en.wikipedia.org/wiki/Surround_sound#Standard_speaker_channels>       ¦
+¦      sizeOfAudioTrack = UI24                                                       ¦  FrontLeft           = 0x000001,                                                   ¦
+¦    }                                                                               ¦  FrontRight          = 0x000002,                                                   ¦
+¦  }                                                                                 ¦  FrontCenter         = 0x000004,                                                   ¦
+¦                                                                                    ¦  LowFrequency1       = 0x000008,                                                   ¦
+¦  if (audioPacketType == AudioPacketType.MultichannelConfig) {                      ¦  BackLeft            = 0x000010,                                                   ¦
+¦    //                                                                              ¦  BackRight           = 0x000020,                                                   ¦
+¦    // Specify a speaker for a channel as it appears in the bitstream.              ¦  FrontLeftCenter     = 0x000040,                                                   ¦
+¦    // This is needed if the codec is not self-describing for channel mapping       ¦  FrontRightCenter    = 0x000080,                                                   ¦
+¦    //                                                                              ¦  BackCenter          = 0x000100,                                                   ¦
+¦                                                                                    ¦  SideLeft            = 0x000200,                                                   ¦
+¦    // set audio channel order                                                      ¦  SideRight           = 0x000400,                                                   ¦
+¦    audioChannelOrder = UI8 as AudioChannelOrder                                    ¦  TopCenter           = 0x000800,                                                   ¦
+¦                                                                                    ¦  TopFrontLeft        = 0x001000,                                                   ¦
+¦    // number of channels                                                           ¦  TopFrontCenter      = 0x002000,                                                   ¦
+¦    channelCount = UI8                                                              ¦  TopFrontRight       = 0x004000,                                                   ¦
+¦                                                                                    ¦  TopBackLeft         = 0x008000,                                                   ¦
+¦    if (audioChannelOrder == AudioChannelOrder.Custom) {                            ¦  TopBackCenter       = 0x010000,                                                   ¦
+¦      // Each entry specifies the speaker layout (see AudioChannel enum above       ¦  TopBackRight        = 0x020000,                                                   ¦
+¦      // for layout definition) in the order that it appears in the bitstream.      ¦                                                                                    ¦
+¦      // First entry (i.e., index 0) specifies the speaker layout for channel 1.    ¦  // Completes 22.2 multichannel audio, as                                          ¦
+¦      // Subsequent entries specify the speaker layout for the next channels        ¦  // standardized in SMPTE ST2036-2-2008                                            ¦
+¦      // (e.g., second entry for channel 2, third entry for channel 3, etc.).       ¦  // see - <https://en.wikipedia.org/wiki/22.2_surround_sound>                      ¦
+¦      audioChannelMapping = UI8[channelCount] as AudioChannel                       ¦  LowFrequency2       = 0x040000,                                                   ¦
+¦    }                                                                               ¦  TopSideLeft         = 0x080000,                                                   ¦
+¦                                                                                    ¦  TopSideRight        = 0x100000,                                                   ¦
+¦    if (audioChannelOrder == AudioChannelOrder.Native) {                            ¦  BottomFrontCenter   = 0x200000,                                                   ¦
+¦      // audioChannelFlags indicates which channels are present in the              ¦  BottomFrontLeft     = 0x400000,                                                   ¦
+¦      // multi-channel stream. You can perform a Bitwise AND                        ¦  BottomFrontRight    = 0x800000,                                                   ¦
+¦      // (i.e., audioChannelFlags & AudioChannelMask.xxx) to see if a               ¦}                                                                                   ¦
+¦      // specific audio channel is present                                          ¦                                                                                    ¦
+¦      audioChannelFlags = UI32                                                      ¦enum AudioChannel {                                                                 ¦
+¦    }                                                                               ¦  //                                                                                ¦
+¦  }                                                                                 ¦  // Channel mappings enums                                                         ¦
+¦                                                                                    ¦  //                                                                                ¦
+¦  if (audioPacketType == AudioPacketType.SequenceEnd) {                             ¦                                                                                    ¦
+¦    // signals end of sequence                                                      ¦  // commonly used speaker configurations                                           ¦
 ¦  }                                                                                 ¦  // see - <https://en.wikipedia.org/wiki/Surround_sound#Standard_speaker_channels> ¦
 ¦                                                                                    ¦  FrontLeft           = 0,  // i.e., FrontLeft is assigned to channel zero          ¦
-¦  if (audioPacketType == AudioPacketType.SequenceEnd) {                             ¦  FrontRight,                                                                       ¦
-¦    // signals end of sequence                                                      ¦  FrontCenter,                                                                      ¦
-¦  }                                                                                 ¦  LowFrequency1,                                                                    ¦
-¦                                                                                    ¦  BackLeft,                                                                         ¦
-¦  if (audioPacketType == AudioPacketType.SequenceStart) {                           ¦  BackRight,                                                                        ¦
-¦    if (audioFourCc == AudioFourCc.Aac) {                                           ¦  FrontLeftCenter,                                                                  ¦
-¦      // The AAC audio specific config (a.k.a., AacSequenceHeader) is               ¦  FrontRightCenter,                                                                 ¦
-¦      // defined in ISO/IEC 14496-3.                                                ¦  BackCenter          = 8,                                                          ¦
-¦      aacHeader = [AacSequenceHeader]                                               ¦  SideLeft,                                                                         ¦
-¦    }                                                                               ¦  SideRight,                                                                        ¦
-¦                                                                                    ¦  TopCenter,                                                                        ¦
-¦    if (audioFourCc == AudioFourCc.Flac) {                                          ¦  TopFrontLeft,                                                                     ¦
-¦      // FlacSequenceHeader layout is:                                              ¦  TopFrontCenter,                                                                   ¦
-¦      //                                                                            ¦  TopFrontRight,                                                                    ¦
-¦      // The bytes 0x66 0x4C 0x61 0x43 ("fLaC" in ASCII) signature                  ¦  TopBackLeft,                                                                      ¦
-¦      //                                                                            ¦  TopBackCenter       = 16,                                                         ¦
-¦      // Followed by a metadata block (called the STREAMINFO block) as described    ¦  TopBackRight,                                                                     ¦
-¦      // in section 7 of the FLAC specification. The STREAMINFO block contains      ¦                                                                                    ¦
-¦      // information about the whole sequence, such as sample rate, number of       ¦  // mappings to complete 22.2 multichannel audio, as                               ¦
-¦      // channels, total number of samples, etc. It MUST be present as the first    ¦  // standardized in SMPTE ST2036-2-2008                                            ¦
-¦      // metadata block in the sequence. The FLAC audio specific bitstream format   ¦  // see - <https://en.wikipedia.org/wiki/22.2_surround_sound>                      ¦
-¦      // is defined at <https://xiph.org/flac/format.html>                          ¦  LowFrequency2       = 18,                                                         ¦
-¦      flacHeader = [FlacSequenceHeader]                                             ¦  TopSideLeft,                                                                      ¦
-¦    }                                                                               ¦  TopSideRight,                                                                     ¦
-¦                                                                                    ¦  BottomFrontCenter,                                                                ¦
-¦    if (audioFourCc == AudioFourCc.Opus) {                                          ¦  BottomFrontLeft,                                                                  ¦
-¦      // Opus Sequence header (a.k.a., ID header):                                  ¦  BottomFrontRight,                                                                 ¦
-¦      // - The Opus sequence start is also known as the ID header.                  ¦                                                                                    ¦
-¦      // - It contains essential information needed to initialize                   ¦  // Channel is empty and can be safely skipped.                                    ¦
-¦      //   the decoder and understand the stream format.                            ¦  Unused              = 0xfe,                                                       ¦
-¦      // - For detailed structure, refer to RFC 7845, Section 5.1:                  ¦                                                                                    ¦
-¦      //   <https://datatracker.ietf.org/doc/html/rfc7845#section-5.1>              ¦  // Channel contains data, but its speaker configuration is unknown.               ¦
-¦      //                                                                            ¦  Unknown             = 0xff,                                                       ¦
-¦      // If the Opus sequence start payload is empty, use the                       ¦}                                                                                   ¦
-¦      // AudioPacketType.MultichannelConfig signal for channel                      ¦                                                                                    ¦
+¦  if (audioPacketType == AudioPacketType.SequenceStart) {                           ¦  FrontRight,                                                                       ¦
+¦    if (audioFourCc == AudioFourCc.Aac) {                                           ¦  FrontCenter,                                                                      ¦
+¦      // The AAC audio specific config (a.k.a., AacSequenceHeader) is               ¦  LowFrequency1,                                                                    ¦
+¦      // defined in ISO/IEC 14496-3.                                                ¦  BackLeft,                                                                         ¦
+¦      aacHeader = [AacSequenceHeader]                                               ¦  BackRight,                                                                        ¦
+¦    }                                                                               ¦  FrontLeftCenter,                                                                  ¦
+¦                                                                                    ¦  FrontRightCenter,                                                                 ¦
+¦    if (audioFourCc == AudioFourCc.Flac) {                                          ¦  BackCenter          = 8,                                                          ¦
+¦      // FlacSequenceHeader layout is:                                              ¦  SideLeft,                                                                         ¦
+¦      //                                                                            ¦  SideRight,                                                                        ¦
+¦      // The bytes 0x66 0x4C 0x61 0x43 ("fLaC" in ASCII) signature                  ¦  TopCenter,                                                                        ¦
+¦      //                                                                            ¦  TopFrontLeft,                                                                     ¦
+¦      // Followed by a metadata block (called the STREAMINFO block) as described    ¦  TopFrontCenter,                                                                   ¦
+¦      // in section 7 of the FLAC specification. The STREAMINFO block contains      ¦  TopFrontRight,                                                                    ¦
+¦      // information about the whole sequence, such as sample rate, number of       ¦  TopBackLeft,                                                                      ¦
+¦      // channels, total number of samples, etc. It MUST be present as the first    ¦  TopBackCenter       = 16,                                                         ¦
+¦      // metadata block in the sequence. The FLAC audio specific bitstream format   ¦  TopBackRight,                                                                     ¦
+¦      // is defined at <https://xiph.org/flac/format.html>                          ¦                                                                                    ¦
+¦      flacHeader = [FlacSequenceHeader]                                             ¦  // mappings to complete 22.2 multichannel audio, as                               ¦
+¦    }                                                                               ¦  // standardized in SMPTE ST2036-2-2008                                            ¦
+¦                                                                                    ¦  // see - <https://en.wikipedia.org/wiki/22.2_surround_sound>                      ¦
+¦    if (audioFourCc == AudioFourCc.Opus) {                                          ¦  LowFrequency2       = 18,                                                         ¦
+¦      // Opus Sequence header (a.k.a., ID header):                                  ¦  TopSideLeft,                                                                      ¦
+¦      // - The Opus sequence start is also known as the ID header.                  ¦  TopSideRight,                                                                     ¦
+¦      // - It contains essential information needed to initialize                   ¦  BottomFrontCenter,                                                                ¦
+¦      //   the decoder and understand the stream format.                            ¦  BottomFrontLeft,                                                                  ¦
+¦      // - For detailed structure, refer to RFC 7845, Section 5.1:                  ¦  BottomFrontRight    = 23,                                                         ¦
+¦      //   <https://datatracker.ietf.org/doc/html/rfc7845#section-5.1>              ¦                                                                                    ¦
+¦      //                                                                            ¦  //   24 - Reserved                                                                ¦
+¦      // If the Opus sequence start payload is empty, use the                       ¦  // ...                                                                            ¦
+¦      // AudioPacketType.MultichannelConfig signal for channel                      ¦  // 0xfd - reserved                                                                ¦
 ¦      // mapping when present; otherwise, default to mono/stereo mode.              ¦                                                                                    ¦
-¦      opusHeader = [OpusSequenceHeader]                                             ¦                                                                                    ¦
-¦    }                                                                               ¦                                                                                    ¦
+¦      opusHeader = [OpusSequenceHeader]                                             ¦  // Channel is empty and can be safely skipped.                                    ¦
+¦    }                                                                               ¦  Unused              = 0xfe,                                                       ¦
 ¦  }                                                                                 ¦                                                                                    ¦
-¦                                                                                    ¦                                                                                    ¦
-¦  if (audioPacketType == AudioPacketType.CodedFrames) {                             ¦                                                                                    ¦
-¦    if (audioFourCc == AudioFourCc.Ac3 || audioFourCc == AudioFourCc.Eac3) {        ¦                                                                                    ¦
+¦                                                                                    ¦  // Channel contains data, but its speaker configuration is unknown.               ¦
+¦  if (audioPacketType == AudioPacketType.CodedFrames) {                             ¦  Unknown             = 0xff,                                                       ¦
+¦    if (audioFourCc == AudioFourCc.Ac3 || audioFourCc == AudioFourCc.Eac3) {        ¦}                                                                                   ¦
 ¦      // Body contains audio data as defined by the bitstream syntax                ¦                                                                                    ¦
 ¦      // in the ATSC standard for Digital Audio Compression (AC-3, E-AC-3)          ¦                                                                                    ¦
 ¦      ac3Data = [Ac3CodedData]                                                      ¦                                                                                    ¦
@@ -897,25 +906,25 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 +------------------------------------------------------------------------------------+------------------------------------------------------------------------------------+
 ¦                              Description Of Bitstream                              ¦                                  Enumerated Types                                  ¦
 +------------------------------------------------------------------------------------+------------------------------------------------------------------------------------+
-¦// Check if isExVideoHeader flag is set to 1, signaling E-RTMP                      ¦enum VideoFrameType {                                                               ¦
-¦// video mode. In this case, VideoCodecId's 4-bit unsigned binary (UB[4])           ¦    // 0 - reserved                                                                 ¦
-¦// should not be interpreted as a codec identifier. Instead, these                  ¦    KeyFrame                = 1,    // a seekable frame                             ¦
-¦// UB[4] bits should be interpreted as VideoPacketType.                             ¦    InterFrame              = 2,    // a non - seekable frame                       ¦
-¦isExVideoHeader = UB[1]                                                             ¦    DisposableInterFrame    = 3,    // H.263 only                                   ¦
-¦videoFrameType = UB[3] as VideoFrameType                                            ¦    GeneratedKeyFrame       = 4,    // reserved for server use only                 ¦
+¦// Check if isExVideoHeader flag is set to 1, signaling enhanced RTMP               ¦enum VideoFrameType {                                                               ¦
+¦// video mode. In this case, VideoCodecId's 4-bit unsigned binary (UB[4])           ¦  // 0 - reserved                                                                   ¦
+¦// should not be interpreted as a codec identifier. Instead, these                  ¦  KeyFrame                = 1,    // a seekable frame                               ¦
+¦// UB[4] bits should be interpreted as VideoPacketType.                             ¦  InterFrame              = 2,    // a non - seekable frame                         ¦
+¦isExVideoHeader = UB[1]                                                             ¦  DisposableInterFrame    = 3,    // H.263 only                                     ¦
+¦videoFrameType = UB[3] as VideoFrameType                                            ¦  GeneratedKeyFrame       = 4,    // reserved for server use only                   ¦
 ¦                                                                                    ¦                                                                                    ¦
-¦if (isExVideoHeader == 0) {                                                         ¦    // If videoFrameType is not ignored and is set to VideoFrameType.Command,       ¦
-¦    // Utilize the VideoCodecId values and the bitstream description                ¦    // the payload will not contain video data. Instead, (Ex)VideoTagHeader         ¦
-¦    // as defined in the legacy [FLV] specification. Refer to this                  ¦    // will be followed by a UI8, representing the following meanings:              ¦
-¦    // version for the proper implementation details.                               ¦    //                                                                              ¦
-¦    videoCodecId = UB[4] as VideoCodecId                                            ¦    //     0 = Start of client-side seeking video frame sequence                    ¦
-¦                                                                                    ¦    //     1 = End of client-side seeking video frame sequence                      ¦
-¦    if (videoFrameType == VideoFrameType.Command) {                                 ¦    //                                                                              ¦
-¦        videoCommand = UI8 as VideoCommand                                          ¦    // frameType is ignored if videoPacketType is VideoPacketType.MetaData          ¦
-¦    }                                                                               ¦    Command                 = 5,    // video info / command frame                   ¦
+¦if (isExVideoHeader == 0) {                                                         ¦  // If videoFrameType is not ignored and is set to VideoFrameType.Command,         ¦
+¦  // Utilize the VideoCodecId values and the bitstream description                  ¦  // the payload will not contain video data. Instead, (Ex)VideoTagHeader           ¦
+¦  // as defined in the legacy [FLV] specification. Refer to this                    ¦  // will be followed by a UI8, representing the following meanings:                ¦
+¦  // version for the proper implementation details.                                 ¦  //                                                                                ¦
+¦  videoCodecId = UB[4] as VideoCodecId                                              ¦  //     0 = Start of client-side seeking video frame sequence                      ¦
+¦                                                                                    ¦  //     1 = End of client-side seeking video frame sequence                        ¦
+¦  if (videoFrameType == VideoFrameType.Command) {                                   ¦  //                                                                                ¦
+¦    videoCommand = UI8 as VideoCommand                                              ¦  // frameType is ignored if videoPacketType is VideoPacketType.MetaData            ¦
+¦  }                                                                                 ¦  Command                = 5,     // video info / command frame                     ¦
 ¦}                                                                                   ¦                                                                                    ¦
-¦                                                                                    ¦    // 6 = reserved                                                                 ¦
-¦                                                                                    ¦    // 7 = reserved                                                                 ¦
+¦                                                                                    ¦  // 6 = reserved                                                                   ¦
+¦                                                                                    ¦  // 7 = reserved                                                                   ¦
 ¦                                                                                    ¦}                                                                                   ¦
 ¦                                                                                    ¦                                                                                    ¦
 ¦                                                                                    ¦enum VideoCommand {                                                                 ¦
@@ -928,25 +937,25 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 ¦                                                                                    ¦}                                                                                   ¦
 ¦                                                                                    ¦                                                                                    ¦
 ¦                                                                                    ¦enum VideoCodecId {                                                                 ¦
-¦                                                                                    ¦    // These values remain as they were in the legacy [FLV] specification.          ¦
-¦                                                                                    ¦    // If the IsExVideoHeader flag is set, we switch into                           ¦
-¦                                                                                    ¦    // FOURCC video mode defined in the VideoFourCc enumeration.                    ¦
-¦                                                                                    ¦    // This means that VideoCodecId (UB[4] bits) is not interpreted                 ¦
-¦                                                                                    ¦    // as a codec identifier. Instead, these UB[4] bits are                         ¦
-¦                                                                                    ¦    // interpreted as VideoPacketType.                                              ¦
+¦                                                                                    ¦  // These values remain as they were in the legacy [FLV] specification.            ¦
+¦                                                                                    ¦  // If the IsExVideoHeader flag is set, we switch into                             ¦
+¦                                                                                    ¦  // FOURCC video mode defined in the VideoFourCc enumeration.                      ¦
+¦                                                                                    ¦  // This means that VideoCodecId (UB[4] bits) is not interpreted                   ¦
+¦                                                                                    ¦  // as a codec identifier. Instead, these UB[4] bits are                           ¦
+¦                                                                                    ¦  // interpreted as VideoPacketType.                                                ¦
 ¦                                                                                    ¦                                                                                    ¦
 ¦                                                                                    ¦                                                                                    ¦
-¦                                                                                    ¦    // 0 - Reserved                                                                 ¦
-¦                                                                                    ¦    // 1 - Reserved                                                                 ¦
-¦                                                                                    ¦    SorensonH263    = 2,                                                            ¦
-¦                                                                                    ¦    Screen          = 3,                                                            ¦
-¦                                                                                    ¦    On2VP6          = 4,                                                            ¦
-¦                                                                                    ¦    On2VP6A         = 5, // with alpha channel                                      ¦
-¦                                                                                    ¦    ScreenV2        = 6,                                                            ¦
-¦                                                                                    ¦    Avc             = 7,                                                            ¦
-¦                                                                                    ¦    // 8 - Reserved                                                                 ¦
-¦                                                                                    ¦    // ...                                                                          ¦
-¦                                                                                    ¦    // 15 - Reserved                                                                ¦
+¦                                                                                    ¦  // 0 - Reserved                                                                   ¦
+¦                                                                                    ¦  // 1 - Reserved                                                                   ¦
+¦                                                                                    ¦  SorensonH263    = 2,                                                              ¦
+¦                                                                                    ¦  Screen          = 3,                                                              ¦
+¦                                                                                    ¦  On2VP6          = 4,                                                              ¦
+¦                                                                                    ¦  On2VP6A         = 5, // with alpha channel                                        ¦
+¦                                                                                    ¦  ScreenV2        = 6,                                                              ¦
+¦                                                                                    ¦  Avc             = 7,                                                              ¦
+¦                                                                                    ¦  // 8 - Reserved                                                                   ¦
+¦                                                                                    ¦  // ...                                                                            ¦
+¦                                                                                    ¦  // 15 - Reserved                                                                  ¦
 ¦                                                                                    ¦}                                                                                   ¦
 +------------------------------------------------------------------------------------+------------------------------------------------------------------------------------+
 ¦                                                                        ExVideoTagHeader Section                                                                         ¦
@@ -965,58 +974,83 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 ¦  // instead of VideoCodecId                                                        ¦  CodedFramesX          = 3,                                                        ¦
 ¦  videoPacketType = UB[4] as VideoPacketType                                        ¦                                                                                    ¦
 ¦                                                                                    ¦  // ExVideoTagBody does not contain video data. Instead, it contains               ¦
-¦  if (videoPacketType != VideoPacketType.Metadata &&                                ¦  // an AMF-encoded metadata. Refer to the Metadata Frame section for               ¦
-¦    videoFrameType == VideoFrameType.Command) {                                     ¦  // an illustration of its usage. For example, the metadata might include          ¦
-¦    videoCommand = UI8 as VideoCommand                                              ¦  // HDR information. This also enables future possibilities for expressing         ¦
-¦                                                                                    ¦  // additional metadata meant for subsequent video sequences.                      ¦
-¦    // ExVideoTagBody has no payload if we got here.                                ¦  //                                                                                ¦
-¦    // Set boolean to not try to process the video body.                            ¦  // If VideoPacketType.Metadata is present, the FrameType flags                    ¦
-¦    processVideoBody = false                                                        ¦  // at the top of this table should be ignored.                                    ¦
-¦  } else if (videoPacketType == VideoPacketType.Multitrack) {                       ¦  Metadata              = 4,                                                        ¦
-¦    isVideoMultitrack = true;                                                       ¦                                                                                    ¦
-¦    videoMultitrackType = UB[4] as AvMultitrackType                                 ¦  // Carriage of bitstream in MPEG-2 TS format                                      ¦
+¦  if (videoPacketType == VideoPacketType.TimestampOffsets) {                        ¦  // an AMF-encoded metadata. Refer to the Metadata Frame section for               ¦
+¦    do {                                                                            ¦  // an illustration of its usage. For example, the metadata might include          ¦
+¦      // Fetch the next bit to determine if additional offsets need to be processed ¦  // HDR information. This also enables future possibilities for expressing         ¦
+¦      hasMoreOffsets = UB[1];                                                       ¦  // additional metadata meant for subsequent video sequences.                      ¦
 ¦                                                                                    ¦  //                                                                                ¦
-¦    // Fetch VideoPacketType for all video tracks in the video message.             ¦  // PacketTypeSequenceStart and PacketTypeMPEG2TSSequenceStart                     ¦
-¦    // This fetch MUST not result in a VideoPacketType.Multitrack                   ¦  // are mutually exclusive                                                         ¦
-¦    videoPacketType = UB[4] as VideoPacketType                                      ¦  MPEG2TSSequenceStart  = 5,                                                        ¦
-¦                                                                                    ¦                                                                                    ¦
-¦    if (videoMultitrackType != AvMultitrackType.ManyTracksManyCodecs) {             ¦  // Turns on video multitrack mode                                                 ¦
-¦      // The tracks are encoded with the same codec. Fetch the FOURCC for them      ¦  Multitrack            = 6,                                                        ¦
-¦      videoFourCc = FOURCC as VideoFourCc                                           ¦                                                                                    ¦
-¦    }                                                                               ¦  //  7 - Reserved                                                                  ¦
-¦  } else {                                                                          ¦  // ...                                                                            ¦
-¦    videoFourCc = FOURCC as VideoFourCc                                             ¦  // 14 - reserved                                                                  ¦
-¦  }                                                                                 ¦  // 15 - reserved                                                                  ¦
-¦}                                                                                   ¦}                                                                                   ¦
-¦                                                                                    ¦                                                                                    ¦
-¦                                                                                    ¦enum VideoFourCc {                                                                  ¦
-¦                                                                                    ¦  //                                                                                ¦
-¦                                                                                    ¦  // Valid FOURCC values for signaling support of video codecs                      ¦
-¦                                                                                    ¦  // in the enhanced FourCC pipeline. In this context, support                      ¦
-¦                                                                                    ¦  // for a FourCC codec MUST be signaled via the enhanced                           ¦
-¦                                                                                    ¦  // "connect" command.                                                             ¦
-¦                                                                                    ¦  //                                                                                ¦
-¦                                                                                    ¦                                                                                    ¦
-¦                                                                                    ¦  Vp8         = makeFourCc("vp08"),                                                 ¦
-¦                                                                                    ¦  Vp9         = makeFourCc("vp09"),                                                 ¦
-¦                                                                                    ¦  Av1         = makeFourCc("av01"),                                                 ¦
-¦                                                                                    ¦  Avc         = makeFourCc("avc1"),                                                 ¦
-¦                                                                                    ¦  Hevc        = makeFourCc("hvc1"),                                                 ¦
+¦      // Fetch the next UB[3] bits as the timestamp offset type                     ¦  // If VideoPacketType.Metadata is present, the FrameType flags                    ¦
+¦      videoTimestampOffsetType = UB[3] as TimestampOffsetType;                      ¦  // at the top of this table should be ignored.                                    ¦
+¦                                                                                    ¦  Metadata              = 4,                                                        ¦
+¦      if (videoTimestampOffsetType == TimestampOffsetType.Nano) {                   ¦                                                                                    ¦
+¦        // Handle TimestampOffsetType.Nano                                          ¦  // Carriage of bitstream in MPEG-2 TS format                                      ¦
+¦        //                                                                          ¦  //                                                                                ¦
+¦        // The TimestampOffsetType.Nano signal is used to correct RTMP’s timescale  ¦  // PacketTypeSequenceStart and PacketTypeMPEG2TSSequenceStart                     ¦
+¦        // limitations and improve compatibility with formats like MP4 and M2TS, as ¦  // are mutually exclusive                                                         ¦
+¦        // well as environments like Safari's Media Source Extensions. This type is ¦  MPEG2TSSequenceStart  = 5,                                                        ¦
+¦        // followed by an unsigned 20-bit nanosecond offset for RTMP timestamps.    ¦                                                                                    ¦
+¦        // Both the enum and the offset are optional and are intended to fine-tune  ¦  // Turns on video multitrack mode                                                 ¦
+¦        // the presentation time of each media message, providing higher precision  ¦  Multitrack            = 6,                                                        ¦
+¦        // synchronization.                                                         ¦                                                                                    ¦
+¦        //                                                                          ¦  // Signals timestamp offsets for fine tuning synchronization                      ¦
+¦        // The offset in nanoseconds affects the presentation time of each media    ¦  TimestampOffsets = 7,                                                             ¦
+¦        // sample, ensuring that audio, video, and data remain synchronized during  ¦                                                                                    ¦
+¦        // playback. By applying this offset to the media message timestamp,        ¦  //  8 - Reserved                                                                  ¦
+¦        // synchronization can be maintained across different media formats and     ¦  // ...                                                                            ¦
+¦        // playback environments without altering the core RTMP timestamps. This    ¦  // 14 - reserved                                                                  ¦
+¦        // offset should only be applied to the current media message(s) with the   ¦  // 15 - reserved                                                                  ¦
+¦        // same RTMP timestamp.                                                     ¦}                                                                                   ¦
+¦        //                                                                          ¦                                                                                    ¦
+¦        // If the same TimestampOffsetType is encountered more than once in the same¦enum VideoFourCc {                                                                  ¦
+¦        // packet, we combine the bits left-to-right to create a larger value. This ¦  //                                                                                ¦
+¦        // ensures that the first offset is placed in the more significant bits, and¦  // Valid FOURCC values for signaling support of video codecs                      ¦
+¦        // subsequent offsets are appended to the right. This is useful if there is ¦  // in the enhanced FourCC pipeline. In this context, support                      ¦
+¦        // a need to offset the presentation by more than 1 millisecond, which might¦  // for a FourCC codec MUST be signaled via the enhanced                           ¦
+¦        // be required in unique solutions where the presentation time needs to be  ¦  // "connect" command.                                                             ¦
+¦        // offset for reasons beyond precision (e.g., significant delays or         ¦  //                                                                                ¦
+¦        // corrections).                                                            ¦                                                                                    ¦
+¦        //                                                                          ¦  Vp8         = makeFourCc("vp08"),                                                 ¦
+¦        // We considered options such as not allowing this, replacing the old value,¦  Vp9         = makeFourCc("vp09"),                                                 ¦
+¦        // or adding this additional capability. Although it may be rarely needed,  ¦  Av1         = makeFourCc("av01"),                                                 ¦
+¦        // we ultimately chose to support additional capability by combining the    ¦  Avc         = makeFourCc("avc1"),                                                 ¦
+¦        // offsets.                                                                 ¦  Hevc        = makeFourCc("hvc1"),                                                 ¦
 ¦                                                                                    ¦}                                                                                   ¦
-¦                                                                                    ¦                                                                                    ¦
-¦                                                                                    ¦enum AvMultitrackType {                                                             ¦
+¦        // Fetch the unsigned 20-bit nanosecond offset                              ¦                                                                                    ¦
+¦        videoTimestampNanoOffset = UB[20];                                          ¦enum AvMultitrackType {                                                             ¦
 ¦                                                                                    ¦  //                                                                                ¦
 ¦                                                                                    ¦  // Used by audio and video pipeline                                               ¦
-¦                                                                                    ¦  //                                                                                ¦
-¦                                                                                    ¦                                                                                    ¦
-¦                                                                                    ¦  OneTrack              = 0,                                                        ¦
-¦                                                                                    ¦  ManyTracks            = 1,                                                        ¦
+¦        // TODO: Integrate the Nano offset with the timestamp handling              ¦  //                                                                                ¦
+¦        // logic to adjust the presentation time of the media samples accordingly.  ¦                                                                                    ¦
+¦      }                                                                             ¦  OneTrack              = 0,                                                        ¦
+¦    } while (hasMoreOffsets);                                                       ¦  ManyTracks            = 1,                                                        ¦
 ¦                                                                                    ¦  ManyTracksManyCodecs  = 2,                                                        ¦
-¦                                                                                    ¦                                                                                    ¦
-¦                                                                                    ¦  //  3 - Reserved                                                                  ¦
-¦                                                                                    ¦  // ...                                                                            ¦
+¦    // Fetch videoPacketType once more after processing video timestamp offsets     ¦                                                                                    ¦
+¦    videoPacketType = UB[4] as VideoPacketType;                                     ¦  //  3 - Reserved                                                                  ¦
+¦  }                                                                                 ¦  // ...                                                                            ¦
 ¦                                                                                    ¦  // 15 - Reserved                                                                  ¦
-¦                                                                                    ¦}                                                                                   ¦
+¦  if (videoPacketType != VideoPacketType.Metadata &&                                ¦}                                                                                   ¦
+¦    videoFrameType == VideoFrameType.Command) {                                     ¦                                                                                    ¦
+¦    videoCommand = UI8 as VideoCommand                                              ¦enum TimestampOffsetType {                                                          ¦
+¦                                                                                    ¦  Nano = 0,                                                                         ¦
+¦    // ExVideoTagBody has no payload if we got here.                                ¦  // ...                                                                            ¦
+¦    // Set boolean to not try to process the video body.                            ¦  // 6 - reserved                                                                   ¦
+¦    processVideoBody = false                                                        ¦  // 7 - reserved                                                                   ¦
+¦  } else if (videoPacketType == VideoPacketType.Multitrack) {                       ¦}                                                                                   ¦
+¦    isVideoMultitrack = true;                                                       ¦                                                                                    ¦
+¦    videoMultitrackType = UB[4] as AvMultitrackType                                 ¦                                                                                    ¦
+¦                                                                                    ¦                                                                                    ¦
+¦    // Fetch VideoPacketType for all video tracks in the video message.             ¦                                                                                    ¦
+¦    // This fetch MUST not result in a VideoPacketType.Multitrack                   ¦                                                                                    ¦
+¦    videoPacketType = UB[4] as VideoPacketType                                      ¦                                                                                    ¦
+¦                                                                                    ¦                                                                                    ¦
+¦    if (videoMultitrackType != AvMultitrackType.ManyTracksManyCodecs) {             ¦                                                                                    ¦
+¦      // The tracks are encoded with the same codec. Fetch the FOURCC for them      ¦                                                                                    ¦
+¦      videoFourCc = FOURCC as VideoFourCc                                           ¦                                                                                    ¦
+¦    }                                                                               ¦                                                                                    ¦
+¦  } else {                                                                          ¦                                                                                    ¦
+¦    videoFourCc = FOURCC as VideoFourCc                                             ¦                                                                                    ¦
+¦  }                                                                                 ¦                                                                                    ¦
+¦}                                                                                   ¦                                                                                    ¦
 +------------------------------------------------------------------------------------+------------------------------------------------------------------------------------+
 ¦                                                                         ExVideoTagBody Section                                                                          ¦
 ¦         Note: This ExVideoTagBody format is signaled by the presence of ExVideoTagHeader and if videoCommand has not been set (see VideoFrameType description)          ¦
@@ -1066,7 +1100,7 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 ¦    // See the Metadata Frame section for more details on this object.                                                                                                   ¦
 ¦    //                                                                                                                                                                   ¦
 ¦    // For a deeper understanding of the encoding, please refer to the descriptions                                                                                      ¦
-¦    // of SCRIPTDATA and SCRIPTDATAVALUE in the [FLV] file specification.                                                                                                ¦
+¦    // of SCRIPTDATA and SCRIPTDATAVALUE in the FLV file specification.                                                                                                  ¦
 ¦    videoMetadata = [VideoMetadata]                                                                                                                                      ¦
 ¦  }                                                                                                                                                                      ¦
 ¦                                                                                                                                                                         ¦
@@ -1091,14 +1125,16 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 ¦    }                                                                                                                                                                    ¦
 ¦                                                                                                                                                                         ¦
 ¦    if (videoFourCc == VideoFourCc.Avc) {                                                                                                                                ¦
-¦      // body contains a configuration record to start the sequence. See ISO/IEC                                                                                         ¦
-¦      // 14496-15, 5.2.4.1 for the description of AVCDecoderConfigurationRecord                                                                                          ¦
+¦      // body contains a configuration record to start the sequence.                                                                                                     ¦
+¦      // See ISO/IEC 14496-15:2019, 5.3.4.1 for the description of                                                                                                       ¦
+¦      // the AVCDecoderConfigurationRecord.                                                                                                                              ¦
 ¦      avcHeader = [AVCDecoderConfigurationRecord]                                                                                                                        ¦
 ¦    }                                                                                                                                                                    ¦
 ¦                                                                                                                                                                         ¦
 ¦    if (videoFourCc == VideoFourCc.Hevc) {                                                                                                                               ¦
-¦      // body contains a configuration record to start the sequence. See ISO/IEC                                                                                         ¦
-¦      // 14496-15, 8.3.3.1.2 for the description of HEVCDecoderConfigurationRecord                                                                                       ¦
+¦      // body contains a configuration record to start the sequence.                                                                                                     ¦
+¦      // See ISO/IEC 14496-15:2022, 8.3.3.2 for the description of                                                                                                       ¦
+¦      // the HEVCDecoderConfigurationRecord.                                                                                                                             ¦
 ¦      hevcHeader = [HEVCDecoderConfigurationRecord]                                                                                                                      ¦
 ¦    }                                                                                                                                                                    ¦
 ¦  }                                                                                                                                                                      ¦
@@ -1122,13 +1158,13 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 ¦    }                                                                                                                                                                    ¦
 ¦                                                                                                                                                                         ¦
 ¦    if (videoFourCc == VideoFourCc.Av1) {                                                                                                                                ¦
-¦      // body contains one or more OBUs which represent a single temporal unit                                                                                           ¦
+¦      // body contains one or more OBUs representing a single temporal unit                                                                                              ¦
 ¦      av1CodedData = [Av1CodedData]                                                                                                                                      ¦
 ¦    }                                                                                                                                                                    ¦
 ¦                                                                                                                                                                         ¦
 ¦    if (videoFourCc == VideoFourCc.Avc) {                                                                                                                                ¦
-¦      // See ISO/IEC 14496-12, 8.15.3 for an explanation of composition times.                                                                                           ¦
-¦      // The offset in an FLV file is always in milliseconds.                                                                                                            ¦
+¦      // See ISO/IEC 14496-12:2015, 8.6.1 for the description of the composition                                                                                         ¦
+¦      // time offset. The offset in an FLV file is always in milliseconds.                                                                                               ¦
 ¦      compositionTimeOffset = SI24                                                                                                                                       ¦
 ¦                                                                                                                                                                         ¦
 ¦      // Body contains one or more NALUs; full frames are required                                                                                                       ¦
@@ -1136,8 +1172,8 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 ¦    }                                                                                                                                                                    ¦
 ¦                                                                                                                                                                         ¦
 ¦    if (videoFourCc == VideoFourCc.Hevc) {                                                                                                                               ¦
-¦      // See ISO/IEC 14496-12, 8.15.3 for an explanation of composition times.                                                                                           ¦
-¦      // The offset in an FLV file is always in milliseconds.                                                                                                            ¦
+¦      // See ISO/IEC 14496-12:2015, 8.6.1 for the description of the composition                                                                                         ¦
+¦      // time offset. The offset in an FLV file is always in milliseconds.                                                                                               ¦
 ¦      compositionTimeOffset = SI24                                                                                                                                       ¦
 ¦                                                                                                                                                                         ¦
 ¦      // Body contains one or more NALUs; full frames are required                                                                                                       ¦
@@ -1145,10 +1181,9 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 ¦    }                                                                                                                                                                    ¦
 ¦  }                                                                                                                                                                      ¦
 ¦                                                                                                                                                                         ¦
-¦  if (VideoPacketType.CodedFramesX) {                                                                                                                                    ¦
+¦ if (videoPacketType == VideoPacketType.CodedFramesX) {                                                                                                                  ¦
 ¦    // compositionTimeOffset is implied to equal zero. This is                                                                                                           ¦
 ¦    // an optimization to save putting SI24 value on the wire                                                                                                            ¦
-¦                                                                                                                                                                         ¦
 ¦                                                                                                                                                                         ¦
 ¦    if (videoFourCc == VideoFourCc.Avc) {                                                                                                                                ¦
 ¦      // Body contains one or more NALUs; full frames are required                                                                                                       ¦
@@ -1384,9 +1419,18 @@ When a client connects to an E-RTMP server, it sends a [**connect**](https://veo
 ¦                     ¦                           ¦VideoPacketType.Metadata support is not expressed in this          ¦                                                      ¦
 ¦                     ¦                           ¦property).                                                         ¦                                                      ¦
 ¦                     ¦                           ¦                                                                   ¦                                                      ¦
+¦                     ¦                           ¦When a specific flag is encountered:                               ¦                                                      ¦
+¦                     ¦                           ¦- The implementation might fully handle the feature by applying the¦                                                      ¦
+¦                     ¦                           ¦appropriate logic.                                                 ¦                                                      ¦
+¦                     ¦                           ¦- Alternatively, if full support is not available, the             ¦                                                      ¦
+¦                     ¦                           ¦implementation can still parse the bitstream correctly, ensuring   ¦                                                      ¦
+¦                     ¦                           ¦graceful degradation. This allows continued operation, even with   ¦                                                      ¦
+¦                     ¦                           ¦reduced functionality.                                             ¦                                                      ¦
+¦                     ¦                           ¦                                                                   ¦                                                      ¦
 ¦                     ¦                           ¦enum CapsExMask {                                                  ¦                                                      ¦
-¦                     ¦                           ¦  Reconnect   = 0x01    // See reconnect section                   ¦                                                      ¦
-¦                     ¦                           ¦  Multitrack  = 0x02,   // See multitrack section                  ¦                                                      ¦
+¦                     ¦                           ¦  Reconnect           = 0x01,  // Support for reconnection         ¦                                                      ¦
+¦                     ¦                           ¦  Multitrack          = 0x02,  // Support for multitrack           ¦                                                      ¦
+¦                     ¦                           ¦  TimestampNanoOffset = 0x04,  // Support for timestamp nano offset¦                                                      ¦
 ¦                     ¦                           ¦}                                                                  ¦                                                      ¦
 +---------------------+---------------------------+-------------------------------------------------------------------+------------------------------------------------------+
 ```
@@ -1538,6 +1582,9 @@ Table: Revision history
 ¦   v2-2024-05-28-a1   ¦ 1. Reworded "audio silence" message format for more clarity.                           ¦
 +----------------------+----------------------------------------------------------------------------------------+
 ¦   v2-2024-05-29-a1   ¦ 1. Changed page layout to better support .pdf export. No actual spec changes.          ¦
++----------------------+----------------------------------------------------------------------------------------+
+¦   v2-2024-08-12-a1   ¦ 1. Added TimestampOffsetType.Nano signal intended to fine-tune the presentation time of¦
+¦                      ¦    each media message, providing higher precision synchronization.                     ¦
 +----------------------+----------------------------------------------------------------------------------------+
 ¦      v2-...-a*       ¦ 1. See GitHub for revision history.                                                    ¦
 +----------------------+----------------------------------------------------------------------------------------+
