@@ -34,7 +34,7 @@
 
 **Author**: Slavik Lozben (Veovera Software Organization)(VSO) \
 **Contributors**: Adobe, Google, Twitch, Jean-Baptiste Kempf (FFmpeg, VideoLAN), pkv (OBS), Dennis Sädtler (OBS), Xavier Hallade (Intel Corporation), Luxoft, SplitmediaLabs Limited (XSplit), Craig Barberich (VSO), Michael Thornburgh \
-**Status**: **v2-2024-08-12-a1**
+**Status**: **v2-2024-08-22-a1**
 
 ## Documentation Versioning
 
@@ -119,6 +119,7 @@ This document details the comprehensive enhancements made to the RTMP and FLV sp
 - **FourCC Signaling**: Inclusion of FourCC signaling for advanced codecs mentioned above, as well as for legacy codecs such as AVC, AAC, and MP3.
 - **Multitrack Capabilities**: New audio and video multitrack capabilities for concurrent management and processing of multiple media streams, enhancing media experiences.
 - **Reconnect Request Feature**: A new Reconnect Request feature improves connection stability and resilience.
+- **Timestamp Precision:** Introduction of nanosecond precision offsets, ensuring enhanced synchronization and compatibility across diverse media formats such as MP4, M2TS, and Safari's Media Source Extensions, without altering the core RTMP timestamps.
 
 The additional audio and video codecs supported by enhanced RTMP are summarized in the following table: \
 &nbsp; \
@@ -623,82 +624,82 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 ¦if (soundFormat == SoundFormat.ExHeader) {                                          ¦  // RTMP includes a previously undocumented "audio silence" message.               ¦
 ¦  processAudioBody = true                                                           ¦  // This silence message is identified when an audio message contains              ¦
 ¦                                                                                    ¦  // a zero-length payload, or more precisely, an empty audio message               ¦
-¦  // The UB[4] bits are interpreted as AudioPacketType                              ¦  // without an AudioTagHeader, indicating a period of silence. The                 ¦
-¦  // instead of sound rate, size and type                                           ¦  // action to take after receiving a silence message is system                     ¦
-¦  audioPacketType = UB[4] as AudioPacketType                                        ¦  // dependent. The semantics of the silence message in the Flash                   ¦
-¦                                                                                    ¦  // Media playback and timing model are as follows:                                ¦
+¦  // Interpret UB[4] bits as AudioPacketType instead of sound rate, size and type   ¦  // without an AudioTagHeader, indicating a period of silence. The                 ¦
+¦  audioPacketType = UB[4] as AudioPacketType                                        ¦  // action to take after receiving a silence message is system                     ¦
+¦                                                                                    ¦  // dependent. The semantics of the silence message in the Flash                   ¦
+¦  if (audioPacketType == AudioPacketType.TimestampOffsets) {                        ¦  // Media playback and timing model are as follows:                                ¦
+¦    do {                                                                            ¦  //                                                                                ¦
+¦      // Check the next bit to see if more offsets need processing.                 ¦  // - Ensure all buffered audio data is played out before entering the             ¦
+¦      hasMoreOffsets = UB[1];                                                       ¦  //   silence period:                                                              ¦
+¦                                                                                    ¦  //   Make sure that any audio data currently in the buffer is fully               ¦
+¦      // Fetch the next UB[3] bits as the timestamp offset type                     ¦  //   processed and played. This ensures a clean transition into the               ¦
+¦      audioTimestampOffsetType = UB[3] as TimestampOffsetType;                      ¦  //   silence period without cutting off any audio.                                ¦
 ¦                                                                                    ¦  //                                                                                ¦
-¦  if (audioPacketType == AudioPacketType.TimestampOffsets) {                        ¦  // - Ensure all buffered audio data is played out before entering the             ¦
-¦    do {                                                                            ¦  //   silence period:                                                              ¦
-¦      // Fetch the next bit to determine if additional offsets need to be processed ¦  //   Make sure that any audio data currently in the buffer is fully               ¦
-¦      hasMoreOffsets = UB[1];                                                       ¦  //   processed and played. This ensures a clean transition into the               ¦
-¦                                                                                    ¦  //   silence period without cutting off any audio.                                ¦
-¦      // Fetch the next UB[3] bits as the timestamp offset type                     ¦  //                                                                                ¦
-¦      audioTimestampOffsetType = UB[3] as TimestampOffsetType;                      ¦  // - After playing all buffered audio data, flush the audio decoder:              ¦
-¦                                                                                    ¦  //   Clear the audio decoder to reset its state and prepare it for new            ¦
-¦      if (audioTimestampOffsetType == TimestampOffsetType.Nano) {                   ¦  //   input after the silence period.                                              ¦
-¦        // Handle TimestampOffsetType.Nano                                          ¦  //                                                                                ¦
-¦        //                                                                          ¦  // - During the silence period, the audio clock can't be used as the              ¦
-¦        // The TimestampOffsetType.Nano signal is used to correct RTMP’s timescale  ¦  //   master clock for synchronizing playback:                                     ¦
-¦        // limitations and improve compatibility with formats like MP4 and M2TS, as ¦  //   Switch to using the system's wall-clock time to maintain the correct         ¦
-¦        // well as environments like Safari's Media Source Extensions. This type is ¦  //   timing for video and other data streams.                                     ¦
-¦        // followed by an unsigned 20-bit nanosecond offset for RTMP timestamps.    ¦  //                                                                                ¦
-¦        // Both the enum and the offset are optional and are intended to fine-tune  ¦  // - Don't wait for audio frames for synchronized A+V playback:                   ¦
-¦        // the presentation time of each media message, providing higher precision  ¦  //   Normally, audio frames drive the synchronization of audio and video          ¦
-¦        // synchronization.                                                         ¦  //   (A/V) playback. During the silence period, playback should not stall         ¦
+¦      if (audioTimestampOffsetType == TimestampOffsetType.Nano) {                   ¦  // - After playing all buffered audio data, flush the audio decoder:              ¦
+¦        // Process Nano timestamp offset.                                           ¦  //   Clear the audio decoder to reset its state and prepare it for new            ¦
+¦        //                                                                          ¦  //   input after the silence period.                                              ¦
+¦        // The TimestampOffsetType.Nano enhances RTMP’s timescale accuracy and      ¦  //                                                                                ¦
+¦        // compatibility with formats like MP4, M2TS, and Safari's Media Source     ¦  // - During the silence period, the audio clock can't be used as the              ¦
+¦        // Extensions. It includes a 20-bit nanosecond offset to the current RTMP   ¦  //   master clock for synchronizing playback:                                     ¦
+¦        // timestamp, allowing for fine-tuned synchronization of a media message.   ¦  //   Switch to using the system's wall-clock time to maintain the correct         ¦
+¦        //                                                                          ¦  //   timing for video and other data streams.                                     ¦
+¦        // This nanosecond offset ensures synchronization across various formats    ¦  //                                                                                ¦
+¦        // and playback environments by adjusting the presentation time of a media  ¦  // - Don't wait for audio frames for synchronized A+V playback:                   ¦
+¦        // message without altering core RTMP timestamps. It should only be         ¦  //   Normally, audio frames drive the synchronization of audio and video          ¦
+¦        // applied to the current media message.                                    ¦  //   (A/V) playback. During the silence period, playback should not stall         ¦
 ¦        //                                                                          ¦  //   waiting for audio frames. Video and other data streams should                ¦
-¦        // The offset in nanoseconds affects the presentation time of each media    ¦  //   continue to play based on the wall-clock time, ensuring smooth               ¦
-¦        // sample, ensuring that audio, video, and data remain synchronized during  ¦  //   playback without audio.                                                      ¦
-¦        // playback. By applying this offset to the media message timestamp,        ¦  //                                                                                ¦
-¦        // synchronization can be maintained across different media formats and     ¦  // AudioPacketType.SequenceEnd is to have no less than the same meaning as        ¦
-¦        // playback environments without altering the core RTMP timestamps. This    ¦  // a silence message. While it may seem redundant, we need to introduce           ¦
-¦        // offset should only be applied to the current media message(s) with the   ¦  // this enum to ensure we can signal the end of the audio sequence for any        ¦
-¦        // same RTMP timestamp.                                                     ¦  // audio track.                                                                   ¦
-¦        //                                                                          ¦  SequenceEnd         = 2,                                                          ¦
-¦        // If the same TimestampOffsetType is encountered more than once in the same¦                                                                                    ¦
-¦        // packet, we combine the bits left-to-right to create a larger value. This ¦  //  3 - Reserved                                                                  ¦
-¦        // ensures that the first offset is placed in the more significant bits, and¦                                                                                    ¦
-¦        // subsequent offsets are appended to the right. This is useful if there is ¦  MultichannelConfig  = 4,                                                          ¦
-¦        // a need to offset the presentation by more than 1 millisecond, which might¦                                                                                    ¦
-¦        // be required in unique solutions where the presentation time needs to be  ¦  // Turns on audio multitrack mode                                                 ¦
-¦        // offset for reasons beyond precision (e.g., significant delays or         ¦  Multitrack          = 5,                                                          ¦
-¦        // corrections).                                                            ¦                                                                                    ¦
-¦        //                                                                          ¦  // Signals timestamp offsets for fine tuning synchronization                      ¦
-¦        // We considered options such as not allowing this, replacing the old value,¦  TimestampOffsets = 6,                                                             ¦
-¦        // or adding this additional capability. Although it may be rarely needed,  ¦                                                                                    ¦
-¦        // we ultimately chose to support additional capability by combining the    ¦  // ...                                                                            ¦
-¦        // offsets.                                                                 ¦  // 14 - reserved                                                                  ¦
-¦                                                                                    ¦  // 15 - reserved                                                                  ¦
-¦        // Fetch the unsigned 20-bit nanosecond offset                              ¦}                                                                                   ¦
-¦        audioTimestampNanoOffset = UB[20];                                          ¦                                                                                    ¦
-¦                                                                                    ¦enum AudioFourCc {                                                                  ¦
+¦        // Fetch the unsigned 20-bit nanosecond offset.                             ¦  //   continue to play based on the wall-clock time, ensuring smooth               ¦
+¦        audioTimestampNanoOffset = UB[20];                                          ¦  //   playback without audio.                                                      ¦
 ¦                                                                                    ¦  //                                                                                ¦
-¦        // TODO: Integrate the Nano offset with the timestamp handling              ¦  // Valid FOURCC values for signaling support of audio codecs                      ¦
-¦        // logic to adjust the presentation time of the media samples accordingly.  ¦  // in the enhanced FourCC pipeline. In this context, support                      ¦
-¦      }                                                                             ¦  // for a FourCC codec MUST be signaled via the enhanced                           ¦
-¦    } while (hasMoreOffsets);                                                       ¦  // "connect" command.                                                             ¦
-¦                                                                                    ¦  //                                                                                ¦
+¦        // TODO: Integrate this Nano offset with the timestamp handling logic to    ¦  // AudioPacketType.SequenceEnd is to have no less than the same meaning as        ¦
+¦        // adjust the media message's presentation time accordingly.                ¦  // a silence message. While it may seem redundant, we need to introduce           ¦
+¦      }                                                                             ¦  // this enum to ensure we can signal the end of the audio sequence for any        ¦
+¦    } while (hasMoreOffsets);                                                       ¦  // audio track.                                                                   ¦
+¦                                                                                    ¦  SequenceEnd         = 2,                                                          ¦
 ¦    // Fetch audioPacketType once more after processing audio timestamp offsets     ¦                                                                                    ¦
-¦    audioPacketType = UB[4] as AudioPacketType;                                     ¦  // AC-3/E-AC-3 - <https://en.wikipedia.org/wiki/Dolby_Digital>                    ¦
-¦  }                                                                                 ¦  Ac3         = makeFourCc("ac-3"),                                                 ¦
+¦    audioPacketType = UB[4] as AudioPacketType;                                     ¦  //  3 - Reserved                                                                  ¦
+¦  }                                                                                 ¦                                                                                    ¦
+¦                                                                                    ¦  MultichannelConfig  = 4,                                                          ¦
+¦  if (audioPacketType == AudioPacketType.Multitrack) {                              ¦                                                                                    ¦
+¦    isAudioMultitrack = true;                                                       ¦  // Turns on audio multitrack mode                                                 ¦
+¦    audioMultitrackType = UB[4] as AvMultitrackType                                 ¦  Multitrack          = 5,                                                          ¦
+¦                                                                                    ¦                                                                                    ¦
+¦    // Fetch AudioPacketType for all audio tracks in the audio message.             ¦  // Signals timestamp offsets for fine tuning synchronization                      ¦
+¦    // This fetch MUST not result in a AudioPacketType.Multitrack                   ¦  TimestampOffsets = 6,                                                             ¦
+¦    audioPacketType = UB[4] as AudioPacketType                                      ¦                                                                                    ¦
+¦                                                                                    ¦  // ...                                                                            ¦
+¦    if (audioMultitrackType != AvMultitrackType.ManyTracksManyCodecs) {             ¦  // 14 - reserved                                                                  ¦
+¦      // The tracks are encoded with the same codec. Fetch the FOURCC for them      ¦  // 15 - reserved                                                                  ¦
+¦      audioFourCc = FOURCC as AudioFourCc                                           ¦}                                                                                   ¦
+¦    }                                                                               ¦                                                                                    ¦
+¦  } else {                                                                          ¦enum AudioFourCc {                                                                  ¦
+¦    audioFourCc = FOURCC as AudioFourCc                                             ¦  //                                                                                ¦
+¦  }                                                                                 ¦  // Valid FOURCC values for signaling support of audio codecs                      ¦
+¦}                                                                                   ¦  // in the enhanced FourCC pipeline. In this context, support                      ¦
+¦                                                                                    ¦  // for a FourCC codec MUST be signaled via the enhanced                           ¦
+¦                                                                                    ¦  // "connect" command.                                                             ¦
+¦                                                                                    ¦  //                                                                                ¦
+¦                                                                                    ¦                                                                                    ¦
+¦                                                                                    ¦  // AC-3/E-AC-3 - <https://en.wikipedia.org/wiki/Dolby_Digital>                    ¦
+¦                                                                                    ¦  Ac3         = makeFourCc("ac-3"),                                                 ¦
 ¦                                                                                    ¦  Eac3        = makeFourCc("ec-3"),                                                 ¦
 ¦                                                                                    ¦                                                                                    ¦
-¦  if (audioPacketType == AudioPacketType.Multitrack) {                              ¦  // Opus audio - <https://opus-codec.org/>                                         ¦
-¦    isAudioMultitrack = true;                                                       ¦  Opus        = makeFourCc("Opus"),                                                 ¦
-¦    audioMultitrackType = UB[4] as AvMultitrackType                                 ¦                                                                                    ¦
+¦                                                                                    ¦  // Opus audio - <https://opus-codec.org/>                                         ¦
+¦                                                                                    ¦  Opus        = makeFourCc("Opus"),                                                 ¦
+¦                                                                                    ¦                                                                                    ¦
 ¦                                                                                    ¦  // Mp3 audio - <https://en.wikipedia.org/wiki/MP3>                                ¦
-¦    // Fetch AudioPacketType for all audio tracks in the audio message.             ¦  Mp3         = makeFourCc(".mp3"),                                                 ¦
-¦    // This fetch MUST not result in a AudioPacketType.Multitrack                   ¦                                                                                    ¦
-¦    audioPacketType = UB[4] as AudioPacketType                                      ¦  // Free Lossless Audio Codec - <https://xiph.org/flac/format.html>                ¦
+¦                                                                                    ¦  Mp3         = makeFourCc(".mp3"),                                                 ¦
+¦                                                                                    ¦                                                                                    ¦
+¦                                                                                    ¦  // Free Lossless Audio Codec - <https://xiph.org/flac/format.html>                ¦
 ¦                                                                                    ¦  Flac        = makeFourCc("fLaC"),                                                 ¦
-¦    if (audioMultitrackType != AvMultitrackType.ManyTracksManyCodecs) {             ¦                                                                                    ¦
-¦      // The tracks are encoded with the same codec. Fetch the FOURCC for them      ¦  // Advanced Audio Coding - <https://en.wikipedia.org/wiki/Advanced_Audio_Coding>  ¦
-¦      audioFourCc = FOURCC as AudioFourCc                                           ¦  // The following AAC profiles, denoted by their object types, are supported       ¦
-¦    }                                                                               ¦  // 1 = main profile                                                               ¦
-¦  } else {                                                                          ¦  // 2 = low complexity, a.k.a., LC                                                 ¦
-¦    audioFourCc = FOURCC as AudioFourCc                                             ¦  // 5 = high efficiency / scale band replication, a.k.a., HE / SBR                 ¦
-¦  }                                                                                 ¦  Aac         = makeFourCc("mp4a"),                                                 ¦
-¦}                                                                                   ¦}                                                                                   ¦
+¦                                                                                    ¦                                                                                    ¦
+¦                                                                                    ¦  // Advanced Audio Coding - <https://en.wikipedia.org/wiki/Advanced_Audio_Coding>  ¦
+¦                                                                                    ¦  // The following AAC profiles, denoted by their object types, are supported       ¦
+¦                                                                                    ¦  // 1 = main profile                                                               ¦
+¦                                                                                    ¦  // 2 = low complexity, a.k.a., LC                                                 ¦
+¦                                                                                    ¦  // 5 = high efficiency / scale band replication, a.k.a., HE / SBR                 ¦
+¦                                                                                    ¦  Aac         = makeFourCc("mp4a"),                                                 ¦
+¦                                                                                    ¦}                                                                                   ¦
 ¦                                                                                    ¦                                                                                    ¦
 ¦                                                                                    ¦enum AvMultitrackType {                                                             ¦
 ¦                                                                                    ¦  //                                                                                ¦
@@ -885,7 +886,6 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 ¦      continue                                                                      ¦                                                                                    ¦
 ¦  }                                                                                 ¦                                                                                    ¦
 ¦                                                                                    ¦                                                                                    ¦
-¦                                                                                    ¦                                                                                    ¦
 ¦  // done processing audio message                                                  ¦                                                                                    ¦
 ¦  break                                                                             ¦                                                                                    ¦
 ¦}                                                                                   ¦                                                                                    ¦
@@ -970,87 +970,72 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 ¦if (isExVideoHeader == 1) {                                                         ¦                                                                                    ¦
 ¦  processVideoBody = true                                                           ¦  // CompositionTime Offset is implicitly set to zero. This optimization            ¦
 ¦                                                                                    ¦  // avoids transmitting an SI24 composition time value of zero over the wire.      ¦
-¦  // The UB[4] bits are interpreted as VideoPacketType                              ¦  // See the ExVideoTagBody section below for corresponding pseudocode.             ¦
-¦  // instead of VideoCodecId                                                        ¦  CodedFramesX          = 3,                                                        ¦
-¦  videoPacketType = UB[4] as VideoPacketType                                        ¦                                                                                    ¦
-¦                                                                                    ¦  // ExVideoTagBody does not contain video data. Instead, it contains               ¦
-¦  if (videoPacketType == VideoPacketType.TimestampOffsets) {                        ¦  // an AMF-encoded metadata. Refer to the Metadata Frame section for               ¦
-¦    do {                                                                            ¦  // an illustration of its usage. For example, the metadata might include          ¦
-¦      // Fetch the next bit to determine if additional offsets need to be processed ¦  // HDR information. This also enables future possibilities for expressing         ¦
-¦      hasMoreOffsets = UB[1];                                                       ¦  // additional metadata meant for subsequent video sequences.                      ¦
-¦                                                                                    ¦  //                                                                                ¦
-¦      // Fetch the next UB[3] bits as the timestamp offset type                     ¦  // If VideoPacketType.Metadata is present, the FrameType flags                    ¦
-¦      videoTimestampOffsetType = UB[3] as TimestampOffsetType;                      ¦  // at the top of this table should be ignored.                                    ¦
-¦                                                                                    ¦  Metadata              = 4,                                                        ¦
-¦      if (videoTimestampOffsetType == TimestampOffsetType.Nano) {                   ¦                                                                                    ¦
-¦        // Handle TimestampOffsetType.Nano                                          ¦  // Carriage of bitstream in MPEG-2 TS format                                      ¦
-¦        //                                                                          ¦  //                                                                                ¦
-¦        // The TimestampOffsetType.Nano signal is used to correct RTMP’s timescale  ¦  // PacketTypeSequenceStart and PacketTypeMPEG2TSSequenceStart                     ¦
-¦        // limitations and improve compatibility with formats like MP4 and M2TS, as ¦  // are mutually exclusive                                                         ¦
-¦        // well as environments like Safari's Media Source Extensions. This type is ¦  MPEG2TSSequenceStart  = 5,                                                        ¦
-¦        // followed by an unsigned 20-bit nanosecond offset for RTMP timestamps.    ¦                                                                                    ¦
-¦        // Both the enum and the offset are optional and are intended to fine-tune  ¦  // Turns on video multitrack mode                                                 ¦
-¦        // the presentation time of each media message, providing higher precision  ¦  Multitrack            = 6,                                                        ¦
-¦        // synchronization.                                                         ¦                                                                                    ¦
-¦        //                                                                          ¦  // Signals timestamp offsets for fine tuning synchronization                      ¦
-¦        // The offset in nanoseconds affects the presentation time of each media    ¦  TimestampOffsets = 7,                                                             ¦
-¦        // sample, ensuring that audio, video, and data remain synchronized during  ¦                                                                                    ¦
-¦        // playback. By applying this offset to the media message timestamp,        ¦  //  8 - Reserved                                                                  ¦
-¦        // synchronization can be maintained across different media formats and     ¦  // ...                                                                            ¦
-¦        // playback environments without altering the core RTMP timestamps. This    ¦  // 14 - reserved                                                                  ¦
-¦        // offset should only be applied to the current media message(s) with the   ¦  // 15 - reserved                                                                  ¦
-¦        // same RTMP timestamp.                                                     ¦}                                                                                   ¦
+¦  // Interpret UB[4] bits as VideoPacketType instead of VideoCodecId.               ¦  // See the ExVideoTagBody section below for corresponding pseudocode.             ¦
+¦  videoPacketType = UB[4] as VideoPacketType                                        ¦  CodedFramesX          = 3,                                                        ¦
+¦                                                                                    ¦                                                                                    ¦
+¦  if (videoPacketType == VideoPacketType.TimestampOffsets) {                        ¦  // ExVideoTagBody does not contain video data. Instead, it contains               ¦
+¦    do {                                                                            ¦  // an AMF-encoded metadata. Refer to the Metadata Frame section for               ¦
+¦      // Check the next bit to see if more offsets need processing.                 ¦  // an illustration of its usage. For example, the metadata might include          ¦
+¦      hasMoreOffsets = UB[1];                                                       ¦  // HDR information. This also enables future possibilities for expressing         ¦
+¦                                                                                    ¦  // additional metadata meant for subsequent video sequences.                      ¦
+¦      // Fetch the next UB[3] bits as the timestamp offset type                     ¦  //                                                                                ¦
+¦      videoTimestampOffsetType = UB[3] as TimestampOffsetType;                      ¦  // If VideoPacketType.Metadata is present, the FrameType flags                    ¦
+¦                                                                                    ¦  // at the top of this table should be ignored.                                    ¦
+¦      if (videoTimestampOffsetType == TimestampOffsetType.Nano) {                   ¦  Metadata              = 4,                                                        ¦
+¦        // Process Nano timestamp offset.                                           ¦                                                                                    ¦
+¦        //                                                                          ¦  // Carriage of bitstream in MPEG-2 TS format                                      ¦
+¦        // The TimestampOffsetType.Nano enhances RTMP’s timescale accuracy and      ¦  //                                                                                ¦
+¦        // compatibility with formats like MP4, M2TS, and Safari's Media Source     ¦  // PacketTypeSequenceStart and PacketTypeMPEG2TSSequenceStart                     ¦
+¦        // Extensions. It includes a 20-bit nanosecond offset to the current RTMP   ¦  // are mutually exclusive                                                         ¦
+¦        // timestamp, allowing for fine-tuned synchronization of a media message.   ¦  MPEG2TSSequenceStart  = 5,                                                        ¦
 ¦        //                                                                          ¦                                                                                    ¦
-¦        // If the same TimestampOffsetType is encountered more than once in the same¦enum VideoFourCc {                                                                  ¦
-¦        // packet, we combine the bits left-to-right to create a larger value. This ¦  //                                                                                ¦
-¦        // ensures that the first offset is placed in the more significant bits, and¦  // Valid FOURCC values for signaling support of video codecs                      ¦
-¦        // subsequent offsets are appended to the right. This is useful if there is ¦  // in the enhanced FourCC pipeline. In this context, support                      ¦
-¦        // a need to offset the presentation by more than 1 millisecond, which might¦  // for a FourCC codec MUST be signaled via the enhanced                           ¦
-¦        // be required in unique solutions where the presentation time needs to be  ¦  // "connect" command.                                                             ¦
-¦        // offset for reasons beyond precision (e.g., significant delays or         ¦  //                                                                                ¦
-¦        // corrections).                                                            ¦                                                                                    ¦
-¦        //                                                                          ¦  Vp8         = makeFourCc("vp08"),                                                 ¦
-¦        // We considered options such as not allowing this, replacing the old value,¦  Vp9         = makeFourCc("vp09"),                                                 ¦
-¦        // or adding this additional capability. Although it may be rarely needed,  ¦  Av1         = makeFourCc("av01"),                                                 ¦
-¦        // we ultimately chose to support additional capability by combining the    ¦  Avc         = makeFourCc("avc1"),                                                 ¦
-¦        // offsets.                                                                 ¦  Hevc        = makeFourCc("hvc1"),                                                 ¦
-¦                                                                                    ¦}                                                                                   ¦
-¦        // Fetch the unsigned 20-bit nanosecond offset                              ¦                                                                                    ¦
-¦        videoTimestampNanoOffset = UB[20];                                          ¦enum AvMultitrackType {                                                             ¦
-¦                                                                                    ¦  //                                                                                ¦
-¦                                                                                    ¦  // Used by audio and video pipeline                                               ¦
-¦        // TODO: Integrate the Nano offset with the timestamp handling              ¦  //                                                                                ¦
-¦        // logic to adjust the presentation time of the media samples accordingly.  ¦                                                                                    ¦
-¦      }                                                                             ¦  OneTrack              = 0,                                                        ¦
-¦    } while (hasMoreOffsets);                                                       ¦  ManyTracks            = 1,                                                        ¦
-¦                                                                                    ¦  ManyTracksManyCodecs  = 2,                                                        ¦
-¦    // Fetch videoPacketType once more after processing video timestamp offsets     ¦                                                                                    ¦
-¦    videoPacketType = UB[4] as VideoPacketType;                                     ¦  //  3 - Reserved                                                                  ¦
-¦  }                                                                                 ¦  // ...                                                                            ¦
-¦                                                                                    ¦  // 15 - Reserved                                                                  ¦
-¦  if (videoPacketType != VideoPacketType.Metadata &&                                ¦}                                                                                   ¦
-¦    videoFrameType == VideoFrameType.Command) {                                     ¦                                                                                    ¦
-¦    videoCommand = UI8 as VideoCommand                                              ¦enum TimestampOffsetType {                                                          ¦
-¦                                                                                    ¦  Nano = 0,                                                                         ¦
-¦    // ExVideoTagBody has no payload if we got here.                                ¦  // ...                                                                            ¦
-¦    // Set boolean to not try to process the video body.                            ¦  // 6 - reserved                                                                   ¦
-¦    processVideoBody = false                                                        ¦  // 7 - reserved                                                                   ¦
-¦  } else if (videoPacketType == VideoPacketType.Multitrack) {                       ¦}                                                                                   ¦
-¦    isVideoMultitrack = true;                                                       ¦                                                                                    ¦
+¦        // This nanosecond offset ensures synchronization across various formats    ¦  // Turns on video multitrack mode                                                 ¦
+¦        // and playback environments by adjusting the presentation time of a media  ¦  Multitrack            = 6,                                                        ¦
+¦        // message without altering core RTMP timestamps. It should only be         ¦                                                                                    ¦
+¦        // applied to the current media message.                                    ¦  // Signals timestamp offsets for fine tuning synchronization                      ¦
+¦        //                                                                          ¦  TimestampOffsets = 7,                                                             ¦
+¦        // Fetch the unsigned 20-bit nanosecond offset.                             ¦                                                                                    ¦
+¦        videoTimestampNanoOffset = UB[20];                                          ¦  //  8 - Reserved                                                                  ¦
+¦                                                                                    ¦  // ...                                                                            ¦
+¦        // TODO: Integrate this Nano offset with the timestamp handling logic to    ¦  // 14 - reserved                                                                  ¦
+¦        // adjust the media message's presentation time accordingly.                ¦  // 15 - reserved                                                                  ¦
+¦      }                                                                             ¦}                                                                                   ¦
+¦    } while (hasMoreOffsets);                                                       ¦                                                                                    ¦
+¦                                                                                    ¦enum VideoFourCc {                                                                  ¦
+¦    // Fetch videoPacketType once more after processing video timestamp offsets     ¦  //                                                                                ¦
+¦    videoPacketType = UB[4] as VideoPacketType;                                     ¦  // Valid FOURCC values for signaling support of video codecs                      ¦
+¦  }                                                                                 ¦  // in the enhanced FourCC pipeline. In this context, support                      ¦
+¦                                                                                    ¦  // for a FourCC codec MUST be signaled via the enhanced                           ¦
+¦  if (videoPacketType != VideoPacketType.Metadata &&                                ¦  // "connect" command.                                                             ¦
+¦    videoFrameType == VideoFrameType.Command) {                                     ¦  //                                                                                ¦
+¦    videoCommand = UI8 as VideoCommand                                              ¦                                                                                    ¦
+¦                                                                                    ¦  Vp8         = makeFourCc("vp08"),                                                 ¦
+¦    // ExVideoTagBody has no payload if we got here.                                ¦  Vp9         = makeFourCc("vp09"),                                                 ¦
+¦    // Set boolean to not try to process the video body.                            ¦  Av1         = makeFourCc("av01"),                                                 ¦
+¦    processVideoBody = false                                                        ¦  Avc         = makeFourCc("avc1"),                                                 ¦
+¦  } else if (videoPacketType == VideoPacketType.Multitrack) {                       ¦  Hevc        = makeFourCc("hvc1"),                                                 ¦
+¦    isVideoMultitrack = true;                                                       ¦}                                                                                   ¦
 ¦    videoMultitrackType = UB[4] as AvMultitrackType                                 ¦                                                                                    ¦
+¦                                                                                    ¦enum AvMultitrackType {                                                             ¦
+¦    // Fetch VideoPacketType for all video tracks in the video message.             ¦  //                                                                                ¦
+¦    // This fetch MUST not result in a VideoPacketType.Multitrack                   ¦  // Used by audio and video pipeline                                               ¦
+¦    videoPacketType = UB[4] as VideoPacketType                                      ¦  //                                                                                ¦
 ¦                                                                                    ¦                                                                                    ¦
-¦    // Fetch VideoPacketType for all video tracks in the video message.             ¦                                                                                    ¦
-¦    // This fetch MUST not result in a VideoPacketType.Multitrack                   ¦                                                                                    ¦
-¦    videoPacketType = UB[4] as VideoPacketType                                      ¦                                                                                    ¦
-¦                                                                                    ¦                                                                                    ¦
-¦    if (videoMultitrackType != AvMultitrackType.ManyTracksManyCodecs) {             ¦                                                                                    ¦
-¦      // The tracks are encoded with the same codec. Fetch the FOURCC for them      ¦                                                                                    ¦
-¦      videoFourCc = FOURCC as VideoFourCc                                           ¦                                                                                    ¦
+¦    if (videoMultitrackType != AvMultitrackType.ManyTracksManyCodecs) {             ¦  OneTrack              = 0,                                                        ¦
+¦      // The tracks are encoded with the same codec. Fetch the FOURCC for them      ¦  ManyTracks            = 1,                                                        ¦
+¦      videoFourCc = FOURCC as VideoFourCc                                           ¦  ManyTracksManyCodecs  = 2,                                                        ¦
 ¦    }                                                                               ¦                                                                                    ¦
-¦  } else {                                                                          ¦                                                                                    ¦
-¦    videoFourCc = FOURCC as VideoFourCc                                             ¦                                                                                    ¦
-¦  }                                                                                 ¦                                                                                    ¦
-¦}                                                                                   ¦                                                                                    ¦
+¦  } else {                                                                          ¦  //  3 - Reserved                                                                  ¦
+¦    videoFourCc = FOURCC as VideoFourCc                                             ¦  // ...                                                                            ¦
+¦  }                                                                                 ¦  // 15 - Reserved                                                                  ¦
+¦}                                                                                   ¦}                                                                                   ¦
+¦                                                                                    ¦                                                                                    ¦
+¦                                                                                    ¦enum TimestampOffsetType {                                                          ¦
+¦                                                                                    ¦  Nano = 0,                                                                         ¦
+¦                                                                                    ¦  // ...                                                                            ¦
+¦                                                                                    ¦  // 6 - reserved                                                                   ¦
+¦                                                                                    ¦  // 7 - reserved                                                                   ¦
+¦                                                                                    ¦}                                                                                   ¦
 +------------------------------------------------------------------------------------+------------------------------------------------------------------------------------+
 ¦                                                                         ExVideoTagBody Section                                                                          ¦
 ¦         Note: This ExVideoTagBody format is signaled by the presence of ExVideoTagHeader and if videoCommand has not been set (see VideoFrameType description)          ¦
@@ -1079,7 +1064,6 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 ¦    // serves as a guideline intended to standardize track numbering                                                                                                     ¦
 ¦    // across various applications.                                                                                                                                      ¦
 ¦    videoTrackId = UI8                                                                                                                                                   ¦
-¦                                                                                                                                                                         ¦
 ¦                                                                                                                                                                         ¦
 ¦    if (videoMultitrackType != AvMultitrackType.OneTrack) {                                                                                                              ¦
 ¦      // The `sizeOfVideoTrack` specifies the size in bytes of the                                                                                                       ¦
@@ -1202,7 +1186,6 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 ¦      // positionDataPtrToNextVideoTrack() is for developer to write                                                                                                     ¦
 ¦      continue                                                                                                                                                           ¦
 ¦  }                                                                                                                                                                      ¦
-¦                                                                                                                                                                         ¦
 ¦                                                                                                                                                                         ¦
 ¦  // done processing video message                                                                                                                                       ¦
 ¦  break                                                                                                                                                                  ¦
