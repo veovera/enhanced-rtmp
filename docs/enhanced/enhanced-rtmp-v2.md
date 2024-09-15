@@ -34,7 +34,7 @@
 
 **Author**: Slavik Lozben (Veovera Software Organization)(VSO) \
 **Contributors**: Adobe, Google, Twitch, Jean-Baptiste Kempf (FFmpeg, VideoLAN), pkv (OBS), Dennis Sädtler (OBS), Xavier Hallade (Intel Corporation), Luxoft, SplitmediaLabs Limited (XSplit), Craig Barberich (VSO), Michael Thornburgh \
-**Status**: **v2-2024-09-09-a1**
+**Status**: **v2-2024-09-14-a1**
 
 ## Documentation Versioning
 
@@ -382,7 +382,7 @@ Within the following sections, this document provides a comprehensive overview o
 
 ## Enhancing onMetaData
 
-[[FLV](#flv)] metadata SHALL be encapsulated within a [**SCRIPTDATA**](https://veovera.github.io/enhanced-rtmp/docs/legacy/video-file-format-v10-1-spec.pdf#page=80) segment, which includes a [**ScriptTagBody**](https://veovera.github.io/enhanced-rtmp/docs/legacy/video-file-format-v10-1-spec.pdf#page=80) encoded in the Action Message Format (AMF). Importantly, this metadata SHALL always remain unencrypted, even when the FLV content itself is encrypted. This design choice is essential for allowing various FLV parsers to successfully stream the FLV content and for enabling media players to provide contextual information to the user. \
+[[FLV](#flv)] metadata SHALL be encapsulated within a [[SCRIPTDATA](#scriptdata)] segment, which includes a [[ScriptTagBody](#scripttagbody)] encoded in the Action Message Format (AMF). Importantly, this metadata SHALL always remain unencrypted, even when the FLV content itself is encrypted. This design choice is essential for allowing various FLV parsers to successfully stream the FLV content and for enabling media players to provide contextual information to the user. \
 &nbsp; \
 The **ScriptTagBody** is structured to encapsulate method invocations. It consists of an item containing a method name (e.g., **onMetaData**) along with a corresponding set of arguments. \
 &nbsp; \
@@ -391,53 +391,116 @@ To signal FLV metadata, the item within the **ScriptTagBody** MUST encapsulate t
 **Table**: Typical properties found in the **onMetaData** argument object
 
 ```txt
-+--------------------+-------------------------------+-------------------------------------------------------------------------------+
-¦Property            ¦Type                           ¦Comment                                                                        ¦
-+--------------------+-------------------------------+-------------------------------------------------------------------------------+
-¦audiocodecid        ¦number                         ¦Audio codec ID used in the file: See AudioTagHeader of the legacy [FLV]        ¦
-¦                    ¦                               ¦specification for available CodecID values.                                    ¦
-¦                    ¦                               ¦                                                                               ¦
-¦                    ¦                               ¦                                                                               ¦
-¦                    ¦                               ¦When [FourCC] is used to signal the codec, this property is set to a FOURCC    ¦
-¦                    ¦                               ¦value. Note: A FOURCC value is big-endian relative to the underlying ASCII     ¦
-¦                    ¦                               ¦character sequence (e.g., "Opus" == 0x4F707573 == 1332770163.0).               ¦
-+--------------------+-------------------------------+-------------------------------------------------------------------------------+
-¦audiodatarate       ¦number                         ¦Audio bitrate, in kilobits per second                                          ¦
-+--------------------+-------------------------------+-------------------------------------------------------------------------------+
-¦audiodelay          ¦number                         ¦Delay introduced by the audio codec, in seconds                                ¦
-+--------------------+-------------------------------+-------------------------------------------------------------------------------+
-¦audiosamplerate     ¦number                         ¦Frequency at which the audio stream is replayed                                ¦
-+--------------------+-------------------------------+-------------------------------------------------------------------------------+
-¦audiosamplesize     ¦number                         ¦Resolution of a single audio sample                                            ¦
-+--------------------+-------------------------------+-------------------------------------------------------------------------------+
-¦canSeekToEnd        ¦boolean                        ¦Indicating the last video frame is a key frame                                 ¦
-+--------------------+-------------------------------+-------------------------------------------------------------------------------+
-¦creationdate        ¦string                         ¦Creation date and time                                                         ¦
-+--------------------+-------------------------------+-------------------------------------------------------------------------------+
-¦duration            ¦number                         ¦Total duration of the file, in seconds                                         ¦
-+--------------------+-------------------------------+-------------------------------------------------------------------------------+
-¦filesize            ¦number                         ¦Total size of the file, in bytes                                               ¦
-+--------------------+-------------------------------+-------------------------------------------------------------------------------+
-¦framerate           ¦number                         ¦Number of frames per second                                                    ¦
-+--------------------+-------------------------------+-------------------------------------------------------------------------------+
-¦height              ¦number                         ¦Height of the video, in pixels                                                 ¦
-+--------------------+-------------------------------+-------------------------------------------------------------------------------+
-¦stereo              ¦boolean                        ¦Indicates stereo audio                                                         ¦
-+--------------------+-------------------------------+-------------------------------------------------------------------------------+
-¦videocodecid        ¦number                         ¦Video codec ID used in the file: See VideoTagHeader of the legacy [FLV]        ¦
-¦                    ¦                               ¦specification for available CodecID values.                                    ¦
-¦                    ¦                               ¦                                                                               ¦
-¦                    ¦                               ¦When [FourCC] is used to signal the codec, this property is set to a FOURCC    ¦
-¦                    ¦                               ¦value. Note: A FOURCC value is big-endian relative to the underlying ASCII     ¦
-¦                    ¦                               ¦character sequence (e.g., "av01" == 0x61763031 == 1635135537.0).               ¦
-+--------------------+-------------------------------+-------------------------------------------------------------------------------+
-¦videodatarate       ¦number                         ¦Video bitrate, in kilobits per second                                          ¦
-+--------------------+-------------------------------+-------------------------------------------------------------------------------+
-¦width               ¦number                         ¦Width of the video, in pixels                                                  ¦
-+--------------------+-------------------------------+-------------------------------------------------------------------------------+
++----------------------+----------------------------+-------------------------------------------------------------------------------+
+¦Property              ¦Type                        ¦Comment                                                                        ¦
++----------------------+----------------------------+-------------------------------------------------------------------------------+
+¦audiocodecid          ¦number                      ¦Audio codec ID used in the file: See AudioTagHeader of the legacy [FLV]        ¦
+¦                      ¦                            ¦specification for available CodecID values.                                    ¦
+¦                      ¦                            ¦                                                                               ¦
+¦                      ¦                            ¦                                                                               ¦
+¦                      ¦                            ¦When [FourCC] is used to signal the codec, this property is set to a FOURCC    ¦
+¦                      ¦                            ¦value. Note: A FOURCC value is big-endian relative to the underlying ASCII     ¦
+¦                      ¦                            ¦character sequence (e.g., "Opus" == 0x4F707573 == 1332770163.0).               ¦
++----------------------+----------------------------+-------------------------------------------------------------------------------+
+¦audiodatarate         ¦number                      ¦Audio bitrate, in kilobits per second                                          ¦
++----------------------+----------------------------+-------------------------------------------------------------------------------+
+¦audiodelay            ¦number                      ¦Delay introduced by the audio codec, in seconds                                ¦
++----------------------+----------------------------+-------------------------------------------------------------------------------+
+¦audiosamplerate       ¦number                      ¦Frequency at which the audio stream is replayed                                ¦
++----------------------+----------------------------+-------------------------------------------------------------------------------+
+¦audiosamplesize       ¦number                      ¦Resolution of a single audio sample                                            ¦
++----------------------+----------------------------+-------------------------------------------------------------------------------+
+¦canSeekToEnd          ¦boolean                     ¦Indicating the last video frame is a key frame                                 ¦
++----------------------+----------------------------+-------------------------------------------------------------------------------+
+¦creationdate          ¦string                      ¦Creation date and time                                                         ¦
++----------------------+----------------------------+-------------------------------------------------------------------------------+
+¦duration              ¦number                      ¦Total duration of the file, in seconds                                         ¦
++----------------------+----------------------------+-------------------------------------------------------------------------------+
+¦filesize              ¦number                      ¦Total size of the file, in bytes                                               ¦
++----------------------+----------------------------+-------------------------------------------------------------------------------+
+¦framerate             ¦number                      ¦Number of frames per second                                                    ¦
++----------------------+----------------------------+-------------------------------------------------------------------------------+
+¦height                ¦number                      ¦Height of the video, in pixels                                                 ¦
++----------------------+----------------------------+-------------------------------------------------------------------------------+
+¦stereo                ¦boolean                     ¦Indicates stereo audio                                                         ¦
++----------------------+----------------------------+-------------------------------------------------------------------------------+
+¦videocodecid          ¦number                      ¦Video codec ID used in the file: See VideoTagHeader of the legacy [FLV]        ¦
+¦                      ¦                            ¦specification for available CodecID values.                                    ¦
+¦                      ¦                            ¦                                                                               ¦
+¦                      ¦                            ¦When [FourCC] is used to signal the codec, this property is set to a FOURCC    ¦
+¦                      ¦                            ¦value. Note: A FOURCC value is big-endian relative to the underlying ASCII     ¦
+¦                      ¦                            ¦character sequence (e.g., "av01" == 0x61763031 == 1635135537.0).               ¦
++----------------------+----------------------------+-------------------------------------------------------------------------------+
+¦videodatarate         ¦number                      ¦Video bitrate, in kilobits per second                                          ¦
++----------------------+----------------------------+-------------------------------------------------------------------------------+
+¦width                 ¦number                      ¦Width of the video, in pixels                                                  ¦
++----------------------+----------------------------+-------------------------------------------------------------------------------+
+¦audioTrackIdInfoMap   ¦Object                      ¦The audioTrackIdInfoMap and videoTrackIdInfoMap objects are designed to store  ¦
++----------------------+                            ¦metadata for audio and video tracks respectively. Each object uses a TrackId as¦
+¦videoTrackIdInfoMap   ¦                            ¦a key to map to properties that detail the unique characteristics of each      ¦
+¦                      ¦                            ¦individual track, diverging from the default configurations.                   ¦
+¦                      ¦                            ¦                                                                               ¦
+¦                      ¦                            ¦- Key-Value Structure:                                                         ¦
+¦                      ¦                            ¦  * Keys: Each TrackId acts as a unique identifier for a specific audio or     ¦
+¦                      ¦                            ¦    video track.                                                               ¦
+¦                      ¦                            ¦  * Values: Track Objects containing metadata that specify characteristics     ¦
+¦                      ¦                            ¦    which deviate from the default track settings.                             ¦
+¦                      ¦                            ¦- Properties of Each Track Object:                                             ¦
+¦                      ¦                            ¦  * These properties detail non-standard configurations needed for custom      ¦
+¦                      ¦                            ¦    handling of the track, facilitating specific adjustments to enhance track  ¦
+¦                      ¦                            ¦    performance and quality for varied conditions.                             ¦
+¦                      ¦                            ¦  * For videoTrackIdInfoMap:                                                   ¦
+¦                      ¦                            ¦    + Properties such as width, height, videodatarate, etc. specify video      ¦
+¦                      ¦                            ¦      characteristics that differ from standard settings.                      ¦
+¦                      ¦                            ¦  * For audioTrackIdInfoMap:                                                   ¦
+¦                      ¦                            ¦    + Properties such as audiodatarate, channels, etc., define audio           ¦
+¦                      ¦                            ¦      characteristics that differ from standard configurations.                ¦
+¦                      ¦                            ¦- Purpose:                                                                     ¦
+¦                      ¦                            ¦  * The purpose of these maps is to specify unique properties for each track,  ¦
+¦                      ¦                            ¦    ensuring tailored configurations that optimize performance and quality for ¦
+¦                      ¦                            ¦    specific media content and delivery scenarios.                             ¦
+¦                      ¦                            ¦This structure provides a framework for detailed customization and control over¦
+¦                      ¦                            ¦the media tracks, ensuring optimal management and delivery across various types¦
+¦                      ¦                            ¦of content and platforms.                                                      ¦
+¦                      ¦                            ¦                                                                               ¦
+¦                      ¦                            ¦Examples:                                                                      ¦
+¦                      ¦                            ¦                                                                               ¦
+¦                      ¦                            ¦e.g., 1                                                                        ¦
+¦                      ¦                            ¦videoTrackIdInfoMap = {                                                        ¦
+¦                      ¦                            ¦  1: {                                                                         ¦
+¦                      ¦                            ¦    width: 1024,                                                               ¦
+¦                      ¦                            ¦    height: 768,                                                               ¦
+¦                      ¦                            ¦    videodatarate: 2000,                                                       ¦
+¦                      ¦                            ¦  },                                                                           ¦
+¦                      ¦                            ¦                                                                               ¦
+¦                      ¦                            ¦  2 : {                                                                        ¦
+¦                      ¦                            ¦    width: 3840,                                                               ¦
+¦                      ¦                            ¦    height: 2160,                                                              ¦
+¦                      ¦                            ¦    videodatarate: 30000,                                                      ¦
+¦                      ¦                            ¦  },                                                                           ¦
+¦                      ¦                            ¦}                                                                              ¦
+¦                      ¦                            ¦                                                                               ¦
+¦                      ¦                            ¦e.g., 2                                                                        ¦
+¦                      ¦                            ¦audioTrackIdInfoMap = {                                                        ¦
+¦                      ¦                            ¦  1: {                                                                         ¦
+¦                      ¦                            ¦    audiodatarate: 256,                                                        ¦
+¦                      ¦                            ¦    channels: 2,                                                               ¦
+¦                      ¦                            ¦    samplerate: 44100,                                                         ¦
+¦                      ¦                            ¦  },                                                                           ¦
+¦                      ¦                            ¦                                                                               ¦
+¦                      ¦                            ¦  2: {                                                                         ¦
+¦                      ¦                            ¦    audiodatarate: 320,                                                        ¦
+¦                      ¦                            ¦    channels: 1,                                                               ¦
+¦                      ¦                            ¦    samplerate: 22050,                                                         ¦
+¦                      ¦                            ¦  },                                                                           ¦
+¦                      ¦                            ¦}                                                                              ¦
++----------------------+----------------------------+-------------------------------------------------------------------------------+
 ```
 
->**Note:** The properties **audiocodecid** and **videocodecid** have been enhanced to support FOURCC (Four-byte ASCII code) values. These values are interpreted as UI32 (e.g., "av01").
+>**Note:**
+>
+>- The properties **audiocodecid** and **videocodecid** have been enhanced to support FOURCC (Four-byte ASCII code) values. These values are interpreted as UI32 (e.g., "av01").
+>- The properties **audioTrackIdInfoMap** and **videoTrackIdInfoMap** are new.
 
 ## Reconnect Request
 
@@ -617,7 +680,7 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 +-------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 ¦                              Description Of Bitstream                              ¦                                  Enumerated Types                                  ¦
 +------------------------------------------------------------------------------------+------------------------------------------------------------------------------------+
-¦//                                                                                  ¦enum AudioPacketType {                                                              ¦
+¦///                                                                                 ¦enum AudioPacketType {                                                              ¦
 ¦// process ExAudioTagHeader                                                         ¦  SequenceStart       = 0,                                                          ¦
 ¦//                                                                                  ¦  CodedFrames         = 1,                                                          ¦
 ¦processAudioBody = false                                                            ¦                                                                                    ¦
@@ -627,62 +690,62 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 ¦  // Interpret UB[4] bits as AudioPacketType instead of sound rate, size, and type. ¦  // without an AudioTagHeader, indicating a period of silence. The                 ¦
 ¦  audioPacketType = UB[4] as AudioPacketType    // at byte boundary after this read ¦  // action to take after receiving a silence message is system                     ¦
 ¦                                                                                    ¦  // dependent. The semantics of the silence message in the Flash                   ¦
-¦  while (audioPacketType == AudioPacketType.ModEx) {                                ¦  // Media playback and timing model are as follows:                                ¦
-¦    //                                                                              ¦  //                                                                                ¦
-¦    // process the ModEx for the current audioPacketType                            ¦  // - Ensure all buffered audio data is played out before entering the             ¦
-¦    //                                                                              ¦  //   silence period:                                                              ¦
+¦  // Process each ModEx data packet                                                 ¦  // Media playback and timing model are as follows:                                ¦
+¦  while (audioPacketType == AudioPacketType.ModEx) {                                ¦  //                                                                                ¦
+¦    // Determine the size of the packet ModEx data (ranging from 1 to 256 bytes)    ¦  // - Ensure all buffered audio data is played out before entering the             ¦
+¦    modExDataSize = UI8 + 1                                                         ¦  //   silence period:                                                              ¦
 ¦                                                                                    ¦  //   Make sure that any audio data currently in the buffer is fully               ¦
-¦    // Determine the size of the packet ModEx data in bytes (1-256)                 ¦  //   processed and played. This ensures a clean transition into the               ¦
-¦    modExDataSize = UI8 + 1                                                         ¦  //   silence period without cutting off any audio.                                ¦
-¦                                                                                    ¦  //                                                                                ¦
-¦    // Fetch the packet ModEx data based on its size                                ¦  // - After playing all buffered audio data, flush the audio decoder:              ¦
-¦    modExData = UI8[modExDataSize]                                                  ¦  //   Clear the audio decoder to reset its state and prepare it for new            ¦
-¦                                                                                    ¦  //   input after the silence period.                                              ¦
-¦    // fetch the AudioPacketModExType                                               ¦  //                                                                                ¦
-¦    audioPacketModExType = UB[4] as AudioPacketModExType                            ¦  // - During the silence period, the audio clock can't be used as the              ¦
-¦                                                                                    ¦  //   master clock for synchronizing playback:                                     ¦
-¦    // Update audioPacketType                                                       ¦  //   Switch to using the system's wall-clock time to maintain the correct         ¦
-¦    audioPacketType = UB[4] as AudioPacketType  // at byte boundary after this read ¦  //   timing for video and other data streams.                                     ¦
-¦                                                                                    ¦  //                                                                                ¦
-¦    if (audioPacketModExType == AudioPacketModExType.TimestampOffsetNano) {         ¦  // - Don't wait for audio frames for synchronized A+V playback:                   ¦
-¦      // This block processes TimestampOffsetNano to enhance RTMP timescale         ¦  //   Normally, audio frames drive the synchronization of audio and video          ¦
-¦      // accuracy and compatibility with formats like MP4, M2TS, and Safari's       ¦  //   (A/V) playback. During the silence period, playback should not stall         ¦
-¦      // Media Source Extensions. It ensures precise synchronization without        ¦  //   waiting for audio frames. Video and other data streams should                ¦
-¦      // altering core RTMP timestamps, applying only to the current media          ¦  //   continue to play based on the wall-clock time, ensuring smooth               ¦
-¦      // message. These adjustments enhance synchronization and timing              ¦  //   playback without audio.                                                      ¦
-¦      // accuracy in media messages while preserving the core RTMP timestamp        ¦  //                                                                                ¦
-¦      // integrity.                                                                 ¦  // AudioPacketType.SequenceEnd is to have no less than the same meaning as        ¦
-¦      //                                                                            ¦  // a silence message. While it may seem redundant, we need to introduce           ¦
-¦      // NOTE:                                                                      ¦  // this enum to ensure we can signal the end of the audio sequence for any        ¦
-¦      // - 1 millisecond (ms) = 1,000,000 nanoseconds (ns).                         ¦  // audio track.                                                                   ¦
-¦      // - Maximum value representable with 20 bits is 1,048,575 ns                 ¦  SequenceEnd         = 2,                                                          ¦
+¦    // If maximum 8-bit size is not sufficient, use a 16-bit value                  ¦  //   processed and played. This ensures a clean transition into the               ¦
+¦    if (modExDataSize == 256) {                                                     ¦  //   silence period without cutting off any audio.                                ¦
+¦      modExDataSize = UI16 + 1;                                                     ¦  //                                                                                ¦
+¦    }                                                                               ¦  // - After playing all buffered audio data, flush the audio decoder:              ¦
+¦                                                                                    ¦  //   Clear the audio decoder to reset its state and prepare it for new            ¦
+¦    // Fetch the packet ModEx data based on its determined size                     ¦  //   input after the silence period.                                              ¦
+¦    modExData = UI8[modExDataSize]                                                  ¦  //                                                                                ¦
+¦                                                                                    ¦  // - During the silence period, the audio clock can't be used as the              ¦
+¦    // fetch the AudioPacketModExType                                               ¦  //   master clock for synchronizing playback:                                     ¦
+¦    audioPacketModExType = UB[4] as AudioPacketModExType                            ¦  //   Switch to using the system's wall-clock time to maintain the correct         ¦
+¦                                                                                    ¦  //   timing for video and other data streams.                                     ¦
+¦    // Update audioPacketType                                                       ¦  //                                                                                ¦
+¦    audioPacketType = UB[4] as AudioPacketType  // at byte boundary after this read ¦  // - Don't wait for audio frames for synchronized A+V playback:                   ¦
+¦                                                                                    ¦  //   Normally, audio frames drive the synchronization of audio and video          ¦
+¦    if (audioPacketModExType == AudioPacketModExType.TimestampOffsetNano) {         ¦  //   (A/V) playback. During the silence period, playback should not stall         ¦
+¦      // This block processes TimestampOffsetNano to enhance RTMP timescale         ¦  //   waiting for audio frames. Video and other data streams should                ¦
+¦      // accuracy and compatibility with formats like MP4, M2TS, and Safari's       ¦  //   continue to play based on the wall-clock time, ensuring smooth               ¦
+¦      // Media Source Extensions. It ensures precise synchronization without        ¦  //   playback without audio.                                                      ¦
+¦      // altering core RTMP timestamps, applying only to the current media          ¦  //                                                                                ¦
+¦      // message. These adjustments enhance synchronization and timing              ¦  // AudioPacketType.SequenceEnd is to have no less than the same meaning as        ¦
+¦      // accuracy in media messages while preserving the core RTMP timestamp        ¦  // a silence message. While it may seem redundant, we need to introduce           ¦
+¦      // integrity.                                                                 ¦  // this enum to ensure we can signal the end of the audio sequence for any        ¦
+¦      //                                                                            ¦  // audio track.                                                                   ¦
+¦      // NOTE:                                                                      ¦  SequenceEnd         = 2,                                                          ¦
+¦      // - 1 millisecond (ms) = 1,000,000 nanoseconds (ns).                         ¦                                                                                    ¦
+¦      // - Maximum value representable with 20 bits is 1,048,575 ns                 ¦  //  3 - Reserved                                                                  ¦
 ¦      //   (just over 1 ms), allowing precise sub-millisecond adjustments.          ¦                                                                                    ¦
-¦      // - modExData must be at least 3 bytes, storing values up to 999,999 ns.     ¦  //  3 - Reserved                                                                  ¦
+¦      // - modExData must be at least 3 bytes, storing values up to 999,999 ns.     ¦  MultichannelConfig  = 4,                                                          ¦
 ¦      audioTimestampNanoOffset = bytesToUI24(modExData)                             ¦                                                                                    ¦
-¦                                                                                    ¦  MultichannelConfig  = 4,                                                          ¦
-¦      // TODO: Integrate this nanosecond offset into timestamp management           ¦                                                                                    ¦
-¦      // to accurately adjust the presentation time.                                ¦  // Turns on audio multitrack mode                                                 ¦
-¦    }                                                                               ¦  Multitrack          = 5,                                                          ¦
+¦                                                                                    ¦  // Turns on audio multitrack mode                                                 ¦
+¦      // TODO: Integrate this nanosecond offset into timestamp management           ¦  Multitrack          = 5,                                                          ¦
+¦      // to accurately adjust the presentation time.                                ¦                                                                                    ¦
+¦    }                                                                               ¦  // 6 - reserved                                                                   ¦
 ¦  }                                                                                 ¦                                                                                    ¦
-¦                                                                                    ¦  // 6 - reserved                                                                   ¦
-¦  if (audioPacketType == AudioPacketType.Multitrack) {                              ¦                                                                                    ¦
-¦    isAudioMultitrack = true;                                                       ¦  // ModEx is a special signal within the AudioPacketType enum that                 ¦
-¦    audioMultitrackType = UB[4] as AvMultitrackType                                 ¦  // serves to both modify and extend the behavior of the current packet.           ¦
-¦                                                                                    ¦  // When this signal is encountered, it indicates the presence of                  ¦
-¦    // Fetch AudioPacketType for all audio tracks in the audio message.             ¦  // additional modifiers or extensions, requiring further processing to            ¦
-¦    // This fetch MUST not result in a AudioPacketType.Multitrack                   ¦  // adjust or augment the packet's functionality. ModEx can be used to             ¦
-¦    audioPacketType = UB[4] as AudioPacketType                                      ¦  // introduce new capabilities or modify existing ones, such as                    ¦
-¦                                                                                    ¦  // enabling support for high-precision timestamps or other advanced               ¦
-¦    if (audioMultitrackType != AvMultitrackType.ManyTracksManyCodecs) {             ¦  // features that enhance the base packet structure.                               ¦
-¦      // The tracks are encoded with the same codec. Fetch the FOURCC for them      ¦  ModEx               = 7,                                                          ¦
-¦      audioFourCc = FOURCC as AudioFourCc                                           ¦                                                                                    ¦
-¦    }                                                                               ¦  // ...                                                                            ¦
-¦  } else {                                                                          ¦  // 14 - reserved                                                                  ¦
-¦    audioFourCc = FOURCC as AudioFourCc                                             ¦  // 15 - reserved                                                                  ¦
-¦  }                                                                                 ¦}                                                                                   ¦
-¦}                                                                                   ¦                                                                                    ¦
-¦                                                                                    ¦enum AudioPacketModExType {                                                         ¦
-¦                                                                                    ¦  TimestampOffsetNano   = 0,                                                        ¦
+¦                                                                                    ¦  // ModEx is a special signal within the AudioPacketType enum that                 ¦
+¦  if (audioPacketType == AudioPacketType.Multitrack) {                              ¦  // serves to both modify and extend the behavior of the current packet.           ¦
+¦    isAudioMultitrack = true;                                                       ¦  // When this signal is encountered, it indicates the presence of                  ¦
+¦    audioMultitrackType = UB[4] as AvMultitrackType                                 ¦  // additional modifiers or extensions, requiring further processing to            ¦
+¦                                                                                    ¦  // adjust or augment the packet's functionality. ModEx can be used to             ¦
+¦    // Fetch AudioPacketType for all audio tracks in the audio message.             ¦  // introduce new capabilities or modify existing ones, such as                    ¦
+¦    // This fetch MUST not result in a AudioPacketType.Multitrack                   ¦  // enabling support for high-precision timestamps or other advanced               ¦
+¦    audioPacketType = UB[4] as AudioPacketType                                      ¦  // features that enhance the base packet structure.                               ¦
+¦                                                                                    ¦  ModEx               = 7,                                                          ¦
+¦    if (audioMultitrackType != AvMultitrackType.ManyTracksManyCodecs) {             ¦                                                                                    ¦
+¦      // The tracks are encoded with the same codec. Fetch the FOURCC for them      ¦  // ...                                                                            ¦
+¦      audioFourCc = FOURCC as AudioFourCc                                           ¦  // 14 - reserved                                                                  ¦
+¦    }                                                                               ¦  // 15 - reserved                                                                  ¦
+¦  } else {                                                                          ¦}                                                                                   ¦
+¦    audioFourCc = FOURCC as AudioFourCc                                             ¦                                                                                    ¦
+¦  }                                                                                 ¦enum AudioPacketModExType {                                                         ¦
+¦}                                                                                   ¦  TimestampOffsetNano   = 0,                                                        ¦
 ¦                                                                                    ¦                                                                                    ¦
 ¦                                                                                    ¦  // ...                                                                            ¦
 ¦                                                                                    ¦  // 14 - reserved                                                                  ¦
@@ -985,71 +1048,71 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 ¦  // Interpret UB[4] bits as VideoPacketType instead of sound rate, size, and type. ¦  // See the ExVideoTagBody section below for corresponding pseudocode.             ¦
 ¦  videoPacketType = UB[4] as VideoPacketType    // at byte boundary after this read ¦  CodedFramesX          = 3,                                                        ¦
 ¦                                                                                    ¦                                                                                    ¦
-¦  while (videoPacketType == VideoPacketType.ModEx) {                                ¦  // ExVideoTagBody does not contain video data. Instead, it contains               ¦
-¦    //                                                                              ¦  // an AMF-encoded metadata. Refer to the Metadata Frame section for               ¦
-¦    // process the ModEx for the current videoPacketType                            ¦  // an illustration of its usage. For example, the metadata might include          ¦
-¦    //                                                                              ¦  // HDR information. This also enables future possibilities for expressing         ¦
+¦  // Process each ModEx data packet                                                 ¦  // ExVideoTagBody does not contain video data. Instead, it contains               ¦
+¦  while (videoPacketType == VideoPacketType.ModEx) {                                ¦  // an AMF-encoded metadata. Refer to the Metadata Frame section for               ¦
+¦    // Determine the size of the packet ModEx data (ranging from 1 to 256 bytes)    ¦  // an illustration of its usage. For example, the metadata might include          ¦
+¦    modExDataSize = UI8 + 1                                                         ¦  // HDR information. This also enables future possibilities for expressing         ¦
 ¦                                                                                    ¦  // additional metadata meant for subsequent video sequences.                      ¦
-¦    // Determine the size of the packet ModEx data in bytes (1-256)                 ¦  //                                                                                ¦
-¦    modExDataSize = UI8 + 1                                                         ¦  // If VideoPacketType.Metadata is present, the FrameType flags                    ¦
-¦                                                                                    ¦  // at the top of this table should be ignored.                                    ¦
-¦    // Fetch the packet ModEx data based on its size                                ¦  Metadata              = 4,                                                        ¦
-¦    modExData = UI8[modExDataSize]                                                  ¦                                                                                    ¦
-¦                                                                                    ¦  // Carriage of bitstream in MPEG-2 TS format                                      ¦
-¦    // fetch the VideoPacketOptionType                                              ¦  //                                                                                ¦
-¦    videoPacketModExType = UB[4] as VideoPacketModExType                            ¦  // PacketTypeSequenceStart and PacketTypeMPEG2TSSequenceStart                     ¦
-¦                                                                                    ¦  // are mutually exclusive                                                         ¦
-¦    // Update videoPacketType                                                       ¦  MPEG2TSSequenceStart  = 5,                                                        ¦
-¦    videoPacketType = UB[4] as VideoPacketType  // at byte boundary after this read ¦                                                                                    ¦
-¦                                                                                    ¦  // Turns on video multitrack mode                                                 ¦
-¦    if (videoPacketModExType == VideoPacketModExType.TimestampOffsetNano) {         ¦  Multitrack            = 6,                                                        ¦
-¦      // This block processes TimestampOffsetNano to enhance RTMP timescale         ¦                                                                                    ¦
-¦      // accuracy and compatibility with formats like MP4, M2TS, and Safari's       ¦  // ModEx is a special signal within the VideoPacketType enum that                 ¦
-¦      // Media Source Extensions. It ensures precise synchronization without        ¦  // serves to both modify and extend the behavior of the current packet.           ¦
-¦      // altering core RTMP timestamps, applying only to the current media          ¦  // When this signal is encountered, it indicates the presence of                  ¦
-¦      // message. These adjustments enhance synchronization and timing              ¦  // additional modifiers or extensions, requiring further processing to            ¦
-¦      // accuracy in media messages while preserving the core RTMP timestamp        ¦  // adjust or augment the packet's functionality. ModEx can be used to             ¦
-¦      // integrity.                                                                 ¦  // introduce new capabilities or modify existing ones, such as                    ¦
-¦      //                                                                            ¦  // enabling support for high-precision timestamps or other advanced               ¦
-¦      // NOTE:                                                                      ¦  // features that enhance the base packet structure.                               ¦
-¦      // - 1 millisecond (ms) = 1,000,000 nanoseconds (ns).                         ¦  ModEx                 = 7,                                                        ¦
-¦      // - Maximum value representable with 20 bits is 1,048,575 ns                 ¦                                                                                    ¦
-¦      //   (just over 1 ms), allowing precise sub-millisecond adjustments.          ¦  //  8 - Reserved                                                                  ¦
-¦      // - modExData must be at least 3 bytes, storing values up to 999,999 ns.     ¦  // ...                                                                            ¦
-¦      videoTimestampNanoOffset = bytesToUI24(modExData)                             ¦  // 14 - reserved                                                                  ¦
-¦                                                                                    ¦  // 15 - reserved                                                                  ¦
-¦      // TODO: Integrate this nanosecond offset into timestamp management           ¦}                                                                                   ¦
-¦      // to accurately adjust the presentation time.                                ¦                                                                                    ¦
-¦    }                                                                               ¦enum VideoPacketModExType {                                                         ¦
-¦  }                                                                                 ¦  TimestampOffsetNano   = 0,                                                        ¦
+¦    // If maximum 8-bit size is not sufficient, use a 16-bit value                  ¦  //                                                                                ¦
+¦    if (modExDataSize == 256) {                                                     ¦  // If VideoPacketType.Metadata is present, the FrameType flags                    ¦
+¦      modExDataSize = UI16 + 1;                                                     ¦  // at the top of this table should be ignored.                                    ¦
+¦    }                                                                               ¦  Metadata              = 4,                                                        ¦
 ¦                                                                                    ¦                                                                                    ¦
-¦  if (                                                                              ¦  // ...                                                                            ¦
-¦    videoPacketType != VideoPacketType.Metadata &&                                  ¦  // 14 - reserved                                                                  ¦
-¦    videoFrameType == VideoFrameType.Command                                        ¦  // 15 - reserved                                                                  ¦
-¦  ) {                                                                               ¦}                                                                                   ¦
-¦    videoCommand = UI8 as VideoCommand                                              ¦                                                                                    ¦
-¦                                                                                    ¦enum VideoFourCc {                                                                  ¦
-¦    // ExVideoTagBody has no payload if we got here.                                ¦  //                                                                                ¦
-¦    // Set boolean to not try to process the video body.                            ¦  // Valid FOURCC values for signaling support of video codecs                      ¦
-¦    processVideoBody = false                                                        ¦  // in the enhanced FourCC pipeline. In this context, support                      ¦
-¦  } else if (videoPacketType == VideoPacketType.Multitrack) {                       ¦  // for a FourCC codec MUST be signaled via the enhanced                           ¦
-¦    isVideoMultitrack = true;                                                       ¦  // "connect" command.                                                             ¦
-¦    videoMultitrackType = UB[4] as AvMultitrackType                                 ¦  //                                                                                ¦
+¦    // Fetch the packet ModEx data based on its determined size                     ¦  // Carriage of bitstream in MPEG-2 TS format                                      ¦
+¦    modExData = UI8[modExDataSize]                                                  ¦  //                                                                                ¦
+¦                                                                                    ¦  // PacketTypeSequenceStart and PacketTypeMPEG2TSSequenceStart                     ¦
+¦    // fetch the VideoPacketOptionType                                              ¦  // are mutually exclusive                                                         ¦
+¦    videoPacketModExType = UB[4] as VideoPacketModExType                            ¦  MPEG2TSSequenceStart  = 5,                                                        ¦
 ¦                                                                                    ¦                                                                                    ¦
-¦    // Fetch VideoPacketType for all video tracks in the video message.             ¦  Vp8         = makeFourCc("vp08"),                                                 ¦
-¦    // This fetch MUST not result in a VideoPacketType.Multitrack                   ¦  Vp9         = makeFourCc("vp09"),                                                 ¦
-¦    videoPacketType = UB[4] as VideoPacketType                                      ¦  Av1         = makeFourCc("av01"),                                                 ¦
-¦                                                                                    ¦  Avc         = makeFourCc("avc1"),                                                 ¦
-¦    if (videoMultitrackType != AvMultitrackType.ManyTracksManyCodecs) {             ¦  Hevc        = makeFourCc("hvc1"),                                                 ¦
-¦      // The tracks are encoded with the same codec. Fetch the FOURCC for them      ¦}                                                                                   ¦
-¦      videoFourCc = FOURCC as VideoFourCc                                           ¦                                                                                    ¦
-¦    }                                                                               ¦enum AvMultitrackType {                                                             ¦
+¦    // Update videoPacketType                                                       ¦  // Turns on video multitrack mode                                                 ¦
+¦    videoPacketType = UB[4] as VideoPacketType  // at byte boundary after this read ¦  Multitrack            = 6,                                                        ¦
+¦                                                                                    ¦                                                                                    ¦
+¦    if (videoPacketModExType == VideoPacketModExType.TimestampOffsetNano) {         ¦  // ModEx is a special signal within the VideoPacketType enum that                 ¦
+¦      // This block processes TimestampOffsetNano to enhance RTMP timescale         ¦  // serves to both modify and extend the behavior of the current packet.           ¦
+¦      // accuracy and compatibility with formats like MP4, M2TS, and Safari's       ¦  // When this signal is encountered, it indicates the presence of                  ¦
+¦      // Media Source Extensions. It ensures precise synchronization without        ¦  // additional modifiers or extensions, requiring further processing to            ¦
+¦      // altering core RTMP timestamps, applying only to the current media          ¦  // adjust or augment the packet's functionality. ModEx can be used to             ¦
+¦      // message. These adjustments enhance synchronization and timing              ¦  // introduce new capabilities or modify existing ones, such as                    ¦
+¦      // accuracy in media messages while preserving the core RTMP timestamp        ¦  // enabling support for high-precision timestamps or other advanced               ¦
+¦      // integrity.                                                                 ¦  // features that enhance the base packet structure.                               ¦
+¦      //                                                                            ¦  ModEx                 = 7,                                                        ¦
+¦      // NOTE:                                                                      ¦                                                                                    ¦
+¦      // - 1 millisecond (ms) = 1,000,000 nanoseconds (ns).                         ¦  //  8 - Reserved                                                                  ¦
+¦      // - Maximum value representable with 20 bits is 1,048,575 ns                 ¦  // ...                                                                            ¦
+¦      //   (just over 1 ms), allowing precise sub-millisecond adjustments.          ¦  // 14 - reserved                                                                  ¦
+¦      // - modExData must be at least 3 bytes, storing values up to 999,999 ns.     ¦  // 15 - reserved                                                                  ¦
+¦      videoTimestampNanoOffset = bytesToUI24(modExData)                             ¦}                                                                                   ¦
+¦                                                                                    ¦                                                                                    ¦
+¦      // TODO: Integrate this nanosecond offset into timestamp management           ¦enum VideoPacketModExType {                                                         ¦
+¦      // to accurately adjust the presentation time.                                ¦  TimestampOffsetNano   = 0,                                                        ¦
+¦    }                                                                               ¦                                                                                    ¦
+¦  }                                                                                 ¦  // ...                                                                            ¦
+¦                                                                                    ¦  // 14 - reserved                                                                  ¦
+¦  if (                                                                              ¦  // 15 - reserved                                                                  ¦
+¦    videoPacketType != VideoPacketType.Metadata &&                                  ¦}                                                                                   ¦
+¦    videoFrameType == VideoFrameType.Command                                        ¦                                                                                    ¦
+¦  ) {                                                                               ¦enum VideoFourCc {                                                                  ¦
+¦    videoCommand = UI8 as VideoCommand                                              ¦  //                                                                                ¦
+¦                                                                                    ¦  // Valid FOURCC values for signaling support of video codecs                      ¦
+¦    // ExVideoTagBody has no payload if we got here.                                ¦  // in the enhanced FourCC pipeline. In this context, support                      ¦
+¦    // Set boolean to not try to process the video body.                            ¦  // for a FourCC codec MUST be signaled via the enhanced                           ¦
+¦    processVideoBody = false                                                        ¦  // "connect" command.                                                             ¦
+¦  } else if (videoPacketType == VideoPacketType.Multitrack) {                       ¦  //                                                                                ¦
+¦    isVideoMultitrack = true;                                                       ¦                                                                                    ¦
+¦    videoMultitrackType = UB[4] as AvMultitrackType                                 ¦  Vp8         = makeFourCc("vp08"),                                                 ¦
+¦                                                                                    ¦  Vp9         = makeFourCc("vp09"),                                                 ¦
+¦    // Fetch VideoPacketType for all video tracks in the video message.             ¦  Av1         = makeFourCc("av01"),                                                 ¦
+¦    // This fetch MUST not result in a VideoPacketType.Multitrack                   ¦  Avc         = makeFourCc("avc1"),                                                 ¦
+¦    videoPacketType = UB[4] as VideoPacketType                                      ¦  Hevc        = makeFourCc("hvc1"),                                                 ¦
+¦                                                                                    ¦}                                                                                   ¦
+¦    if (videoMultitrackType != AvMultitrackType.ManyTracksManyCodecs) {             ¦                                                                                    ¦
+¦      // The tracks are encoded with the same codec. Fetch the FOURCC for them      ¦enum AvMultitrackType {                                                             ¦
+¦      videoFourCc = FOURCC as VideoFourCc                                           ¦  //                                                                                ¦
+¦    }                                                                               ¦  // Used by audio and video pipeline                                               ¦
 ¦  } else {                                                                          ¦  //                                                                                ¦
-¦    videoFourCc = FOURCC as VideoFourCc                                             ¦  // Used by audio and video pipeline                                               ¦
-¦  }                                                                                 ¦  //                                                                                ¦
-¦}                                                                                   ¦                                                                                    ¦
-¦                                                                                    ¦  OneTrack              = 0,                                                        ¦
-¦                                                                                    ¦  ManyTracks            = 1,                                                        ¦
+¦    videoFourCc = FOURCC as VideoFourCc                                             ¦                                                                                    ¦
+¦  }                                                                                 ¦  OneTrack              = 0,                                                        ¦
+¦}                                                                                   ¦  ManyTracks            = 1,                                                        ¦
 ¦                                                                                    ¦  ManyTracksManyCodecs  = 2,                                                        ¦
 ¦                                                                                    ¦                                                                                    ¦
 ¦                                                                                    ¦  //  3 - Reserved                                                                  ¦
@@ -1339,25 +1402,44 @@ type ColorInfo = {
 
 ## Multitrack Streaming via Enhanced RTMP
 
+### Introduction to Multitrack Capabilities
+
 E-RTMP has introduced support for multitrack streaming, offering increased flexibility in audio and video streaming through the use of a track index (a.k.a., **trackId**). This feature allows for the serialization of multiple tracks over a single [[RTMP](#rtmp)] connection and stream channel. \
 &nbsp; \
 It's important to note that multitrack support is designed to augment, not replace, the option of using multiple streams for streaming. While both multiple streams and multitrack can potentially address the same use cases, the choice between them will depend on the specific capabilities of your RTMP implementation and requirements. In certain cases, multitrack may not be the most efficient option.
 
-### Sample Multitrack Use Cases
+### Multitrack Sample Use Cases
 
 - **Adaptive Bitrate Streaming**: Multitrack support allows the client to send Adaptive Bitrate (ABR) ladders, thus avoiding the need for server-side transcoding and reducing quality loss. This also facilitates sending content with multiple codecs like AV1, HEVC, and VP9.
 - **Device Specific Streaming**: The feature allows for the streaming of different aspect ratios, tailored for various device profiles, enabling more dynamic and flexible presentations.
 - **Frame-Level Synchronization**: For example, you can synchronize multiple camera views in a concert.
 - **Multi-Language Support**: Support for multiple audio tracks in a single [[FLV](#flv)] file is now available, eliminating the need for multiple file versions.
 
-### Additional Multitrack Details
+### Multitrack Media Message Guidelines
 
 - **Video Messages**: Each video message MUST include a **trackId** (refer to the **videoPacketType.Multitrack** entry in the **ExVideoTagHeader** table within the [Enhanced Video](#enhanced-video) section for video bitstream signaling) as it is not persistent across messages.
 - **Audio Messages**: Similarly, each audio message MUST include a **trackId** (refer to the **AudioPacketType.Multitrack** in the **ExAudioTagHeader** table within the [Enhanced Audio](#enhanced-audio) section for audio bitstream signaling).
 - **Payload Parsing**: All tracks within a single timestamp MUST be processed to ensure comprehensive media handling.
 - **Track Ordering**: For identifying the highest priority (a.k.a., default track) or highest quality track, it is RECOMMENDED to use **trackId** set to zero. For tracks of lesser priority or quality, use multiple instances of **trackId** with ascending numerical values. The concept of **priority** or **quality** can have multiple interpretations, including but not limited to bitrate, resolution, default angle, and language. This recommendation serves as a guideline intended to standardize track numbering across various applications.
 
-### General Guidelines
+### SCRIPTDATA Multitrack Parameter Handling
+
+- **trackId SHOULD be a Parameter**: For methods within RTMP that involve [[SCRIPTDATA](#scriptdata)] messages, the **trackId** can be a critical parameter for operations that pertain to specific media tracks. In such cases, the **trackId** SHOULD be passed in as an argument to the method, ensuring that the action or data manipulation is accurately applied to the correct track.
+- **Recommended Parameter Passing**:
+  - **Using a Map or Object Argument:** The recommended way to pass the **trackId** to methods involving SCRIPTDATA is by including it within a map or as a property of an object argument. This approach aligns with practices such as those used in the [Enhancing onMetaData](#enhancing-onmetadata) section, enhancing consistency and scalability across various implementations.
+  - **Function Signature Example**: This method takes an object arg which contains the property **trackId**. This structure is particularly effective for managing multiple parameters efficiently and enhances the readability and maintainability of the code.
+
+```js
+function ScriptMethodName(arg: Object) {
+  console.log("Invoking a script with trackId: ", arg.trackId);
+}
+```
+
+- **Advantages of Parameter Passing Approach**:
+  - **Clarity and Structure:** Using an object or map to pass arguments, including the trackId, organizes the parameters neatly and reduces the chances of errors or misalignment in parameter order.
+  - **Enhanced Maintenance:** It becomes easier to add more parameters in the future without altering the method signature drastically, thereby maintaining compatibility and easing future enhancements. The style of passing the **trackId** as part of a structured object or map ensures a robust framework for handling SCRIPTDATA operations in RTMP streams, providing clear, scalable, and error-free management of track-specific data.
+
+### Leveraging Multitrack Features in E-RTMP
 
 Multitrack capabilities in E-RTMP offer a wide range of possibilities, from adaptive bitrate streaming to multi-language support. While this document doesn't prescribe specific encoding rules or manifest metadata, it aims to guide you through the complexities of leveraging multitrack features. Consider various parameters like codecs, frame rates, key frames, sampling rates, and resolutions to meet your unique objectives. Remember, media encoding settings are separate from E-RTMP configurations.
 
@@ -1389,7 +1471,7 @@ When a client connects to an E-RTMP server, it sends a [**connect**](https://veo
 ¦                     ¦                           ¦and [audio|video]FourCcInfoMap properties to handle cases where a  ¦                                                      ¦
 ¦                     ¦                           ¦client has not yet transitioned to using the new properties.       ¦                                                      ¦
 +---------------------+---------------------------+-------------------------------------------------------------------+------------------------------------------------------+
-¦videoFourCcInfoMap,  ¦Object                     ¦The [audio|video]FourCcInfoMap property is designed to enable      ¦e.g., 1                                               ¦
+¦videoFourCcInfoMap,  ¦Object                     ¦The [audio|video]FourCcInfoMap properties are designed to enable   ¦e.g., 1                                               ¦
 ¦audioFourCcInfoMap   ¦                           ¦setting capability flags for each supported codec in the context of¦videoFourCcInfoMap = {                                ¦
 ¦                     ¦                           ¦E-RTMP streaming. A FourCC key is a four-character code used to    ¦  // can forward any video codec                      ¦
 ¦                     ¦                           ¦specify a video or audio codec. The names of the object properties ¦  "*": FourCcInfoMask.CanForward,                     ¦
@@ -1540,6 +1622,16 @@ Leiba, B., "Ambiguity of Uppercase vs Lowercase in [RFC](https://datatracker.iet
 Parmar, H., Ed. and M. Thornburgh, Ed., "Adobe’s Real Time Messaging Protocol", December 2012, \
 <[https://veovera.github.io/enhanced-rtmp/docs/legacy/rtmp-v1-0-spec.pdf](https://veovera.github.io/enhanced-rtmp/docs/legacy/rtmp-v1-0-spec.pdf)>.
 
+### [ScriptTagBody]
+
+"Adobe Flash Video File Format Specification, Version 10.1", August 2010, \
+<[https://veovera.org/docs/legacy/video-file-format-v10-1-spec.pdf#page=80](https://veovera.org/docs/legacy/video-file-format-v10-1-spec.pdf#page=80)>.
+
+### [SCRIPTDATA]
+
+"Adobe Flash Video File Format Specification, Version 10.1", August 2010, \
+<[https://veovera.org/docs/legacy/video-file-format-v10-1-spec.pdf#page=80](https://veovera.org/docs/legacy/video-file-format-v10-1-spec.pdf#page=80)>.
+
 ### [WebCodecs]
 
 W3C, "WebCodecs" \
@@ -1595,6 +1687,9 @@ Table: Revision history
 ¦                      ¦ 1. Added ModEx signal within the [Audio|Video]PacketType enum. ModEx serves to both    ¦
 ¦   v2-2024-09-07-a1   ¦    modify and extend the behavior of the current packet.                               ¦
 ¦                      ¦ 2. Made TimestampOffsetNano as part of the ModEx signal.                               ¦
++----------------------+----------------------------------------------------------------------------------------+
+¦   v2-2024-09-14-a1   ¦ 1. Added "Handling SCRIPTDATA with Multitrack" section.                                ¦
+¦                      ¦ 2. We now support 16-bit values for ModEx data size when exceeding an 8-bit limit.     ¦
 +----------------------+----------------------------------------------------------------------------------------+
 ¦      v2-...-a*       ¦ 1. See GitHub for revision history.                                                    ¦
 +----------------------+----------------------------------------------------------------------------------------+
