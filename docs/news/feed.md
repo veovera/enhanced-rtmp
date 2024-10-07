@@ -20,3 +20,7 @@
 ### 2024-05-15
 
 - [Enhanced RTMP V2 (Alpha) Gets Advanced Audio!](https://github.com/veovera/enhanced-rtmp/discussions/28)
+
+### 2024-09-17
+
+- [Enhancing RTMP: The Journey to Modernize a Decade-Old Streaming Protocol](https://www.linkedin.com/pulse/enhancing-rtmp-journey-modernize-decade-old-streaming-roger-hu-yp7sc/)
