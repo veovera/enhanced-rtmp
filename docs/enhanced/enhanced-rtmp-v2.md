@@ -7,6 +7,7 @@
 - [Table of Contents](#table-of-contents)
 - [Document Status](#document-status)
 - [Documentation Versioning](#documentation-versioning)
+- [Version Stage Definitions](#version-stage-definitions)
 - [Alpha Version Disclaimer for Enhanced RTMP v\*](#alpha-version-disclaimer-for-enhanced-rtmp-v)
 - [Usage License](#usage-license)
 - [Terminology](#terminology)
@@ -34,7 +35,7 @@
 
 **Author**: Slavik Lozben (Veovera Software Organization)(VSO) \
 **Contributors**: Adobe, Google, Twitch, Jean-Baptiste Kempf (FFmpeg, VideoLAN), pkv (OBS), Dennis Sädtler (OBS), Xavier Hallade (Intel Corporation), Luxoft, SplitmediaLabs Limited (XSplit), Craig Barberich (VSO), Michael Thornburgh \
-**Status**: **v2-2024-09-14-a1**
+**Status**: **v2-2024-10-22-b1**
 
 ## Documentation Versioning
 
@@ -67,6 +68,34 @@ The format for versioning documents is structured as follows:
   - **\#:** Minor version number for a particular date. Increments for multiple versions on the same date.
 
 This format provides a comprehensive overview of each version's status and chronological order, facilitating effective tracking and management of the E-RTMP specification development.
+
+## Version Stage Definitions
+
+We define distinct stages for the development of the E-RTMP protocol specification to indicate its maturity and readiness for implementation. Each stage serves a different purpose for those implementing the protocol:
+
+### Alpha Version
+
+- **Purpose**: The alpha stage represents an early, stable version of the protocol specification. It is intended for real-world implementation and feedback collection from developers and implementers who are beginning to build solutions based on the protocol.
+- **Features**: While the specification is mostly defined, some aspects may still evolve based on implementation feedback. Breaking changes are possible, but efforts are made to minimize them to ensure stability for early adopters.
+- **Audience**: Developers and implementers looking to integrate the protocol in real-world applications who are prepared to adapt to refinements or changes.
+- **Stability**: Moderate. The alpha version is considered stable enough for serious implementation, but it is still subject to potential changes that could affect backward compatibility.
+- **Documentation Status**: Indicated by the version identifier "a" (e.g., **v2-2024-02-26-a1**).
+
+### Beta Version
+
+- **Purpose**: The beta stage indicates that the protocol specification is nearing its final form, with all core features defined and ready for implementation across diverse environments. This stage focuses on verifying that the protocol works reliably at scale, with extensive real-world testing.
+- **Features**: The protocol is fully specified, and any changes at this stage should ideally be non-breaking. These changes may involve optimizations or clarifications to ensure smooth, large-scale deployments, but no core elements of the protocol are expected to be altered.
+- **Audience**: Developers and organizations preparing for production use, who are looking to validate their implementations against a near-final version of the protocol.
+- **Stability**: High. The beta version is stable enough for broad implementation with the expectation that no significant breaking changes will be introduced.
+- **Documentation Status**: Indicated by the version identifier "b" (e.g., **v2-2024-02-26-b1**).
+
+### Release Version (General Availability)
+
+- **Purpose**: The release (General Availability) stage is the finalized version of the protocol specification, fully stable and ready for widespread production use.
+- **Features**: The specification is locked, and no breaking changes should occur. Any updates will focus on backward-compatible improvements or bug fixes.
+- **Audience**: Developers, implementers, and end-users who need a reliable, long-term stable version for production deployments.
+- **Stability**: Highest. The release version ensures stability for production environments with long-term support.
+- **Documentation Status**: Indicated by the version identifier "r" (e.g., **v2-2024-02-26-r1**).
 
 ## Alpha Version Disclaimer for Enhanced RTMP v\*
 
@@ -158,7 +187,7 @@ The additional audio and video codecs supported by enhanced RTMP are summarized 
 ```
 
 &nbsp; \
-These strategic enhancements position RTMP as a robust, future-proof standard in the streaming technology arena. Veovera is committed to open collaboration and values community input. We encourage participation in the ongoing development process through our [GitHub repository](https://github.com/veovera/enhanced-rtmp), where you can access detailed documentation, contribute to the project, and share insights, fostering a vibrant ecosystem around enhanced E-RTMP.
+These strategic enhancements position RTMP as a robust, future-proof standard in the streaming technology arena. Veovera is committed to open collaboration and values community input, believing that protocols and standards should be open and free to foster innovation and create a thriving ecosystem. Companies can capitalize on solutions built around open standards; the more popular and accessible a protocol is, the stronger the foundation for developing compelling solutions. A standard’s popularity fuels adoption, allowing companies to leverage its widespread use. In contrast, fragmentation caused by proprietary protocols hampers industry growth, while open standards empower everyone to innovate freely, creating a healthier marketplace. E-RTMP’s shift toward openness aligns with the principles of open standards, emphasizing its potential to become a foundational technology. We encourage participation in the ongoing development process through our [GitHub repository](https://github.com/veovera/enhanced-rtmp), where you can access detailed documentation, contribute to the project, and share insights to foster a vibrant ecosystem around enhanced E-RTMP.
 
 ## Introduction
 
@@ -1596,7 +1625,7 @@ Deprecation, \
 
 ### [FourCC]
 
-FourCC, \
+A sequence of four bytes (typically ASCII) used to uniquely identify data formats, \
 <[https://en.wikipedia.org/wiki/FourCC](https://en.wikipedia.org/wiki/FourCC)>.
 
 ### [LEGACY]
@@ -1659,38 +1688,9 @@ Table: Revision history
 +---------------------------------------------------------------------------------------------------------------+
 ¦         Date         ¦                                        Comments                                        ¦
 +----------------------+----------------------------------------------------------------------------------------+
-¦   v2-2024-03-16-a1   ¦ 1. The Enhanced RTMP Version 2 Alpha is now ready for public testing.                  ¦
+¦   v2-2024-10-18-b1   ¦ 1. Added Version Stage Definitions Section - Alpha, Beta, Release                      ¦
+¦                      ¦ 2. Move E-RTMP v2 specification into Beta stage!!!                                     ¦
 +----------------------+----------------------------------------------------------------------------------------+
-¦   v2-2024-04-02-a1   ¦ 1. Fixed pseudocode logic relating to VP8 sequence start and coded data.               ¦
-+----------------------+----------------------------------------------------------------------------------------+
-¦   v2-2024-04-22-a1   ¦ 1. Minor cleanup of normative reference moniker. No changes to logic.                  ¦
-+----------------------+----------------------------------------------------------------------------------------+
-¦   v2-2024-05-9-a1    ¦ 1. Added audio sections to Enhanced RTMP Version 2 Alpha.                              ¦
-¦                      ¦ 2. Added WebCodecs reference.                                                          ¦
-+----------------------+----------------------------------------------------------------------------------------+
-¦                      ¦ 1. Defined the format and behavior of the audio silence message                        ¦
-¦                      ¦ 2. Defined the meaning of AudioPacketType.SequenceEnd                                  ¦
-¦   v2-2024-05-23-a1   ¦ 3. Cleaned up the definition for the expected Opus sequence start message              ¦
-¦                      ¦ 4. Defined the format of the Opus Coded Data on the wire                               ¦
-¦                      ¦ 5. Cleaned up the definition for the expected FLAC sequence start message, it was      ¦
-¦                      ¦    missing a fLaC marker.                                                              ¦
-+----------------------+----------------------------------------------------------------------------------------+
-¦   v2-2024-05-24-a1   ¦ 1. Fixed a bug in pseudocode when parsing FLAC sequence header.                        ¦
-+----------------------+----------------------------------------------------------------------------------------+
-¦   v2-2024-05-28-a1   ¦ 1. Reworded "audio silence" message format for more clarity.                           ¦
-+----------------------+----------------------------------------------------------------------------------------+
-¦   v2-2024-05-29-a1   ¦ 1. Changed page layout to better support .pdf export. No actual spec changes.          ¦
-+----------------------+----------------------------------------------------------------------------------------+
-¦   v2-2024-08-12-a1   ¦ 1. Added TimestampOffsetType.Nano signal intended to fine-tune the presentation time of¦
-¦                      ¦    each media message, providing higher precision synchronization.                     ¦
-+----------------------+----------------------------------------------------------------------------------------+
-¦                      ¦ 1. Added ModEx signal within the [Audio|Video]PacketType enum. ModEx serves to both    ¦
-¦   v2-2024-09-07-a1   ¦    modify and extend the behavior of the current packet.                               ¦
-¦                      ¦ 2. Made TimestampOffsetNano as part of the ModEx signal.                               ¦
-+----------------------+----------------------------------------------------------------------------------------+
-¦   v2-2024-09-14-a1   ¦ 1. Added "Handling SCRIPTDATA with Multitrack" section.                                ¦
-¦                      ¦ 2. We now support 16-bit values for ModEx data size when exceeding an 8-bit limit.     ¦
-+----------------------+----------------------------------------------------------------------------------------+
-¦      v2-...-a*       ¦ 1. See GitHub for revision history.                                                    ¦
+¦      v2-...-b*       ¦ 1. See GitHub for revision history.                                                    ¦
 +----------------------+----------------------------------------------------------------------------------------+
 ```
