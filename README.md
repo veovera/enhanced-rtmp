@@ -32,6 +32,10 @@ In the spirit of open collaboration and continuous improvement, we highly value 
 
 Together, we can shape the future of media streaming technology, ensuring that RTMP remains innovative. Your participation and feedback are crucial to our ongoing endeavors.
 
+## Adoption and Ecosystem
+
+Enhanced RTMP has received active support from a growing list of companies and organizations, including **Adobe, YouTube, Twitch, Amazon, VideoLan, FFmpeg, OBS, Ant Media, Dolby, Intel Corporation, Luxoft, XSplit, Red5,** and many others. Their involvement, whether through adoption of the protocol, contributions to its development, or ongoing efforts toward adoption, reflects a shared commitment to advancing modern media streaming technology. This growing industry engagement highlights E-RTMP’s potential as a foundational technology for future innovations.
+
 ## Join Veovera
 
 For information on how to join Veovera Organization please contact <[mailto:info@veovera.org](mailto:info@veovera.org)>.
