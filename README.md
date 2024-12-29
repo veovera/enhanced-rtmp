@@ -34,7 +34,7 @@ Together, we can shape the future of media streaming technology, ensuring that R
 
 ## Adoption and Ecosystem
 
-Enhanced RTMP has received active support from a growing list of companies and organizations, including **Adobe, YouTube, Twitch, Amazon, VideoLan, FFmpeg, OBS, Ant Media, Dolby, Intel Corporation, Luxoft, XSplit, Red5,** and many others. Their involvement, whether through adoption of the protocol, contributions to its development, or ongoing efforts toward adoption, reflects a shared commitment to advancing modern media streaming technology. This growing industry engagement highlights E-RTMP’s potential as a foundational technology for future innovations.
+Enhanced RTMP has received active support from a growing list of companies and organizations, including **Adobe, YouTube, Twitch, Amazon, VideoLan, FFmpeg, OBS, Ant Media, Dolby, Intel Corporation, Luxoft, XSplit, Red5, mirillis,** and many others. Their involvement, whether through adoption of the protocol, contributions to its development, or ongoing efforts toward adoption, reflects a shared commitment to advancing modern media streaming technology. This growing industry engagement highlights E-RTMP’s potential as a foundational technology for future innovations.
 
 ## Join Veovera
 
