@@ -4,9 +4,20 @@
 
 ## With Additional Video Codecs And HDR Support
 
-Author: Slavik Lozben (Veovera) \
-Contributors: Google, Jean-Baptiste Kempf (FFmpeg, VideoLAN), pkv (OBS), Dennis Sädtler (OBS), Xavier Hallade (Intel Corporation), Luxoft, SplitmediaLabs Limited (XSplit), Craig Barberich (VSO), Chris Hock (Adobe), Michael Thornburgh \
-Status: **v1-2024-02-29-r1**
+## Document Status
+
+**Author:** Slavik Lozben \
+**Affiliation**: Veovera Software Organization (VSO) \
+&nbsp; \
+**Contributors:** Google, Jean-Baptiste Kempf (FFmpeg, VideoLAN), pkv (OBS), Dennis Sädtler (OBS), Xavier Hallade (Intel Corporation), Luxoft, SplitmediaLabs Limited (XSplit), Craig Barberich (VSO), Chris Hock (Adobe), Michael Thornburgh \
+&nbsp; \
+**Document Version:** **v1-2025-01-22-r2** \
+&nbsp; \
+**General Disclaimer:** The features, enhancements, and specifications described in this document are provided for informational purposes only. While every effort has been made to ensure the accuracy and reliability of the information contained herein, Veovera Software Organization (VSO) makes no guarantees regarding its completeness, accuracy, or suitability for any specific purpose. \
+&nbsp; \
+This document represents the finalized version of the Enhanced RTMP specification. However, Veovera Software Organization (VSO) may update or enhance it in the future in response to technological advancements, community feedback, or evolving industry requirements. \
+&nbsp; \
+VSO shall not be liable for any damages, direct or indirect, resulting from the use or reliance on this document. Users are solely responsible for validating the suitability of the specifications described for their specific needs and for ensuring compliance with all applicable standards and requirements.
 
 ```txt
 +---------------------------+-------------------------------------------------------+---------------------------+
@@ -37,6 +48,8 @@ Status: **v1-2024-02-29-r1**
 +---------------------------+-----------------------------------------------------------------------------------+
 ¦     V1-2024-02-29-r1      ¦ 1. Added more detailed information about Protocol and Document versioning         ¦
 ¦                           ¦ 2. Cleaned up minor issues with document formatting                               ¦
++---------------------------+-----------------------------------------------------------------------------------+
+¦     v1-2025-01-22-r2      ¦ 1. Added a disclaimer.                                                            ¦
 +---------------------------+-------------------------------------------------------+---------------------------+
 ```
 
