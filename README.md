@@ -12,13 +12,14 @@ Founded in 2022, the Veovera Software Organization (VSO) is a dedicated not-for-
 
 As the media streaming landscape continues to evolve, the VSO has emerged as a pivotal force in modernizing the RTMP/FLV protocol, a cornerstone of streaming technology that had remained largely unaltered for over two decades. Through our pioneering initiatives, we have introduced initial enhancements “[enhanced-rtmp-v1](https://veovera.github.io/enhanced-rtmp/docs/enhanced/enhanced-rtmp-v1)” (or "[enhanced-rtmp-v1.pdf](https://veovera.github.io/enhanced-rtmp/docs/enhanced/enhanced-rtmp-v1.pdf)”) and the latest alpha specification, "[enhanced-rtmp-v2](https://veovera.github.io/enhanced-rtmp/docs/enhanced/enhanced-rtmp-v2)" (or "[enhanced-rtmp-v2.pdf](https://veovera.github.io/enhanced-rtmp/docs/enhanced/enhanced-rtmp-v2.pdf)”). This key publication outlines substantial advancements to [legacy RTMP](https://veovera.org/docs/legacy/), including:
 
-- **Advanced Audio Codecs**: Integration of codecs such as AC-3, E-AC-3, Opus, and FLAC, catering to diverse audio quality and compression needs, ensuring compatibility with modern audio playback systems.
-- **Multichannel Audio Configurations**: Addition of multichannel audio configurations, enhancing the audio experience without sacrificing compatibility with existing setups.
-- **Advanced Video Codecs**: Integration of video codecs like VP8, VP9, HEVC, and AV1 with High Dynamic Range (HDR) support, catering to modern displays and content requirements.
-- **Video Metadata**: Addition of `VideoPacketType.Metadata`, expanding the range of supported video metadata types.
-- **FourCC Signaling**: Addition of FourCC signaling for the advanced codecs mentioned above, as well as legacy AVC, AAC, and MP3 AV codecs.
-- **Multitrack Capabilities**: Introduction of audio and video multitrack capabilities, allowing for the management and processing of multiple media streams concurrently, enhancing the overall media experience.
-- **Reconnect Request Feature**: Implementation of a Reconnect Request feature, aimed at improving connection stability and resilience.
+- **Advanced Audio Codecs:** Integration of codecs like AC-3, E-AC-3, Opus, and FLAC to meet diverse audio quality and compression needs, ensuring compatibility with modern systems.  
+- **Multichannel Audio Configurations:** Support for multichannel audio to enhance auditory experiences without compromising existing setups.  
+- **Advanced Video Codecs:** Introduction of codecs such as VP8, VP9, HEVC and AV1 with HDR support to meet modern display and content standards.  
+- **Video Metadata:** Expansion of VideoPacketType.Metadata to support a broader range of video metadata types.  
+- **FourCC Signaling:** Inclusion of FourCC signaling for advanced codecs mentioned above, as well as for legacy codecs such as AVC, AAC, and MP3.  
+- **Multitrack Capabilities:** New audio and video multitrack capabilities for concurrent management and processing of multiple media streams, enhancing media experiences.  
+- **Reconnect Request Feature:** A new Reconnect Request feature improves connection stability and resilience.  
+- **Timestamp Precision:** Introduction of nanosecond precision offsets, ensuring enhanced synchronization and compatibility across diverse media formats such as MP4, M2TS, and Safari's Media Source Extensions, without altering the core RTMP timestamps.
 
 These enhancements are designed to align RTMP with contemporary streaming technology standards, ensuring its relevance and efficacy in today's digital landscape.
 
