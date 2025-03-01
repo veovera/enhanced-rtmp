@@ -36,7 +36,7 @@
 **Author:** Slavik Lozben \
 **Affiliation:** [Veovera Software Organization (VSO)](https://veovera.org/) \
 &nbsp; \
-**Contributors**: Adobe, Google, Twitch, Jean-Baptiste Kempf (FFmpeg, VideoLAN), pkv (OBS), Dennis Sädtler (OBS), Xavier Hallade (Intel Corporation), Luxoft, SplitmediaLabs Limited (XSplit), Veovera Software Organization, Michael Thornburgh \
+**Contributors**: Adobe, Google, Twitch, Jean-Baptiste Kempf (FFmpeg, VideoLAN), pkv (OBS), Dennis Sädtler (OBS), Xavier Hallade (Intel Corporation), Luxoft, SplitmediaLabs Limited (XSplit), Meta, Michael Thornburgh, Veovera Software Organization \
 &nbsp; \
 **Document Version:** **v2-2025-01-21-b2** \
 &nbsp; \
