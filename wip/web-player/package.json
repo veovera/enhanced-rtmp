@@ -1,0 +1,26 @@
+{
+  "name": "web-player",
+  "version": "1.0.0",
+  "description": "Web-based E-FLV player",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:debug": "vite build --mode debug",
+    "preview": "vite preview",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
+    "check": "npm run type-check && npm run lint"
+  },
+  "keywords": ["E-RTMP", "E-FLV", "player"],
+  "author": "Slavik Lozben",
+  "license": "Apache-2.0",
+  "type": "module",
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^7.1.0",
+    "@typescript-eslint/parser": "^7.1.0",
+    "eslint": "^8.57.0",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.4"
+  }
+}
