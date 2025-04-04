@@ -4,12 +4,13 @@ import path from 'path'
 export default defineConfig({
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, 'src'),
+      '@': path.resolve(__dirname, './src'),
     },
-    extensions: ['.js', '.ts']
+    extensions: ['.js', '.ts', '.jsx', '.tsx']
   },
   optimizeDeps: {
-    include: ['es6-promise', 'webworkify-webpack']
+    include: ['es6-promise', 'webworkify-webpack'],
+    exclude: ['@types/node']
   },
   build: {
     commonjsOptions: {
@@ -19,7 +20,10 @@ export default defineConfig({
   esbuild: {
     tsconfigRaw: {
       compilerOptions: {
-        strict: false
+        strict: false,
+        paths: {
+          '@/*': ['./src/*']
+        }
       }
     }
   }
