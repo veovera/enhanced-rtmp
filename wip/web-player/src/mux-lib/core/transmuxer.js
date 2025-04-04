@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import EventEmitter from 'events';
+import EventEmitter from 'eventemitter3';
 import work from 'webworkify-webpack';
 import Log from '../utils/logger.js';
 import LoggingControl from '../utils/logging-control.js';

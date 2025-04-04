@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import EventEmitter from 'events';
+import EventEmitter from 'eventemitter3';
 import Log from './logger.js';
 
 class LoggingControl {

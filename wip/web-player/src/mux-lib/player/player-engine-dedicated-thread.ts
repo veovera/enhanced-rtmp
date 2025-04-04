@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import * as EventEmitter from 'events';
+import EventEmitter from 'eventemitter3';
 import * as work from 'webworkify-webpack';
 import type PlayerEngine from './player-engine';
 import Log from '../utils/logger';

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import EventEmitter from 'events';
+import EventEmitter from 'eventemitter3';
 import PlayerEvents from './player-events';
 import {createDefaultConfig} from '../config.js';
 import {InvalidArgumentException, IllegalStateException} from '../utils/exception.js';
