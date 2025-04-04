@@ -1,4 +1,2 @@
-// entry/index file
-
-// make it compatible with browserify's umd wrapper
-module.exports = require('./mpegts.js').default;
+import mpegts from './mpegts.js'
+export default mpegts
