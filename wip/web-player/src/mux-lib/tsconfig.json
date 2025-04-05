@@ -1,6 +1,16 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "strict": false
+    "strict": false,
+    "outDir": "../../build/mux-lib",
+    "tsBuildInfoFile": "../../build/mux-lib.tsbuildinfo",
+    "rootDir": ".",
+    "allowJs": true,
+    "checkJs": false,
   },
+  "include": ["."],
+  "exclude": [
+    "../../build",
+    "../../node_modules"
+  ]
 }

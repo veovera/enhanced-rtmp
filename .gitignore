@@ -43,6 +43,9 @@
 # Coverage
 **/coverage/
 
+# Public
+**/public/
+
 # Cache
 **/.cache/
 **/.temp/
