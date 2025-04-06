@@ -1,4 +1,5 @@
 import Mpegts from "@/mux-lib"
+//import Mpegts from "./mux-lib/";
 
 // main.ts
 console.log("Hello, world!");
@@ -18,7 +19,7 @@ function initializePlayer() {
   // Simpler configuration focusing on essential parameters
   const player = Mpegts.createPlayer({
     type: 'flv',
-    url: '/sample-2ch.flv',
+    url: './public/sample-2ch.flv',
     isLive: false,
     hasAudio: true,
     hasVideo: true,

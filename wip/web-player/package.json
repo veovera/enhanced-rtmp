@@ -3,11 +3,12 @@
   "version": "1.0.0",
   "description": "Web-based E-FLV player",
   "main": "index.js",
+  
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "build:debug": "vite build --mode debug",
-    "preview": "vite preview",
+    "build": "node build.js",
+    "dev": "node build.js --watch",
+    "serve": "http-server .",
+    "start": "npm run build && npm run serve",
     "type-check": "tsc --noEmit",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "check": "npm run type-check && npm run lint"
@@ -22,11 +23,12 @@
   "type": "module",
   "devDependencies": {
     "@types/node": "^22.14.0",
-    "@typescript-eslint/eslint-plugin": "^7.1.0",
-    "@typescript-eslint/parser": "^7.1.0",
-    "eslint": "^8.57.0",
-    "typescript": "^5.8.2",
-    "vite": "^6.2.4"
+    "@typescript-eslint/eslint-plugin": "^8.29.0",
+    "@typescript-eslint/parser": "^8.29.0",
+    "esbuild": "^0.25.2",
+    "eslint": "^9.24.0",
+    "http-server": "^14.1.1",
+    "typescript": "^5.8.2"
   },
   "dependencies": {
     "es6-promise": "^4.2.8",
