@@ -28,8 +28,6 @@
 - [Action Message Format (AMF): AMF0 and AMF3](#action-message-format-amf-amf0-and-amf3)
 - [Protocol Versioning](#protocol-versioning)
 - [References](#references)
-- [Appendix](#appendix)
-- [Document Revision History and Guidelines](#document-revision-history-and-guidelines)
 
 ## Document Status
 
@@ -38,7 +36,7 @@
 &nbsp; \
 **Contributors**: Adobe, Google, Twitch, Jean-Baptiste Kempf (FFmpeg, VideoLAN), pkv (OBS), Dennis Sädtler (OBS), Xavier Hallade (Intel Corporation), Luxoft, SplitmediaLabs Limited (XSplit), Meta, Michael Thornburgh, Veovera Software Organization \
 &nbsp; \
-**Document Version:** **v2-2025-01-21-b2** \
+**Document Version:** **v2-2025-04-16-b2** \
 &nbsp; \
 **General Disclaimer:** The features, enhancements, and specifications described in this document are intended for informational purposes only and may not reflect the final implementation. Veovera Software Organization (VSO) does not guarantee the accuracy, completeness, or suitability of this information for any specific purpose. Users are solely responsible for any decisions or implementations based on this document. \
 &nbsp; \
@@ -50,33 +48,59 @@ This document represents a **Beta Version** of the enhanced RTMP (E-RTMP) specif
 
 ### Overview
 
-This section outlines our standardized approach for versioning our specification documentation. Effective versioning ensures consistency, enables users to identify the latest version easily, and facilitates collaboration among team members.
+This section outlines the versioning strategy for this specification. This standardized versioning system ensures consistency, traceability, and clarity for implementers by making it easy to determine whether a document introduces new behaviors or includes only editorial updates. \
+&nbsp; \
+Version identifiers communicate major milestones, publication dates, non-editorial revisions, and the document’s development phase, all in a human-readable, chronologically sortable format.
 
 ### File Naming Convention
 
-We name the documentation files with a clear identifier and the major version number. \
+Documentation files are named with a clear identifier and a major version number. \
 &nbsp; \
 Example: \
 **enhanced-rtmp-v2.pdf**
 
 ### Version Information Inside the Document
 
-We include a dedicated section or metadata within each document to specify the version details which includes the major version number, date, and stage of development (alpha/beta/release). \
+Each document includes a version identifier using the following format: \
 &nbsp; \
 Example: \
-**Status: v2-2024-02-26-a1**
+**Document Version: v2-2025-04-15-r1** \
+&nbsp; \
+This version string reflects the major version milestone, publication date, non-editorial revision number, and development phase.
 
-### Calendar Versioning Format Description
+### Version Format Description
 
-The format for versioning documents is structured as follows:
+The format for versioning documents is structured as follows: \
+&nbsp; \
+`v<**major**>-<**yyyy-mm-dd**>-<**phase**><**revision**>` \
+&nbsp; \
+**Table**: Version format description
 
-- **v#-yyy-mm-dd-[a\|b\|r]#:**
-  - **v#:** Major version number for tracking the progression of the E-RTMP development.
-  - **yyyy-mm-dd:** Date when the document was updated.
-  - **[a\|b\|r]:** Suffix to distinguish between the alpha, beta, and release stage.
-  - **\#:** Minor version number for a particular date. Increments for multiple versions on the same date.
+```txt
++--------------------------+-------------------------------------------------------------------+
+¦        Component         ¦                            Description                            ¦
++--------------------------+-------------------------------------------------------------------+
+¦v<major>                  ¦Major version milestone (e.g. v1, v2). Major versions represent    ¦
+¦                          ¦spec maturity but do not necessarily imply breaking changes.       ¦
++--------------------------+-------------------------------------------------------------------+
+¦yyyy-mm-dd                ¦The publication date of the document.                              ¦
++--------------------------+-------------------------------------------------------------------+
+¦<phase>                   ¦Document maturity level: a = Alpha, b = Beta, r = Release.         ¦
++--------------------------+-------------------------------------------------------------------+
+¦                          ¦Non-editorial revision number. Increments only when changes affect ¦
+¦                          ¦behavior or implementation. Editorial changes (e.g., typo fixes,   ¦
+¦<revision>                ¦rewording, format adjustment) do not increment this number. The    ¦
+¦                          ¦<revision> counter resets to 1 at each phase transition (alpha →   ¦
+¦                          ¦beta → release).                                                   ¦
++--------------------------+-------------------------------------------------------------------+
+```
 
-This format provides a comprehensive overview of each version's status and chronological order, facilitating effective tracking and management of the E-RTMP specification development.
+&nbsp; \
+This format supports a clear, linear history. If you're comparing two versions and the revision number (r#) has increased, you can assume there are non-editorial changes that may affect implementation. Editorial-only changes retain the same **r#** but update the date.
+
+### Commit History in GitHub
+
+The document and its [commit history](https://github.com/veovera/enhanced-rtmp/commits/main/docs/enhanced/enhanced-rtmp-v2.md) are maintained in the [Enhanced RTMP GitHub repository](https://github.com/veovera/enhanced-rtmp). Although the document version string resets r# at each phase transition, all underlying commits and commit messages are preserved in GitHub, ensuring a complete and auditable record of all changes made.
 
 ## Version Stage Definitions
 
@@ -212,7 +236,7 @@ This document describes enhancements to legacy [[RTMP](#rtmp)] and legacy [[FLV]
 
 This document employs certain conventions to convey particular meanings and requirements. The following section outlines the notation, terminology, and symbols used throughout to ensure clarity and consistency. These conventions provide insight into the ethos of how the E-RTMP specification has been crafted and should be interpreted.
 
-- **Enhanced RTMP**: refers to a series of improvements made to the legacy Real-Time Messaging Protocol [[RTMP](#rtmp)], originally developed by Adobe. It's important to note that "enhanced RTMP" is not a brand name but a term used to distinguish this advanced version from the legacy RTMP specification. Endorsed by Adobe and widely adopted across the industry, enhanced RTMP serves as the current standard for RTMP solutions. This updated protocol includes various enhancements to both legacy RTMP and the legacy [[FLV](#flv)] formats. Please be aware that the term "enhanced RTMP" (a.k.a., E-RTMP) signifies ongoing updates to RTMP and FLV, and does not pertain to any specific iteration or release.
+- **E-RTMP**: refers to a series of improvements made to the legacy Real-Time Messaging Protocol [[RTMP](#rtmp)], originally developed by Adobe. While "enhanced RTMP" may be used descriptively, the preferred and consistent name for the protocol is **E-RTMP**, which serves as a consistent identifier that distinguishes the updated protocol from the legacy RTMP specification. Endorsed by Adobe and widely adopted across the industry, E-RTMP serves as the current standard for RTMP-based solutions and includes enhancements to both RTMP and the legacy [[FLV](#flv)] formats. The name E-RTMP refers to an evolving protocol and does not correspond to any single release or version. To avoid confusion, alternate forms such as ERTMP, eRTMP, Enhanced-RTMP, or EnhancedRTMP should be avoided. The lowercase hyphenated form e-rtmp is acceptable in URLs, folder names, and other technical contexts where lowercase formatting is conventional.
 - **Pseudocode**: Pseudocode has been provided to convey logic on how to interpret the E-RTMP binary format. The code style imitates a cross between TypeScript and C. The pseudocode was written in TypeScript and validated using VSCode to ensure correct syntax and catch any minor typographical errors. Below are some further explanations:
 
   - Enumerations are used to define valid values
@@ -1454,6 +1478,7 @@ It's important to note that multitrack support is designed to augment, not repla
 - **Device Specific Streaming**: The feature allows for the streaming of different aspect ratios, tailored for various device profiles, enabling more dynamic and flexible presentations.
 - **Frame-Level Synchronization**: For example, you can synchronize multiple camera views in a concert.
 - **Multi-Language Support**: Support for multiple audio tracks in a single [[FLV](#flv)] file is now available, eliminating the need for multiple file versions.
+- **Multi-codec publishing**: Allows a publisher to encode media in multiple formats within a single stream and enabling delivery of the appropriate codec based on platform support
 
 ### Multitrack Media Message Guidelines
 
@@ -1676,32 +1701,3 @@ Parmar, H., Ed. and M. Thornburgh, Ed., "Adobe’s Real Time Messaging Protocol"
 
 W3C, "WebCodecs" \
 <[https://www.w3.org/TR/webcodecs/](https://www.w3.org/TR/webcodecs/)>.
-
-## Appendix
-
-## Document Revision History and Guidelines
-
-The revision history section of this document is maintained to provide a clear and concise record of significant changes throughout its development phases, such as alpha, beta, and release. Here are the key points regarding how we manage this history:
-
-- **Phase-Based Documentation:** Important changes made during each phase (alpha, beta, release) are documented in the revision history to keep readers informed of significant developments.
-- **Transition Between Phases:** When transitioning from one phase to another (e.g., from alpha to beta), we clear the document revision history. This practice helps keep the document uncluttered and focused on the relevant phase.
-- **Exclusion of Minor Changes:** Minor changes that are purely for wording clarification and do not involve adding new features or fixing bugs may be excluded from the revision history. Developers should prioritize ignoring formatting diffs when reviewing changes, as these do not affect logic or introduce new features. Focusing on substantive updates ensures efficient review and clear understanding of impactful modifications.
-- **Commit History in GitHub:** The document and its revision history are maintained in GitHub repository at <[https://github.com/veovera/enhanced-rtmp](https://github.com/veovera/enhanced-rtmp)>. Although the document revision history is cleared periodically, all commits and their messages are preserved in GitHub, ensuring a comprehensive record of all changes made.
-- **Version Changes:** When the version of the specification changes significantly (e.g., from v1 to v2), we again clear the revision history. Despite this, the full history of commits and their messages remains accessible in GitHub.
-
-These guidelines ensure that the revision history in the specification document remains focused, relevant, and easy to navigate, while the complete history of all changes is securely stored and accessible in GitHub. \
-&nbsp; \
-Table: Revision history
-
-```txt
-+----------------------+----------------------------------------------------------------------------------------+
-¦                                           Document Revision History                                           ¦
-+---------------------------------------------------------------------------------------------------------------+
-¦         Date         ¦                                        Comments                                        ¦
-+----------------------+----------------------------------------------------------------------------------------+
-¦   v2-2024-10-18-b1   ¦ 1. Added Version Stage Definitions Section - Alpha, Beta, Release                      ¦
-¦                      ¦ 2. Move E-RTMP v2 specification into Beta stage!!!                                     ¦
-+----------------------+----------------------------------------------------------------------------------------+
-¦      v2-...-b*       ¦ 1. See GitHub for revision history.                                                    ¦
-+----------------------+----------------------------------------------------------------------------------------+
-```
