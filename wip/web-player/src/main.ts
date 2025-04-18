@@ -1,3 +1,11 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Copyright (C) 2025 Veovera Software Organization
+ *
+ * @author Slavik Lozben
+ */
+
 import Mpegts from "@/mux-lib"
 //import Mpegts from "./mux-lib/";
 
@@ -19,7 +27,7 @@ function initializePlayer() {
   // Simpler configuration focusing on essential parameters
   const player = Mpegts.createPlayer({
     type: 'flv',
-    url: './public/sample-2ch.flv',
+    url: './assets/sample-2ch.flv',
     isLive: false,
     hasAudio: true,
     hasVideo: true,
