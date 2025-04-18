@@ -8,7 +8,7 @@
 - [Document Status](#document-status)
 - [Documentation Versioning](#documentation-versioning)
 - [Version Stage Definitions](#version-stage-definitions)
-- [Beta Version Disclaimer for Enhanced RTMP](#beta-version-disclaimer-for-enhanced-rtmp)
+- [Release Version Disclaimer for Enhanced RTMP](#release-version-disclaimer-for-enhanced-rtmp)
 - [Usage License](#usage-license)
 - [Terminology](#terminology)
 - [Abstract](#abstract)
@@ -36,13 +36,13 @@
 &nbsp; \
 **Contributors**: Adobe, Google, Twitch, Jean-Baptiste Kempf (FFmpeg, VideoLAN), pkv (OBS), Dennis Sädtler (OBS), Xavier Hallade (Intel Corporation), Luxoft, SplitmediaLabs Limited (XSplit), Meta, Michael Thornburgh, Veovera Software Organization \
 &nbsp; \
-**Document Version:** **v2-2025-04-16-b2** \
+**Document Version:** **v2-2025-04-17-r1** \
 &nbsp; \
 **General Disclaimer:** The features, enhancements, and specifications described in this document are intended for informational purposes only and may not reflect the final implementation. Veovera Software Organization (VSO) does not guarantee the accuracy, completeness, or suitability of this information for any specific purpose. Users are solely responsible for any decisions or implementations based on this document. \
 &nbsp; \
 VSO reserves the right to refine, update, or enhance any part of this document at its sole discretion, based on technological feasibility, market conditions, or community feedback. VSO shall not be liable for any damages, direct or indirect, resulting from the use of this document. \
 &nbsp; \
-This document represents a **Beta Version** of the enhanced RTMP (E-RTMP) specifications, which is comprehensively specified and stable enough for broad implementation. For a detailed explanation of the Beta Version, including its purpose, features, and intended use, please refer to the [**Beta Version Disclaimer for Enhanced RTMP**](#beta-version-disclaimer-for-enhanced-rtmp) section later in this document.
+This document represents a **Release Version** of the enhanced RTMP (E-RTMP) specifications, which is comprehensively specified and stable enough for broad implementation. For a detailed explanation of the Release Version, including its purpose, features, and intended use, please refer to the [Release Version Disclaimer for Enhanced RTMP](#release-version-disclaimer-for-enhanced-rtmp) section later in this document.
 
 ## Documentation Versioning
 
@@ -72,7 +72,7 @@ This version string reflects the major version milestone, publication date, non-
 
 The format for versioning documents is structured as follows: \
 &nbsp; \
-`v<**major**>-<**yyyy-mm-dd**>-<**phase**><**revision**>` \
+v<**major**>-<**yyyy-mm-dd**>-<**phase**><**revision**> \
 &nbsp; \
 **Table**: Version format description
 
@@ -130,15 +130,19 @@ We define distinct stages for the development of the E-RTMP protocol specificati
 - **Stability**: Highest. The release version ensures stability for production environments with long-term support.
 - **Documentation Status**: Indicated by the version identifier "r" (e.g., **v2-2024-02-26-r1**).
 
-## Beta Version Disclaimer for Enhanced RTMP
+## Release Version Disclaimer for Enhanced RTMP
 
-This document outlines a beta version of the Real-Time Messaging Protocol (a.k.a., E-RTMP) specifications, marking a significant step toward its final release form. All core features are defined and ready for implementation across diverse environments. This beta stage focuses on verifying protocol reliability at scale through extensive real-world testing. \
+This document represents the **Release Version** of the enhanced Real-Time Messaging Protocol (E-RTMP) specification. All core features are finalized and the specification is considered fully stable for broad implementation across diverse environments. \
 &nbsp; \
-The protocol is comprehensively specified, and any changes at this stage should ideally be non-breaking. These changes will primarily focus on optimizations or clarifications to ensure smooth, large-scale deployments. Core elements of the protocol are not anticipated to change. \
+The protocol is not expected to undergo breaking changes. Future updates to this specification are intended to be backward-compatible, focusing on clarifications, documentation improvements, or optional extensions that do not disrupt existing implementations. \
 &nbsp; \
-Veovera Software Organization (VSO) provides this document "as is," without warranties, express or implied, including but not limited to suitability for a particular purpose. Users should validate their implementations against this near-final version, understanding that the protocol is considered stable enough for broad implementation. However, reliance on this document is at the user's risk, and VSO disclaims liability for any direct, indirect, or consequential damages resulting from its use. \
+[Veovera Software Organization (VSO)](https://veovera.org/) provides this document “as is,” without warranties, express or implied, including but not limited to suitability for a particular purpose. Users should independently validate their implementations to meet the needs of their specific applications. VSO disclaims all liability for any direct, indirect, incidental, or consequential damages resulting from use of this document. \
 &nbsp; \
-The version identifier (**e.g., v2-2024-02-26-b1**) reflects the beta stage status.
+We welcome community feedback through GitHub issues or other established channels to guide the evolution of the protocol. \
+&nbsp; \
+This specification is published under the [Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0), which governs its use, distribution, and modification. Please refer to the [Usage License](#usage-license) section later in this document for full licensing terms. \
+&nbsp; \
+The version identifier (e.g., **v2-2024-02-26-r1**) reflects the release stage status.
 
 ## Usage License
 
