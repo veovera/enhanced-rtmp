@@ -36,7 +36,7 @@
 &nbsp; \
 **Contributors**: Adobe, Google, Twitch, Jean-Baptiste Kempf (FFmpeg, VideoLAN), pkv (OBS), Dennis Sädtler (OBS), Xavier Hallade (Intel Corporation), Luxoft, SplitmediaLabs Limited (XSplit), Meta, Michael Thornburgh, Veovera Software Organization \
 &nbsp; \
-**Document Version:** **v2-2025-04-17-r1** \
+**Document Version:** **v2-2025-04-21-r1** \
 &nbsp; \
 **General Disclaimer:** The features, enhancements, and specifications described in this document are intended for informational purposes only and may not reflect the final implementation. Veovera Software Organization (VSO) does not guarantee the accuracy, completeness, or suitability of this information for any specific purpose. Users are solely responsible for any decisions or implementations based on this document. \
 &nbsp; \
@@ -1025,7 +1025,7 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 ¦    audioMultitrackType != AvMultitrackType.OneTrack &&                             ¦                                                                                    ¦
 ¦    positionDataPtrToNextAudioTrack(sizeOfAudioTrack)                               ¦                                                                                    ¦
 ¦  ) {                                                                               ¦                                                                                    ¦
-¦    // TODO: need to implement positionDataPtrToNextVideoTrack()                    ¦                                                                                    ¦
+¦    // TODO: need to implement positionDataPtrToNextAudioTrack()                    ¦                                                                                    ¦
 ¦    continue                                                                        ¦                                                                                    ¦
 ¦  }                                                                                 ¦                                                                                    ¦
 ¦                                                                                    ¦                                                                                    ¦
