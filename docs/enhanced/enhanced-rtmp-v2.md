@@ -36,7 +36,7 @@
 &nbsp; \
 **Contributors**: Adobe, Google, Twitch, Jean-Baptiste Kempf (FFmpeg, VideoLAN), pkv (OBS), Dennis Sädtler (OBS), Xavier Hallade (Intel Corporation), Luxoft, SplitmediaLabs Limited (XSplit), Meta, Michael Thornburgh, Veovera Software Organization \
 &nbsp; \
-**Document Version:** **v2-2025-04-21-r1** \
+**Document Version:** **v2-2025-04-22-r1** \
 &nbsp; \
 **General Disclaimer:** The features, enhancements, and specifications described in this document are intended for informational purposes only and may not reflect the final implementation. Veovera Software Organization (VSO) does not guarantee the accuracy, completeness, or suitability of this information for any specific purpose. Users are solely responsible for any decisions or implementations based on this document. \
 &nbsp; \
@@ -188,6 +188,7 @@ This document details the comprehensive enhancements made to the RTMP and FLV sp
 - **Multitrack Capabilities**: New audio and video multitrack capabilities for concurrent management and processing of multiple media streams, enhancing media experiences.
 - **Reconnect Request Feature**: A new Reconnect Request feature improves connection stability and resilience.
 - **Timestamp Precision:** Introduction of nanosecond precision offsets, ensuring enhanced synchronization and compatibility across diverse media formats such as MP4, M2TS, and Safari's Media Source Extensions, without altering the core RTMP timestamps.
+- **ModEx Signal**: A signaling mechanism that lets packets carry modifiers or extensions, enabling precise control over timing, metadata, and other media stream behaviors.
 
 The additional audio and video codecs supported by enhanced RTMP are summarized in the following table: \
 &nbsp; \
