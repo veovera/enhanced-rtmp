@@ -11,6 +11,7 @@ const options = {
   sourcemap: true,
   target: 'es2022',
   minify: isMinify,
+  logLevel: 'info'  // Add this to see more detailed build information
 };
 
 const ctx = await context(options);
