@@ -4,8 +4,11 @@
  * Copyright (C) 2016 Bilibili
  * @author zheng qian <xqq@xqq.im>
  * 
- * This file has been modified. See Git history for details.
+ * Modified and migrated to TypeScript by Slavik Lozben.
+ * See Git history for details.
  */
+
+// TODO: reduce usage of any
 
 import Log from '../utils/logger.js';
 import AMF from './amf-parser.js';
@@ -14,8 +17,8 @@ import DemuxErrors from './demux-errors.js';
 import MediaInfo from '../core/media-info.js';
 import {IllegalStateException} from '../utils/exception.js';
 import H265Parser from './h265-parser.js';
-import buffersAreEqual from '../utils/typedarray-equality.ts';
-import AV1OBUParser from './av1-parser.ts';
+import buffersAreEqual from '../utils/typedarray-equality.js';
+import AV1OBUParser from './av1-parser.js';
 import ExpGolomb from './exp-golomb.js';
 
 function Swap16(src) {
@@ -37,20 +40,88 @@ function ReadBig32(array, index) {
             (array[index + 3]));
 }
 
+type Callback = (...args: unknown[]) => void;
+const assertCallback = (...args: unknown[]) : never => {
+    throw new Error('Callback not implemented');
+}
 
 class FLVDemuxer {
+    private TAG: string;
 
-    constructor(probeData, config) {
+    private _config: any;
+
+    private _onError: Callback;
+    private _onMediaInfo: Callback;
+    private _onMetaDataArrived: Callback;
+    private _onScriptDataArrived: Callback;
+    private _onTrackMetadata: Callback;
+    private _onDataAvailable: Callback;
+
+    private _dataOffset: number;
+    private _firstParse: boolean;
+    private _dispatch: boolean;
+
+    private _hasAudio: boolean;
+    private _hasVideo: boolean;
+
+    private _hasAudioFlagOverrided: boolean;
+    private _hasVideoFlagOverrided: boolean;
+
+    private _audioInitialMetadataDispatched: boolean;
+    private _videoInitialMetadataDispatched: boolean;
+
+    private _mediaInfo: MediaInfo;
+
+    // TODO: define metadata types
+    private _metadata: any;
+    private _audioMetadata: any;
+    private _videoMetadata: any;
+
+    private _naluLengthSize: number;
+    private _timestampBase: number;
+    private _timescale: number;
+    private _duration: number;
+    private _durationOverrided: boolean;
+
+    // TODO: define reference frame rate types
+    private _referenceFrameRate: {
+        fixed: boolean;
+        fps: number;
+        fps_num: number;
+        fps_den: number;
+    };
+
+    private static readonly _flvSoundRateTable = [5500, 11025, 22050, 44100, 48000] as const;
+
+    private static readonly _mpegSamplingRates = [
+        96000, 88200, 64000, 48000, 44100, 32000,
+        24000, 22050, 16000, 12000, 11025, 8000, 7350
+    ] as const;
+
+    private static readonly _mpegAudioV10SampleRateTable = [44100, 48000, 32000, 0] as const;
+    private static readonly _mpegAudioV20SampleRateTable = [22050, 24000, 16000, 0] as const;
+    private static readonly _mpegAudioV25SampleRateTable = [11025, 12000, 8000, 0] as const;
+
+    private static readonly _mpegAudioL1BitRateTable = [0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448, -1] as const;
+    private static readonly _mpegAudioL2BitRateTable = [0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384, -1] as const;
+    private static readonly _mpegAudioL3BitRateTable = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, -1] as const;
+
+    // TODO: define video and audio track types
+    private _videoTrack: {type: string, id: number, sequenceNumber: number, samples: any[], length: number};
+    private _audioTrack: {type: string, id: number, sequenceNumber: number, samples: any[], length: number};
+    private _littleEndian: boolean; 
+
+    constructor(probeData: any, config: any) {
         this.TAG = 'FLVDemuxer';
 
         this._config = config;
 
-        this._onError = null;
-        this._onMediaInfo = null;
-        this._onMetaDataArrived = null;
-        this._onScriptDataArrived = null;
-        this._onTrackMetadata = null;
-        this._onDataAvailable = null;
+        this._onError = assertCallback;
+        this._onMediaInfo = assertCallback;
+        this._onMetaDataArrived = assertCallback;
+        this._onScriptDataArrived = assertCallback;
+        this._onTrackMetadata = assertCallback;
+        this._onDataAvailable = assertCallback;
 
         this._dataOffset = probeData.dataOffset;
         this._firstParse = true;
@@ -61,21 +132,22 @@ class FLVDemuxer {
 
         this._hasAudioFlagOverrided = false;
         this._hasVideoFlagOverrided = false;
-
+        
         this._audioInitialMetadataDispatched = false;
         this._videoInitialMetadataDispatched = false;
 
         this._mediaInfo = new MediaInfo();
         this._mediaInfo.hasAudio = this._hasAudio;
         this._mediaInfo.hasVideo = this._hasVideo;
+
         this._metadata = null;
         this._audioMetadata = null;
         this._videoMetadata = null;
 
         this._naluLengthSize = 4;
-        this._timestampBase = 0;  // int32, in milliseconds
+        this._timestampBase = 0;    // int32, in milliseconds
         this._timescale = 1000;
-        this._duration = 0;  // int32, in milliseconds
+        this._duration = 0;         // int32, in milliseconds
         this._durationOverrided = false;
         this._referenceFrameRate = {
             fixed: true,
@@ -83,21 +155,6 @@ class FLVDemuxer {
             fps_num: 23976,
             fps_den: 1000
         };
-
-        this._flvSoundRateTable = [5500, 11025, 22050, 44100, 48000];
-
-        this._mpegSamplingRates = [
-            96000, 88200, 64000, 48000, 44100, 32000,
-            24000, 22050, 16000, 12000, 11025, 8000, 7350
-        ];
-
-        this._mpegAudioV10SampleRateTable = [44100, 48000, 32000, 0];
-        this._mpegAudioV20SampleRateTable = [22050, 24000, 16000, 0];
-        this._mpegAudioV25SampleRateTable = [11025, 12000, 8000,  0];
-
-        this._mpegAudioL1BitRateTable = [0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448, -1];
-        this._mpegAudioL2BitRateTable = [0, 32, 48, 56,  64,  80,  96, 112, 128, 160, 192, 224, 256, 320, 384, -1];
-        this._mpegAudioL3BitRateTable = [0, 32, 40, 48,  56,  64,  80,  96, 112, 128, 160, 192, 224, 256, 320, -1];
 
         this._videoTrack = {type: 'video', id: 1, sequenceNumber: 0, samples: [], length: 0};
         this._audioTrack = {type: 'audio', id: 2, sequenceNumber: 0, samples: [], length: 0};
@@ -110,22 +167,10 @@ class FLVDemuxer {
     }
 
     destroy() {
-        this._mediaInfo = null;
-        this._metadata = null;
-        this._audioMetadata = null;
-        this._videoMetadata = null;
-        this._videoTrack = null;
-        this._audioTrack = null;
-
-        this._onError = null;
-        this._onMediaInfo = null;
-        this._onMetaDataArrived = null;
-        this._onScriptDataArrived = null;
-        this._onTrackMetadata = null;
-        this._onDataAvailable = null;
+        // nothing to do, TS does not support it, garbage collector will do the rest
     }
 
-    static probe(buffer) {
+    static probe(buffer): any {
         let data = new Uint8Array(buffer);
         if (data.byteLength < 9) {
             return {needMoreData: true};
@@ -515,7 +560,7 @@ class FLVDemuxer {
         let soundRate = 0;
         let soundRateIndex = (soundSpec & 12) >>> 2;
         if (soundRateIndex >= 0 && soundRateIndex <= 4) {
-            soundRate = this._flvSoundRateTable[soundRateIndex];
+            soundRate = FLVDemuxer._flvSoundRateTable[soundRateIndex];
         } else {
             this._onError(DemuxErrors.FORMAT_ERROR, 'Flv: Invalid audio sample rate idx: ' + soundRateIndex);
             return;
@@ -682,13 +727,13 @@ class FLVDemuxer {
         }
     }
 
-    _parseAACAudioData(arrayBuffer, dataOffset, dataSize) {
+    _parseAACAudioData(arrayBuffer, dataOffset, dataSize): any {
         if (dataSize <= 1) {
             Log.w(this.TAG, 'Flv: Invalid AAC packet, missing AACPacketType or/and Data!');
             return;
         }
 
-        let result = {};
+        let result = {} as any;
         let array = new Uint8Array(arrayBuffer, dataOffset, dataSize);
 
         result.packetType = array[0];
@@ -726,12 +771,12 @@ class FLVDemuxer {
         audioObjectType = originalAudioObjectType = array[0] >>> 3;
         // 4 bits
         samplingIndex = ((array[0] & 0x07) << 1) | (array[1] >>> 7);
-        if (samplingIndex < 0 || samplingIndex >= this._mpegSamplingRates.length) {
+        if (samplingIndex < 0 || samplingIndex >= FLVDemuxer._mpegSamplingRates.length) {
             this._onError(DemuxErrors.FORMAT_ERROR, 'Flv: AAC invalid sampling frequency index!');
             return;
         }
 
-        let samplingFrequence = this._mpegSamplingRates[samplingIndex];
+        let samplingFrequence = FLVDemuxer._mpegSamplingRates[samplingIndex];
 
         // 4 bits
         let channelConfig = (array[1] & 0x78) >>> 3;
@@ -836,33 +881,33 @@ class FLVDemuxer {
 
             switch (ver) {
                 case 0:  // MPEG 2.5
-                    sample_rate = this._mpegAudioV25SampleRateTable[sampling_freq_index];
+                    sample_rate = FLVDemuxer._mpegAudioV25SampleRateTable[sampling_freq_index];
                     break;
                 case 2:  // MPEG 2
-                    sample_rate = this._mpegAudioV20SampleRateTable[sampling_freq_index];
+                    sample_rate = FLVDemuxer._mpegAudioV20SampleRateTable[sampling_freq_index];
                     break;
                 case 3:  // MPEG 1
-                    sample_rate = this._mpegAudioV10SampleRateTable[sampling_freq_index];
+                    sample_rate = FLVDemuxer._mpegAudioV10SampleRateTable[sampling_freq_index];
                     break;
             }
 
             switch (layer) {
                 case 1:  // Layer 3
                     object_type = 34;
-                    if (bitrate_index < this._mpegAudioL3BitRateTable.length) {
-                        bit_rate = this._mpegAudioL3BitRateTable[bitrate_index];
+                    if (bitrate_index < FLVDemuxer._mpegAudioL3BitRateTable.length) {
+                        bit_rate = FLVDemuxer._mpegAudioL3BitRateTable[bitrate_index];
                     }
                     break;
                 case 2:  // Layer 2
                     object_type = 33;
-                    if (bitrate_index < this._mpegAudioL2BitRateTable.length) {
-                        bit_rate = this._mpegAudioL2BitRateTable[bitrate_index];
+                    if (bitrate_index < FLVDemuxer._mpegAudioL2BitRateTable.length) {
+                        bit_rate = FLVDemuxer._mpegAudioL2BitRateTable[bitrate_index];
                     }
                     break;
                 case 3:  // Layer 1
                     object_type = 32;
-                    if (bitrate_index < this._mpegAudioL1BitRateTable.length) {
-                        bit_rate = this._mpegAudioL1BitRateTable[bitrate_index];
+                    if (bitrate_index < FLVDemuxer._mpegAudioL1BitRateTable.length) {
+                        bit_rate = FLVDemuxer._mpegAudioL1BitRateTable[bitrate_index];
                     }
                     break;
             }
@@ -1678,7 +1723,7 @@ class FLVDemuxer {
                 dts: dts,
                 cts: cts,
                 pts: (dts + cts)
-            };
+            } as any;
             if (keyframe) {
                 avcSample.fileposition = tagPosition;
             }
@@ -1736,7 +1781,7 @@ class FLVDemuxer {
                 dts: dts,
                 cts: cts,
                 pts: (dts + cts)
-            };
+            } as any;
             if (keyframe) {
                 hevcSample.fileposition = tagPosition;
             }
@@ -1807,7 +1852,7 @@ class FLVDemuxer {
                 dts: dts,
                 cts: cts,
                 pts: (dts + cts)
-            };
+            } as any;
             if (keyframe) {
                 av1Sample.fileposition = tagPosition;
             }
