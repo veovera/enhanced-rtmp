@@ -11,7 +11,10 @@ const options = {
   sourcemap: true,
   target: 'es2022',
   minify: isMinify,
-  logLevel: 'info'  // Add this to see more detailed build information
+  logLevel: 'info',  // Add this to see more detailed build information
+  define: {
+    '__VERSION__': JSON.stringify(process.env.npm_package_version)
+  }
 };
 
 const ctx = await context(options);
