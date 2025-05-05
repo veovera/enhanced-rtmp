@@ -1,22 +1,44 @@
 /*
- * Copyright (C) 2022 もにょてっく. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
  *
+ * Copyright (C) 2022 もにょてっく
  * @author もにょ〜ん <monyone.teihen@gmail.com>
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * 
+ * Modified by Slavik Lozben
+ * See Git history for details
+ * Additional changes Copyright (C) 2025 Slavik Lozben
  */
 
 import ExpGolomb from './exp-golomb.js';
+import Log from '../utils/logger.js';
+const TAG = 'av1-parser';
+
+export enum AV1OBUType {
+    OBU_RESERVED_0 = 0,
+    OBU_SEQUENCE_HEADER = 1,
+    OBU_TEMPORAL_DELIMITER = 2,
+    OBU_FRAME_HEADER = 3,
+    OBU_TILE_GROUP = 4,
+    OBU_METADATA = 5,
+    OBU_FRAME = 6,
+    OBU_REDUNDANT_FRAME_HEADER = 7,
+    OBU_TILE_LIST = 8,
+    // 9–14 are reserved
+    OBU_RESERVED_9 = 9,
+    OBU_RESERVED_10 = 10,
+    OBU_RESERVED_11 = 11,
+    OBU_RESERVED_12 = 12,
+    OBU_RESERVED_13 = 13,
+    OBU_RESERVED_14 = 14,
+    OBU_PADDING = 15,
+}
+
+export enum AV1FrameType {
+    KEY_FRAME = 0,
+    INTER_FRAME = 1,
+    INTRA_ONLY_FRAME = 2,
+    SWITCH_FRAME = 3
+}
 
 type OperatingPoint = {
     operating_point_idc: number,
@@ -44,6 +66,7 @@ type SequenceHeaderDetails = {
     frame_height_bit: number;
     max_frame_width: number;
     max_frame_height: number;
+    frame_presentation_time_length_minus_1: number;
 }
 
 type FrameResolutions = {
@@ -99,7 +122,7 @@ class AV1OBUParser {
         for (let i = 0; i < uint8array.byteLength; ) {
             let first = i;
             let forbidden_bit = (uint8array[i] & 0x80) >> 7;
-            let type = (uint8array[i] & 0x78) >> 3;
+            let type = (uint8array[i] & 0x78) >> 3 as AV1OBUType;
             let extension_flag = (uint8array[i] & 0x04) !== 0;
             let has_size_field = (uint8array[i] & 0x02) !== 0;
             let reserved_1bit = (uint8array[i] & 0x01) !== 0;
@@ -117,16 +140,15 @@ class AV1OBUParser {
                     if ((value & 0x80) === 0) { break; }
                 }
             }
-            console.log(type);
 
-            if (type === 1) { // OBU_SEQUENCE_HEADER
+            if (type === AV1OBUType.OBU_SEQUENCE_HEADER) {
                 meta = {
                     ... AV1OBUParser.parseSeuqneceHeader(uint8array.subarray(i, i + size)),
                     sequence_header_data: uint8array.subarray(first, i + size),
                 }
-            } else if (type == 3 && meta) { // OBU_FRAME_HEADER
+            } else if (type == AV1OBUType.OBU_FRAME_HEADER && meta) {
                 meta = AV1OBUParser.parseOBUFrameHeader(uint8array.subarray(i, i + size), temporal_id, spatial_id, meta);
-            } else if (type == 6 && meta) { // OBU_FRAME
+            } else if (type == AV1OBUType.OBU_FRAME && meta) {
                 meta = AV1OBUParser.parseOBUFrameHeader(uint8array.subarray(i, i + size), temporal_id, spatial_id, meta);
             }
 
@@ -143,6 +165,7 @@ class AV1OBUParser {
         let still_picture = gb.readBool();
         let reduced_still_picture_header = gb.readBool();
 
+        let frame_presentation_time_length_minus_1 = 0;
         let fps = 0, fps_fixed = true, fps_num = 0, fps_den = 1;
         let decoder_model_info_present_flag = false;
         let decoder_model_present_for_this_op = false;
@@ -187,7 +210,7 @@ class AV1OBUParser {
                     buffer_delay_length_minus_1 = gb.readBits(5);
                     let num_units_in_decoding_tick = gb.readBits(32);
                     buffer_removal_time_length_minus_1 = gb.readBits(5);
-                    let frame_presentation_time_length_minus_1 = gb.readBits(5);
+                    frame_presentation_time_length_minus_1 = gb.readBits(5);
                 }
             }
 
@@ -404,6 +427,7 @@ class AV1OBUParser {
                 frame_height_bit: frame_height_bits_minus_1 + 1,
                 max_frame_width,
                 max_frame_height,
+                frame_presentation_time_length_minus_1,
             },
 
             keyframe: undefined,
@@ -423,10 +447,6 @@ class AV1OBUParser {
         let gb = new ExpGolomb(uint8array);
         // obu_type is OBU_FRAME_HEADER, SeenFrameHeader = 0, OBU_REDUNDANT_FRAME_HEADER 1
         let NUM_REF_FRAMES = 8;
-        let KEY_FRAME = 0;
-        let INTER_FRAME = 1;
-        let INTRA_ONLY_FRAME = 2;
-        let SWITCH_FRAME = 3;
         let SELECT_SCREEN_CONTENT_TOOLS = 2;
         let SELECT_INTEGER_MV = 2;
         let PRIMARY_REF_NONE = 7;
@@ -456,17 +476,20 @@ class AV1OBUParser {
             }
 
             frame_type = gb.readBits(2);
-            keyframe = frame_type === INTRA_ONLY_FRAME || frame_type === KEY_FRAME;
+            keyframe = frame_type === AV1FrameType.INTRA_ONLY_FRAME || frame_type === AV1FrameType.KEY_FRAME;
             show_frame = gb.readBool();
             if (show_frame && sequence_header.decoder_model_info_present_flag && !sequence_header.equal_picture_interval) {
                 // decoder model info
+                const n = sequence_header.frame_presentation_time_length_minus_1 + 1;
+                const frame_presentation_time = gb.readBits(n);
+                Log.v(TAG, `frame_presentation_time: ${frame_presentation_time}`);
             }
-            if (!show_frame) {
-                showable_frame = frame_type !== KEY_FRAME;
+            if (show_frame) {
+                showable_frame = frame_type !== AV1FrameType.KEY_FRAME;
             } else {
                 showable_frame = gb.readBool();
             }
-            if (frame_type === SWITCH_FRAME || (frame_type === KEY_FRAME && show_frame)) {
+            if (frame_type === AV1FrameType.SWITCH_FRAME || (frame_type === AV1FrameType.KEY_FRAME && show_frame)) {
                 error_resilient_mode = true;
             } else {
                 error_resilient_mode = gb.readBool();
@@ -491,7 +514,7 @@ class AV1OBUParser {
             current_frame_id = gb.readBits(idLen);
         }
         let frame_size_override_flag = false;
-        if (frame_type == SWITCH_FRAME) {
+        if (frame_type == AV1FrameType.SWITCH_FRAME) {
             frame_size_override_flag = true;
         } else if (sequence_header.reduced_still_picture_header) {
             frame_size_override_flag = false;
@@ -522,10 +545,10 @@ class AV1OBUParser {
         let use_ref_frame_mvs = 0;
         let allow_intrabc = 0;
         let refresh_frame_flags = allFrames;
-        if (!(frame_type === SWITCH_FRAME || (frame_type == KEY_FRAME && show_frame))) {
+        if (!(frame_type === AV1FrameType.SWITCH_FRAME || (frame_type == AV1FrameType.KEY_FRAME && show_frame))) {
             refresh_frame_flags = gb.readBits(8);
         }
-        if (keyframe || refresh_frame_flags !== allFrames) {
+        if (!keyframe || refresh_frame_flags !== allFrames) {
             if (error_resilient_mode && sequence_header.enable_order_hint) {
                 for (let i = 0; i < NUM_REF_FRAMES; i++) {
                     gb.readBits(sequence_header.order_hint_bits);
@@ -578,10 +601,8 @@ class AV1OBUParser {
         let RenderWidth = UpscaledWidth;
         let RenderHeight = FrameHeight;
         if (render_and_frame_size_different) {
-            let render_width_bits = gb.readBits(16) + 1;
-            let render_height_bits = gb.readBits(16) + 1;
-            RenderWidth = gb.readBits(render_width_bits) + 1;
-            RenderHeight = gb.readBits(render_height_bits) + 1;
+           RenderWidth = gb.readBits(16) + 1;
+           RenderHeight = gb.readBits(16) + 1;
         }
 
         return {
