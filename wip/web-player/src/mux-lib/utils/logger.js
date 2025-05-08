@@ -116,7 +116,7 @@ class Log {
 
 }
 
-Log.GLOBAL_TAG = 'mpegts.js';
+Log.GLOBAL_TAG = 'e-rtmp-lab.js';
 Log.FORCE_GLOBAL_TAG = false;
 Log.ENABLE_ERROR = true;
 Log.ENABLE_INFO = true;
