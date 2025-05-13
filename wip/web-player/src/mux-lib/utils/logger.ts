@@ -3,15 +3,27 @@
  *
  * Copyright (C) 2016 Bilibili
  * @author zheng qian <xqq@xqq.im>
- * 
- * This file has been modified. See Git history for details.
+ *
+ * Modified and migrated to TypeScript by Slavik Lozben.
+ * Additional changes Copyright (C) Veovera Software Organization.
+ *
+ * See Git history for full details.
  */
 
 import EventEmitter from 'eventemitter3';
 
 class Log {
+    private static GLOBAL_TAG = 'e-rtmp-lab.js';
+    private static FORCE_GLOBAL_TAG = false;
+    private static ENABLE_CALLBACK = false;
+    private static ENABLE_ERROR = true;
+    private static ENABLE_INFO = true;
+    private static ENABLE_WARN = true;
+    private static ENABLE_DEBUG = true;
+    private static ENABLE_VERBOSE = true;
+    private static emitter = new EventEmitter();
 
-    static e(tag, msg) {
+    static e(tag: string, msg: string) {
         if (!tag || Log.FORCE_GLOBAL_TAG)
             tag = Log.GLOBAL_TAG;
 
@@ -114,18 +126,29 @@ class Log {
         console.log(str);
     }
 
+    static adfd(condition: unknown, tag: string, msg: string): asserts condition {
+        if (!condition) {
+            const str = `[${tag}] ASSERT FAILED: ${msg}`;
+
+            if (Log.ENABLE_CALLBACK) {
+                Log.emitter.emit('log', 'assert', str);
+            }
+
+            throw new Error(str);
+        }
+    }
+
+    static a(tag: string, msg: string): never;
+    static a(tag: string, msg: string, condition: unknown): asserts condition;
+    static a(tag: string, msg: string, condition?: unknown): asserts condition {
+        if (arguments.length === 2 || !condition) {
+            const str = `[${tag}] ASSERT FAILED: ${msg}`;
+            if (Log.ENABLE_CALLBACK) {
+                Log.emitter.emit('log', 'assert', str);
+            }
+            throw new Error(str);
+        }
+    }
 }
-
-Log.GLOBAL_TAG = 'e-rtmp-lab.js';
-Log.FORCE_GLOBAL_TAG = false;
-Log.ENABLE_ERROR = true;
-Log.ENABLE_INFO = true;
-Log.ENABLE_WARN = true;
-Log.ENABLE_DEBUG = true;
-Log.ENABLE_VERBOSE = true;
-
-Log.ENABLE_CALLBACK = false;
-
-Log.emitter = new EventEmitter();
 
 export default Log;
