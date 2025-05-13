@@ -81,7 +81,7 @@ class MP4Remuxer {
     }
 
     bindDataSource(producer) {
-        producer.onDataAvailable = this.remux.bind(this);
+        producer.onDataAvailable = this._remux.bind(this);
         producer.onTrackMetadata = this._onTrackMetadataReceived.bind(this);
         return this;
     }
@@ -129,7 +129,7 @@ class MP4Remuxer {
         this._audioSegmentInfoList.clear();
     }
 
-    remux(audioTrack, videoTrack) {
+    _remux(audioTrack, videoTrack) {
         if (!this._onMediaSegment) {
             throw new IllegalStateException('MP4Remuxer: onMediaSegment callback must be specificed!');
         }

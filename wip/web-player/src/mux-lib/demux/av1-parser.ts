@@ -14,30 +14,30 @@ import Log from '../utils/logger.js';
 const TAG = 'av1-parser';
 
 export enum AV1OBUType {
-    OBU_RESERVED_0 = 0,
-    OBU_SEQUENCE_HEADER = 1,
-    OBU_TEMPORAL_DELIMITER = 2,
-    OBU_FRAME_HEADER = 3,
-    OBU_TILE_GROUP = 4,
-    OBU_METADATA = 5,
-    OBU_FRAME = 6,
-    OBU_REDUNDANT_FRAME_HEADER = 7,
-    OBU_TILE_LIST = 8,
+    OBU_RESERVED_0              =  0,
+    OBU_SEQUENCE_HEADER         =  1,
+    OBU_TEMPORAL_DELIMITER      =  2,
+    OBU_FRAME_HEADER            =  3,
+    OBU_TILE_GROUP              =  4,
+    OBU_METADATA                =  5,
+    OBU_FRAME                   =  6,
+    OBU_REDUNDANT_FRAME_HEADER  =  7,
+    OBU_TILE_LIST               =  8,
     // 9–14 are reserved
-    OBU_RESERVED_9 = 9,
-    OBU_RESERVED_10 = 10,
-    OBU_RESERVED_11 = 11,
-    OBU_RESERVED_12 = 12,
-    OBU_RESERVED_13 = 13,
-    OBU_RESERVED_14 = 14,
-    OBU_PADDING = 15,
+    OBU_RESERVED_9              =  9,
+    OBU_RESERVED_10             = 10,
+    OBU_RESERVED_11             = 11,
+    OBU_RESERVED_12             = 12,
+    OBU_RESERVED_13             = 13,
+    OBU_RESERVED_14             = 14,
+    OBU_PADDING                 = 15,
 }
 
 export enum AV1FrameType {
-    KEY_FRAME = 0,
-    INTER_FRAME = 1,
-    INTRA_ONLY_FRAME = 2,
-    SWITCH_FRAME = 3
+    KEY_FRAME           = 0,
+    INTER_FRAME         = 1,
+    INTRA_ONLY_FRAME    = 2,
+    SWITCH_FRAME        = 3
 }
 
 type OperatingPoint = {
