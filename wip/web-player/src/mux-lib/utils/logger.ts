@@ -24,17 +24,18 @@ class Log {
     private static emitter = new EventEmitter();
 
     static e(tag: string, msg: string) {
-        if (!tag || Log.FORCE_GLOBAL_TAG)
+        if (!Log.ENABLE_ERROR) {
+            return;
+        }
+
+        if (!tag || Log.FORCE_GLOBAL_TAG) {
             tag = Log.GLOBAL_TAG;
+        }
 
         let str = `[${tag}] > ${msg}`;
 
         if (Log.ENABLE_CALLBACK) {
             Log.emitter.emit('log', 'error', str);
-        }
-
-        if (!Log.ENABLE_ERROR) {
-            return;
         }
 
         if (console.error) {
@@ -47,17 +48,18 @@ class Log {
     }
 
     static i(tag, msg) {
-        if (!tag || Log.FORCE_GLOBAL_TAG)
+        if (!Log.ENABLE_INFO) {
+            return;
+        }
+
+        if (!tag || Log.FORCE_GLOBAL_TAG) {
             tag = Log.GLOBAL_TAG;
+        }
 
         let str = `[${tag}] > ${msg}`;
 
         if (Log.ENABLE_CALLBACK) {
             Log.emitter.emit('log', 'info', str);
-        }
-
-        if (!Log.ENABLE_INFO) {
-            return;
         }
 
         if (console.info) {
@@ -67,18 +69,19 @@ class Log {
         }
     }
 
-    static w(tag, msg) {
-        if (!tag || Log.FORCE_GLOBAL_TAG)
+    static w(tag: string, msg: string) {
+        if (!Log.ENABLE_WARN) {
+            return;
+        }
+
+        if (!tag || Log.FORCE_GLOBAL_TAG) {
             tag = Log.GLOBAL_TAG;
+        }
 
         let str = `[${tag}] > ${msg}`;
 
         if (Log.ENABLE_CALLBACK) {
             Log.emitter.emit('log', 'warn', str);
-        }
-
-        if (!Log.ENABLE_WARN) {
-            return;
         }
 
         if (console.warn) {
@@ -88,18 +91,19 @@ class Log {
         }
     }
 
-    static d(tag, msg) {
-        if (!tag || Log.FORCE_GLOBAL_TAG)
+    static d(tag: string, msg: string) {
+        if (!Log.ENABLE_DEBUG) {
+            return;
+        }
+
+        if (!tag || Log.FORCE_GLOBAL_TAG) {
             tag = Log.GLOBAL_TAG;
+        }
 
         let str = `[${tag}] > ${msg}`;
 
         if (Log.ENABLE_CALLBACK) {
             Log.emitter.emit('log', 'debug', str);
-        }
-
-        if (!Log.ENABLE_DEBUG) {
-            return;
         }
 
         if (console.debug) {
@@ -109,7 +113,11 @@ class Log {
         }
     }
 
-    static v(tag, msg) {
+    static v(tag: string, msg: string) {
+        if (!Log.ENABLE_VERBOSE) {
+            return;
+        }
+
         if (!tag || Log.FORCE_GLOBAL_TAG)
             tag = Log.GLOBAL_TAG;
 
@@ -119,23 +127,7 @@ class Log {
             Log.emitter.emit('log', 'verbose', str);
         }
 
-        if (!Log.ENABLE_VERBOSE) {
-            return;
-        }
-
         console.log(str);
-    }
-
-    static adfd(condition: unknown, tag: string, msg: string): asserts condition {
-        if (!condition) {
-            const str = `[${tag}] ASSERT FAILED: ${msg}`;
-
-            if (Log.ENABLE_CALLBACK) {
-                Log.emitter.emit('log', 'assert', str);
-            }
-
-            throw new Error(str);
-        }
     }
 
     static a(tag: string, msg: string): never;
