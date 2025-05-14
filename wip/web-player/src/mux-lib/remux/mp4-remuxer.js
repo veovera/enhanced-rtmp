@@ -197,7 +197,7 @@ class MP4Remuxer {
         this._dtsBaseInited = true;
     }
 
-    getTimestampBase() {
+    get timestampBase() {
         if (!this._dtsBaseInited) {
             return undefined;
         }
