@@ -118,8 +118,9 @@ class Log {
             return;
         }
 
-        if (!tag || Log.FORCE_GLOBAL_TAG)
+        if (!tag || Log.FORCE_GLOBAL_TAG) {
             tag = Log.GLOBAL_TAG;
+        }
 
         let str = `[${tag}] > ${msg}`;
 
