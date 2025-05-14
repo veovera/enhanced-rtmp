@@ -3,10 +3,11 @@
  *
  * Copyright (C) 2016 Bilibili
  * @author zheng qian <xqq@xqq.im>
- * 
+ *
  * Modified and migrated to TypeScript by Slavik Lozben.
- * See Git history for details.
- * Additional changes Copyright (C) 2025 Slavik Lozben
+ * Additional changes Copyright (C) Veovera Software Organization.
+ *
+ * See Git history for full details.
  */
 
 // !!@TODO: reduce usage of any
@@ -71,13 +72,21 @@ export enum VP9FrameType {
     SWITCH_FRAME = 3
 }
 
-export interface TrackInfo {
-    type: string;
+export interface AudioTrackInfo {
+    type: 'audio';
     id: number;
     sequenceNumber: number;
-    samples: any[];
+    samples: AudioSample[];
     length: number;
-}   
+}
+
+export interface VideoTrackInfo {
+    type: 'video';
+    id: number;
+    sequenceNumber: number;
+    samples: VideoSample[];
+    length: number;
+}
 
 export interface VideoUnit {
     unitType: AV1OBUType,
@@ -91,6 +100,13 @@ export interface VideoSample {
     filePosition: number | undefined,
     dts: number,
     cts: number,
+    pts: number,
+}
+
+export interface AudioSample {
+    unit: Uint8Array,
+    length: number,
+    dts: number,
     pts: number,
 }
 
@@ -175,8 +191,8 @@ export class FLVDemuxer {
     private static readonly _mpegAudioL3BitRateTable = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, -1] as const;
 
     // TODO: define video and audio track types
-    private _videoTrack: TrackInfo;
-    private _audioTrack: TrackInfo;
+    private _videoTrack: VideoTrackInfo;
+    private _audioTrack: AudioTrackInfo;
     private _littleEndian: boolean; 
 
     constructor(probeData: any, config: any) {
@@ -224,8 +240,8 @@ export class FLVDemuxer {
             fps_den: 1000
         };
 
-        this._videoTrack = {type: 'video', id: 1, sequenceNumber: 0, samples: [], length: 0};
-        this._audioTrack = {type: 'audio', id: 2, sequenceNumber: 0, samples: [], length: 0};
+        this._videoTrack = {type: 'video', id: 1, sequenceNumber: 0, samples: [], length: 0} as VideoTrackInfo;
+        this._audioTrack = {type: 'audio', id: 2, sequenceNumber: 0, samples: [], length: 0} as AudioTrackInfo;
 
         this._littleEndian = (function () {
             let buf = new ArrayBuffer(2);
@@ -579,7 +595,7 @@ export class FLVDemuxer {
         };
     }
 
-    _parseAudioData(arrayBuffer, dataOffset, dataSize, tagTimestamp) {
+    _parseAudioData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number) {
         if (dataSize <= 1) {
             Log.w(this.TAG, 'Flv: Invalid audio packet, missing SoundData payload!');
             return;
@@ -1090,12 +1106,12 @@ export class FLVDemuxer {
         }
     }
 
-    _parseOpusAudioData(arrayBuffer, dataOffset, dataSize, tagTimestamp) {
+    _parseOpusAudioData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number) {
         let track = this._audioTrack;
 
         let data = new Uint8Array(arrayBuffer, dataOffset, dataSize);
         let dts = this._timestampBase + tagTimestamp;
-        let opusSample = {unit: data, length: data.byteLength, dts: dts, pts: dts};
+        let opusSample = {unit: data, length: data.byteLength, dts: dts, pts: dts} as AudioSample;
 
         track.samples.push(opusSample);
         track.length += data.length;
@@ -1884,7 +1900,7 @@ export class FLVDemuxer {
                 this._onError(DemuxErrors.FORMAT_ERROR, 'Flv: Invalid AV1 VideoData');
                 return;
             }
-            Log.v(this.TAG, config);
+            Log.v(this.TAG, `Parsed AV1 metadata: ${JSON.stringify(config)}`);
             meta.codecWidth = config.codec_size.width;
             meta.codecHeight = config.codec_size.height;
             meta.presentWidth = config.present_size.width;
