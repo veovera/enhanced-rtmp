@@ -302,9 +302,7 @@ class TransmuxingController {
         this._demuxer.onMetaDataArrived = this._onMetaDataArrived.bind(this);
         this._demuxer.onScriptDataArrived = this._onScriptDataArrived.bind(this);
 
-        this._remuxer.bindDataSource(this._demuxer
-                        .bindDataSource(this._ioctl
-        ));
+        this._remuxer.bindDataSource(this._demuxer.bindDataSource(this._ioctl));
 
         this._remuxer.onInitSegment = this._onRemuxerInitSegmentArrival.bind(this);
         this._remuxer.onMediaSegment = this._onRemuxerMediaSegmentArrival.bind(this);
@@ -371,7 +369,7 @@ class TransmuxingController {
     }
 
     _onTimedID3Metadata(timed_id3_metadata) {
-        let timestamp_base = this._remuxer.getTimestampBase();
+        let timestamp_base = this._remuxer.timestampBase;
         if (timestamp_base == undefined) { return; }
 
         if (timed_id3_metadata.pts != undefined) {
@@ -386,7 +384,7 @@ class TransmuxingController {
     }
 
     _onPGSSubtitle(pgs_data) {
-        let timestamp_base = this._remuxer.getTimestampBase();
+        let timestamp_base = this._remuxer.timestampBase;
         if (timestamp_base == undefined) { return; }
 
         if (pgs_data.pts != undefined) {
@@ -401,7 +399,7 @@ class TransmuxingController {
     }
 
     _onSynchronousKLVMetadata(synchronous_klv_metadata) {
-        let timestamp_base = this._remuxer.getTimestampBase();
+        let timestamp_base = this._remuxer.timestampBase;
         if (timestamp_base == undefined) { return; }
 
         if (synchronous_klv_metadata.pts != undefined) {
@@ -420,7 +418,7 @@ class TransmuxingController {
     }
 
     _onSMPTE2038Metadata(smpte2038_metadata) {
-        let timestamp_base = this._remuxer.getTimestampBase();
+        let timestamp_base = this._remuxer.timestampBase;
         if (timestamp_base == undefined) { return; }
 
         if (smpte2038_metadata.pts != undefined) {
@@ -439,7 +437,7 @@ class TransmuxingController {
     }
 
     _onSCTE35Metadata(scte35) {
-        let timestamp_base = this._remuxer.getTimestampBase();
+        let timestamp_base = this._remuxer.timestampBase;
         if (timestamp_base == undefined) { return; }
 
         if (scte35.pts != undefined) {
@@ -458,7 +456,7 @@ class TransmuxingController {
     }
 
     _onPESPrivateData(private_data) {
-        let timestamp_base = this._remuxer.getTimestampBase();
+        let timestamp_base = this._remuxer.timestampBase;
         if (timestamp_base == undefined) { return; }
 
         if (private_data.pts != undefined) {
