@@ -1,7 +1,7 @@
 /*
  * SPDX-License-Identifier: Apache-2.0
  *
- * Copyright (C) 2025 Veovera Software Organization
+ * Copyright (C) 2025 Veovera Software Organization.
  * @author Slavik Lozben
  * 
  */

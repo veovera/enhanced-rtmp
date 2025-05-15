@@ -1,9 +1,8 @@
 /*
  * SPDX-License-Identifier: Apache-2.0
  *
- * Copyright (C) 2025 Veovera Software Organization
+ * Copyright (C) 2025 Veovera Software Organization.
  * @author Slavik Lozben
- * 
  */
 
 /**
@@ -70,33 +69,59 @@ import { IRemuxer } from './iremuxer';
 import { WebMGenerator, WebMTrackInfo, WebMFrame } from './webm-generator';
 import { Callback, assertCallback } from '../utils/common';
 import { FLVDemuxer } from '../demux/flv-demuxer';
-import { TrackInfo } from '../demux/flv-demuxer';
+import { AudioTrackInfo, VideoTrackInfo, VideoSample, AudioSample } from '../demux/flv-demuxer';
+import { ConfigOptions } from '../config';
+import Log from '../utils/logger';
+import { MediaSegmentInfoList } from '../core/media-segment-info';
 
 export class WebMRemuxer implements IRemuxer {
-  private _generator: WebMGenerator;
-  private _onInitSegment: Callback;
-  private _onMediaSegment: Callback;
-  private _audioNextDts: number | undefined;
-  private _videoNextDts: number | undefined;
+  private _tag = 'WebMRemuxer';
+
+  private _config: ConfigOptions;
+  private _isLive: boolean;
+
+  private _dtsBase: number;
   private _audioDtsBase: number;
   private _videoDtsBase: number;
-  private _dtsBase: number;
+  private _audioNextDts: number | undefined;
+  private _videoNextDts: number | undefined;
+  private _audioStashedLastSample: AudioSample | null;
+  private _videoStashedLastSample: VideoSample | null;
 
-  constructor(tracks: WebMTrackInfo[]) {
-    throw new Error('Method not implemented.');
+  private _audioMeta: object;
+  private _videoMeta: object;
 
-    //!!@this.generator = new WebMGenerator(tracks);
-    this._onInitSegment = assertCallback;
-    this._onMediaSegment = assertCallback;
+  private _audioSegmentInfoList: MediaSegmentInfoList;
+  private _videoSegmentInfoList: MediaSegmentInfoList;
 
+  private _onInitSegment: Callback;
+  private _onMediaSegment: Callback;
+
+  constructor(config: ConfigOptions) {
+    this._config = config;
+
+    this._isLive = config.isLive;
+
+    this._dtsBase = Infinity;
     this._audioDtsBase = Infinity;
     this._videoDtsBase = Infinity;
-    this._dtsBase = Infinity;
+    this._audioNextDts = undefined;
+    this._videoNextDts = undefined;
+    this._audioStashedLastSample = null;
+    this._videoStashedLastSample = null;
+
+    this._audioMeta = {};
+    this._videoMeta = {};
+
+    this._audioSegmentInfoList = new MediaSegmentInfoList('audio');
+    this._videoSegmentInfoList = new MediaSegmentInfoList('video');
+
+    this._onInitSegment = assertCallback;
+    this._onMediaSegment = assertCallback;
   }
 
   destroy(): void {
-    throw new Error('Method not implemented.');
-    //!!@this.generator.destroy();
+    Log.v(this._tag, 'nothing to destroy');
   }
 
   get onInitSegment(): Callback {
@@ -110,6 +135,7 @@ export class WebMRemuxer implements IRemuxer {
   get onMediaSegment(): Callback {
     return this._onMediaSegment;
   }
+
   set onMediaSegment(callback: Callback) {
     this._onMediaSegment = callback;
   }
@@ -131,25 +157,60 @@ export class WebMRemuxer implements IRemuxer {
   } 
   
   seek(originalDts: number): void {
-    throw new Error('Method not implemented.');
-    //!!@this.generator.seek(originalDts);
+    this._audioStashedLastSample = null;
+    this._videoStashedLastSample = null;
+    this._videoSegmentInfoList.clear();
+    this._audioSegmentInfoList.clear();
   }
   
-  //!!@TODO: make it a getter
-  getTimestampBase(): number | undefined {
+  get timestampBase(): number | undefined {
     return this._dtsBase < Infinity ? this._dtsBase : undefined;
   }
   
   flushStashedSamples(): void {
-    throw new Error('Method not implemented.');
-    //!!@this.generator.flushStashedSamples();
+    let videoSample = this._videoStashedLastSample;
+    let audioSample = this._audioStashedLastSample;
+
+    let videoTrack: VideoTrackInfo = {
+      type: 'video',
+      id: 1,
+      sequenceNumber: 0,
+      samples: [],
+      length: 0
+    };
+
+    if (videoSample != null) {
+      videoTrack.samples.push(videoSample);
+      videoTrack.length = videoSample.length;
+    }
+
+    let audioTrack: AudioTrackInfo = {
+      type: 'audio',
+      id: 2,
+      sequenceNumber: 0,
+      samples: [],
+      length: 0
+    };
+
+    if (audioSample != null) {
+      audioTrack.samples.push(audioSample);
+      audioTrack.length = audioSample.length;
+    }
+
+    this._videoStashedLastSample = null;
+    this._audioStashedLastSample = null;
+
+    this._remuxVideo(videoTrack, true);
+    this._remuxAudio(audioTrack, true);
   }
   
-  private _remux = (audioTrack: TrackInfo, videoTrack: TrackInfo): void => {
-    if (!this._onMediaSegment) {
-      throw new Error('WebMRemuxer: onMediaSegment callback must be specificed!');
+  private _remux = (audioTrack: AudioTrackInfo, videoTrack: VideoTrackInfo): void => {
+    Log.a(this._tag, 'onMediaSegment callback must be specificed!', this._onMediaSegment);
+    
+    if (this._dtsBase === Infinity) {
+      this._calculateDtsBase(audioTrack, videoTrack);
     }
-  
+
     if (videoTrack) {
       this._remuxVideo(videoTrack);
     }
@@ -159,11 +220,45 @@ export class WebMRemuxer implements IRemuxer {
   }
 
   private _onTrackMetadataReceived = (type: string, metadata: object): void => {
-    throw new Error('Method not implemented.');
-    //!!@this.generator.onTrackMetadata(type, metadata);
+    /*
+    let metabox = null;
+
+    let container = 'mp4';
+    let codec = metadata.codec;
+
+    if (type === 'audio') {
+      this._audioMeta = metadata;
+      if (metadata.codec === 'mp3' && this._mp3UseMpegAudio) {
+        // 'audio/mpeg' for MP3 audio track
+        container = 'mpeg';
+        codec = '';
+        metabox = new Uint8Array();
+      } else {
+        // 'audio/mp4, codecs="codec"'
+        metabox = MP4.generateInitSegment(metadata);
+      }
+    } else if (type === 'video') {
+      this._videoMeta = metadata;
+      metabox = MP4.generateInitSegment(metadata);
+    } else {
+      return;
+    }
+
+    // dispatch metabox (Initialization Segment)
+    if (!this._onInitSegment) {
+      throw new IllegalStateException('MP4Remuxer: onInitSegment callback must be specified!');
+    }
+    this._onInitSegment(type, {
+      type: type,
+      data: metabox.buffer,
+      codec: codec,
+      container: `${type}/${container}`,
+      mediaDuration: metadata.duration  // in timescale 1000 (milliseconds)
+    });
+    */
   }
-  
-  private _calculateDtsBase = (audioTrack: TrackInfo, videoTrack: TrackInfo): void => {
+
+  private _calculateDtsBase (audioTrack: AudioTrackInfo, videoTrack: VideoTrackInfo): void {
     if (this._dtsBase < Infinity) {
       return;
     }
@@ -178,12 +273,12 @@ export class WebMRemuxer implements IRemuxer {
     this._dtsBase = Math.min(this._audioDtsBase, this._videoDtsBase);
   }
 
-  private _remuxVideo = (videoTrack: TrackInfo, force: boolean = false): void => {
+  private _remuxVideo(videoTrack: VideoTrackInfo, force: boolean = false): void {
     throw new Error('Method not implemented.');
     //!!@this.generator.remuxVideo(videoTrack);
   }
 
-  private _remuxAudio = (audioTrack: TrackInfo, force: boolean = false): void => {
+  private _remuxAudio(audioTrack: AudioTrackInfo, force: boolean = false): void {
     throw new Error('Method not implemented.');
     //!!@this.generator.remuxAudio(audioTrack);
   }

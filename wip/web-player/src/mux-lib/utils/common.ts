@@ -6,7 +6,7 @@
  * 
  */
 
-export type Callback = (...args: unknown[]) => void;
+export type Callback = (...args: any[]) => void;
 
 export const assertCallback = (...args: unknown[]): never => {
   throw new Error('Callback not implemented');

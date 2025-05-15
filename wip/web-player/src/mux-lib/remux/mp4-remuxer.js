@@ -23,8 +23,7 @@ import Browser from '../utils/browser.js';
 import { SampleInfo, MediaSegmentInfo, MediaSegmentInfoList } from '../core/media-segment-info.js';
 import { IllegalStateException } from '../utils/exception.js';
 
-
-// Fragmented mp4 remuxer
+/** @implements {import('./iremuxer.ts').IRemuxer} */
 class MP4Remuxer {
 
     constructor(config) {
