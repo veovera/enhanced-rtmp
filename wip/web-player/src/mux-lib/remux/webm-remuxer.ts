@@ -75,7 +75,7 @@ import Log from '../utils/logger';
 import { MediaSegmentInfoList } from '../core/media-segment-info';
 
 export class WebMRemuxer implements IRemuxer {
-  private _tag = 'WebMRemuxer';
+  static readonly TAG = 'WebMRemuxer';
 
   private _config: ConfigOptions;
   private _isLive: boolean;
@@ -121,7 +121,7 @@ export class WebMRemuxer implements IRemuxer {
   }
 
   destroy(): void {
-    Log.v(this._tag, 'nothing to destroy');
+    Log.v(WebMRemuxer.TAG, 'nothing to destroy');
   }
 
   get onInitSegment(): Callback {
@@ -147,8 +147,8 @@ export class WebMRemuxer implements IRemuxer {
    * @returns this instance for chaining
    */
   bindDataSource(producer: FLVDemuxer): this {
-    producer.onDataAvailable = this._remux;
-    producer.onTrackMetadata = this._onTrackMetadataReceived;
+    producer.onTrackData = this._onTrackData;
+    producer.onTrackMetadata = this._onTrackMetadata;
     return this;
   }
   
@@ -204,8 +204,8 @@ export class WebMRemuxer implements IRemuxer {
     this._remuxAudio(audioTrack, true);
   }
   
-  private _remux = (audioTrack: AudioTrackInfo, videoTrack: VideoTrackInfo): void => {
-    Log.a(this._tag, 'onMediaSegment callback must be specificed!', this._onMediaSegment);
+  private _onTrackData = (audioTrack: AudioTrackInfo, videoTrack: VideoTrackInfo): void => {
+    Log.a(WebMRemuxer.TAG, 'onMediaSegment callback must be specificed!', this._onMediaSegment);
     
     if (this._dtsBase === Infinity) {
       this._calculateDtsBase(audioTrack, videoTrack);
@@ -219,11 +219,12 @@ export class WebMRemuxer implements IRemuxer {
     }
   }
 
-  private _onTrackMetadataReceived = (type: string, metadata: object): void => {
+  private _onTrackMetadata = (type: string, metadata: object): void => {
+    Log.a(WebMRemuxer.TAG, 'onTrackMetadata must be implemented!');
     /*
     let metabox = null;
 
-    let container = 'mp4';
+    let container = 'webm';
     let codec = metadata.codec;
 
     if (type === 'audio') {

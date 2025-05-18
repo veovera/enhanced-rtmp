@@ -1,19 +1,13 @@
 /*
- * Copyright (C) 2016 Bilibili. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
  *
+ * Copyright (C) 2016 Bilibili
  * @author zheng qian <xqq@xqq.im>
+ * 
+ * Modified by Slavik Lozben.
+ * Additional changes Copyright (C) 2025 Veovera Software Organization.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * See Git history for full details. 
  */
 
 import Log from '../utils/logger.js';
@@ -54,8 +48,8 @@ let TransmuxingWorker = function (self) {
                 controller.on(TransmuxingEvents.LOADING_COMPLETE, onLoadingComplete.bind(this));
                 controller.on(TransmuxingEvents.RECOVERED_EARLY_EOF, onRecoveredEarlyEof.bind(this));
                 controller.on(TransmuxingEvents.MEDIA_INFO, onMediaInfo.bind(this));
-                controller.on(TransmuxingEvents.METADATA_ARRIVED, onMetaDataArrived.bind(this));
-                controller.on(TransmuxingEvents.SCRIPTDATA_ARRIVED, onScriptDataArrived.bind(this));
+                controller.on(TransmuxingEvents.METADATA_ARRIVED, onScriptMetadata.bind(this));
+                controller.on(TransmuxingEvents.SCRIPTDATA_ARRIVED, onScriptData.bind(this));
                 controller.on(TransmuxingEvents.TIMED_ID3_METADATA_ARRIVED, onTimedID3MetadataArrived.bind(this));
                 controller.on(TransmuxingEvents.PGS_SUBTITLE_ARRIVED, onPGSSubtitleDataArrived.bind(this));
                 controller.on(TransmuxingEvents.SYNCHRONOUS_KLV_METADATA_ARRIVED, onSynchronousKLVMetadataArrived.bind(this));
@@ -147,7 +141,7 @@ let TransmuxingWorker = function (self) {
         self.postMessage(obj);
     }
 
-    function onMetaDataArrived(metadata) {
+    function onScriptMetadata(metadata) {
         let obj = {
             msg: TransmuxingEvents.METADATA_ARRIVED,
             data: metadata
@@ -155,7 +149,7 @@ let TransmuxingWorker = function (self) {
         self.postMessage(obj);
     }
 
-    function onScriptDataArrived(data) {
+    function onScriptData(data) {
         let obj = {
             msg: TransmuxingEvents.SCRIPTDATA_ARRIVED,
             data: data

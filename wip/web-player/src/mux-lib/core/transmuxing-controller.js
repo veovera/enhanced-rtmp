@@ -4,7 +4,10 @@
  * Copyright (C) 2016 Bilibili
  * @author zheng qian <xqq@xqq.im>
  * 
- * This file has been modified. See Git history for details.
+ * Modified by Slavik Lozben.
+ * Additional changes Copyright (C) 2025 Veovera Software Organization.
+ *
+ * See Git history for full details. 
  */
 
 import EventEmitter from 'eventemitter3';
@@ -14,6 +17,7 @@ import MediaInfo from './media-info.js';
 import FLVDemuxer from '../demux/flv-demuxer.js';
 import TSDemuxer from '../demux/ts-demuxer';
 import MP4Remuxer from '../remux/mp4-remuxer.js';
+import { WebMRemuxer } from '../remux/webm-remuxer.js';
 import DemuxErrors from '../demux/demux-errors.js';
 import IOController from '../io/io-controller.js';
 import TransmuxingEvents from './transmuxing-events';
@@ -299,8 +303,8 @@ class TransmuxingController {
 
         this._demuxer.onError = this._onDemuxException.bind(this);
         this._demuxer.onMediaInfo = this._onMediaInfo.bind(this);
-        this._demuxer.onMetaDataArrived = this._onMetaDataArrived.bind(this);
-        this._demuxer.onScriptDataArrived = this._onScriptDataArrived.bind(this);
+        this._demuxer.onScriptMetadata = this._onScriptMetadata.bind(this);
+        this._demuxer.onScriptData = this._onScriptData.bind(this);
 
         this._remuxer.bindDataSource(this._demuxer.bindDataSource(this._ioctl));
 
@@ -317,7 +321,7 @@ class TransmuxingController {
 
         demuxer.onError = this._onDemuxException.bind(this);
         demuxer.onMediaInfo = this._onMediaInfo.bind(this);
-        demuxer.onMetaDataArrived = this._onMetaDataArrived.bind(this);
+        demuxer.onScriptMetadata = this._onScriptMetadata.bind(this);
         demuxer.onTimedID3Metadata = this._onTimedID3Metadata.bind(this);
         demuxer.onPGSSubtitleData = this._onPGSSubtitle.bind(this);
         demuxer.onSynchronousKLVMetadata = this._onSynchronousKLVMetadata.bind(this);
@@ -360,11 +364,11 @@ class TransmuxingController {
         }
     }
 
-    _onMetaDataArrived(metadata) {
+    _onScriptMetadata(metadata) {
         this._emitter.emit(TransmuxingEvents.METADATA_ARRIVED, metadata);
     }
 
-    _onScriptDataArrived(data) {
+    _onScriptData(data) {
         this._emitter.emit(TransmuxingEvents.SCRIPTDATA_ARRIVED, data);
     }
 

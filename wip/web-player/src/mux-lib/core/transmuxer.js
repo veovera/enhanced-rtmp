@@ -4,7 +4,10 @@
  * Copyright (C) 2016 Bilibili
  * @author zheng qian <xqq@xqq.im>
  * 
- * This file has been modified. See Git history for details.
+ * Modified by Slavik Lozben.
+ * Additional changes Copyright (C) 2025 Veovera Software Organization.
+ *
+ * See Git history for full details.
  */
 
 import EventEmitter from 'eventemitter3';
@@ -51,8 +54,8 @@ class Transmuxer {
             ctl.on(TransmuxingEvents.LOADING_COMPLETE, this._onLoadingComplete.bind(this));
             ctl.on(TransmuxingEvents.RECOVERED_EARLY_EOF, this._onRecoveredEarlyEof.bind(this));
             ctl.on(TransmuxingEvents.MEDIA_INFO, this._onMediaInfo.bind(this));
-            ctl.on(TransmuxingEvents.METADATA_ARRIVED, this._onMetaDataArrived.bind(this));
-            ctl.on(TransmuxingEvents.SCRIPTDATA_ARRIVED, this._onScriptDataArrived.bind(this));
+            ctl.on(TransmuxingEvents.METADATA_ARRIVED, this._onScriptMetadata.bind(this));
+            ctl.on(TransmuxingEvents.SCRIPTDATA_ARRIVED, this._onScriptData.bind(this));
             ctl.on(TransmuxingEvents.TIMED_ID3_METADATA_ARRIVED, this._onTimedID3MetadataArrived.bind(this));
             ctl.on(TransmuxingEvents.SYNCHRONOUS_KLV_METADATA_ARRIVED, this._onSynchronousKLVMetadataArrived.bind(this));
             ctl.on(TransmuxingEvents.ASYNCHRONOUS_KLV_METADATA_ARRIVED, this._onAsynchronousKLVMetadataArrived.bind(this));
@@ -164,13 +167,13 @@ class Transmuxer {
         });
     }
 
-    _onMetaDataArrived(metadata) {
+    _onScriptMetadata(metadata) {
         Promise.resolve().then(() => {
             this._emitter.emit(TransmuxingEvents.METADATA_ARRIVED, metadata);
         });
     }
 
-    _onScriptDataArrived(data) {
+    _onScriptData(data) {
         Promise.resolve().then(() => {
             this._emitter.emit(TransmuxingEvents.SCRIPTDATA_ARRIVED, data);
         });

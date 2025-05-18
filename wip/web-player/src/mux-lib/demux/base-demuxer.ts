@@ -1,3 +1,12 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Modified by Slavik Lozben.
+ * Additional changes Copyright (C) 2025 Veovera Software Organization.
+ *
+ * See Git history for full details.
+ */
+
 import MediaInfo from '../core/media-info';
 import { PESPrivateData, PESPrivateDataDescriptor } from './pes-private-data';
 import { SMPTE2038Data } from './smpte2038';
@@ -7,9 +16,9 @@ import { PGSData } from './pgs-data';
 
 type OnErrorCallback = (type: string, info: string) => void;
 type OnMediaInfoCallback = (mediaInfo: MediaInfo) => void;
-type OnMetaDataArrivedCallback = (metadata: any) => void;
+type OnScriptMetadataCallback = (metadata: any) => void;
 type OnTrackMetadataCallback = (type: string, metadata: any) => void;
-type OnDataAvailableCallback = (audioTrack: any, videoTrack: any) => void;
+type OnTrackDataCallback = (audioTrack: any, videoTrack: any) => void;
 type OnTimedID3MetadataCallback = (timed_id3_data: PESPrivateData) => void;
 type onPGSSubitleDataCallback = (pgs_data: PGSData) => void;
 type OnSynchronousKLVMetadataCallback = (synchronous_klv_data: KLVData) => void;
@@ -23,9 +32,9 @@ export default abstract class BaseDemuxer {
 
     public onError: OnErrorCallback;
     public onMediaInfo: OnMediaInfoCallback;
-    public onMetaDataArrived: OnMetaDataArrivedCallback;
+    public onScriptMetadata: OnScriptMetadataCallback;
     public onTrackMetadata: OnTrackMetadataCallback;
-    public onDataAvailable: OnDataAvailableCallback;
+    public onTrackData: OnTrackDataCallback;
     public onTimedID3Metadata: OnTimedID3MetadataCallback;
     public onPGSSubtitleData: onPGSSubitleDataCallback;
     public onSynchronousKLVMetadata: OnSynchronousKLVMetadataCallback
@@ -40,9 +49,9 @@ export default abstract class BaseDemuxer {
     public destroy(): void {
         this.onError = null;
         this.onMediaInfo = null;
-        this.onMetaDataArrived = null;
+        this.onScriptMetadata = null;
         this.onTrackMetadata = null;
-        this.onDataAvailable = null;
+        this.onTrackData = null;
         this.onTimedID3Metadata = null;
         this.onPGSSubtitleData = null;
         this.onSynchronousKLVMetadata = null;

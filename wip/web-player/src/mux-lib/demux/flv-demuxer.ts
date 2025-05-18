@@ -130,16 +130,17 @@ function ReadBig32(array: Uint8Array, index: number) {
 }
 
 export class FLVDemuxer {
-    private TAG: string;
+    private static readonly TAG = 'FLVDemuxer';
 
     private _config: any;
 
+    //!!@ take a look at all the naming of callbacks and rename to something that makes sense, take a look at the remux as well
     private _onError: Callback;
-    private _onMediaInfo: Callback;
-    private _onMetaDataArrived: Callback;
-    private _onScriptDataArrived: Callback;
-    private _onTrackMetadata: Callback;
-    private _onDataAvailable: Callback;
+    private _onMediaInfo: Callback;         // Called when complete media information (like codecs, duration, resolution) is available. 
+    private _onScriptMetadata: Callback;    // Called when FLV script data (metaData) is parsed and available.
+    private _onScriptData: Callback;        // Called when any script data (not just metaData) is parsed.
+    private _onTrackMetadata: Callback;     // Called when track metadata (like codecs, duration, resolution) is available.
+    private _onTrackData: Callback;         // Called when parsed audio and video samples are ready to be consumed (e.g., by a remuxer or player).
 
     private _dataOffset: number;
     private _firstParse: boolean;
@@ -156,7 +157,8 @@ export class FLVDemuxer {
 
     private _mediaInfo: MediaInfo;
 
-    // TODO: define metadata types
+    // !!@TODO: define metadata types
+    //!!@
     private _metadata: any;
     private _audioMetadata: any;
     private _videoMetadata: any;
@@ -196,16 +198,14 @@ export class FLVDemuxer {
     private _littleEndian: boolean; 
 
     constructor(probeData: any, config: any) {
-        this.TAG = 'FLVDemuxer';
-
         this._config = config;
 
         this._onError = assertCallback;
         this._onMediaInfo = assertCallback;
-        this._onMetaDataArrived = assertCallback;
-        this._onScriptDataArrived = assertCallback;
+        this._onScriptMetadata = assertCallback; //??
+        this._onScriptData = assertCallback; //??
         this._onTrackMetadata = assertCallback;
-        this._onDataAvailable = assertCallback;
+        this._onTrackData = assertCallback;
 
         this._dataOffset = probeData.dataOffset;
         this._firstParse = true;
@@ -285,11 +285,14 @@ export class FLVDemuxer {
         };
     }
 
+    //!!@TODO: fix any
+    // prototype: function(loader: any): void
     bindDataSource(loader: any) {
         loader.onDataArrival = this.parseChunks.bind(this);
         return this;
     }
 
+    //!!@TODO: fix any
     // prototype: function(type: string, metadata: any): void
     get onTrackMetadata() {
         return this._onTrackMetadata;
@@ -299,6 +302,7 @@ export class FLVDemuxer {
         this._onTrackMetadata = callback;
     }
 
+    //!!@TODO: take a look at MediaInfo and prototype comments
     // prototype: function(mediaInfo: MediaInfo): void
     get onMediaInfo() {
         return this._onMediaInfo;
@@ -308,20 +312,20 @@ export class FLVDemuxer {
         this._onMediaInfo = callback;
     }
 
-    get onMetaDataArrived() {
-        return this._onMetaDataArrived;
+    get onScriptMetadata() {
+        return this._onScriptMetadata;
     }
 
-    set onMetaDataArrived(callback) {
-        this._onMetaDataArrived = callback;
+    set onScriptMetadata(callback) {
+        this._onScriptMetadata = callback;
     }
 
-    get onScriptDataArrived() {
-        return this._onScriptDataArrived;
+    get onScriptData() {
+        return this._onScriptData;
     }
 
-    set onScriptDataArrived(callback) {
-        this._onScriptDataArrived = callback;
+    set onScriptData(callback) {
+        this._onScriptData = callback;
     }
 
     // prototype: function(type: number, info: string): void
@@ -334,12 +338,12 @@ export class FLVDemuxer {
     }
 
     // prototype: function(videoTrack: any, audioTrack: any): void
-    get onDataAvailable() {
-        return this._onDataAvailable;
+    get onTrackData() {
+        return this._onTrackData;
     }
 
-    set onDataAvailable(callback) {
-        this._onDataAvailable = callback;
+    set onTrackData(callback) {
+        this._onTrackData = callback;
     }
 
     // timestamp base for output samples, must be in milliseconds
@@ -395,8 +399,8 @@ export class FLVDemuxer {
 
     // function parseChunks(chunk: ArrayBuffer, byteStart: number): number;
     parseChunks(chunk: ArrayBuffer, byteStart: number) : number {
-        if (!this._onError || !this._onMediaInfo || !this._onTrackMetadata || !this._onDataAvailable) {
-            throw new IllegalStateException('Flv: onError & onMediaInfo & onTrackMetadata & onDataAvailable callback must be specified');
+        if (this._onError === assertCallback || this._onMediaInfo === assertCallback || this._onTrackMetadata === assertCallback || this._onTrackData === assertCallback) {
+            throw new IllegalStateException('Flv: onError & onMediaInfo & onTrackMetadata & onTrackData callback must be specified');
         }
 
         let offset = 0;
@@ -414,13 +418,13 @@ export class FLVDemuxer {
         if (this._firstParse) {  // handle PreviousTagSize0 before Tag1
             this._firstParse = false;
             if (byteStart + offset !== this._dataOffset) {
-                Log.w(this.TAG, 'First time parsing but chunk byteStart invalid!');
+                Log.w(FLVDemuxer.TAG, 'First time parsing but chunk byteStart invalid!');
             }
 
             let v = new DataView(chunk, offset);
             let prevTagSize0 = v.getUint32(0, !le);
             if (prevTagSize0 !== 0) {
-                Log.w(this.TAG, 'PrevTagSize0 !== 0 !!!');
+                Log.w(FLVDemuxer.TAG, 'PrevTagSize0 !== 0 !!!');
             }
             offset += 4;
         }
@@ -444,7 +448,7 @@ export class FLVDemuxer {
             }
 
             if (tagType !== 8 && tagType !== 9 && tagType !== 18) {
-                Log.w(this.TAG, `Unsupported tag type ${tagType}, skipped`);
+                Log.w(FLVDemuxer.TAG, `Unsupported tag type ${tagType}, skipped`);
                 // consume the whole tag (skip it)
                 offset += 11 + dataSize + 4;
                 continue;
@@ -459,7 +463,7 @@ export class FLVDemuxer {
 
             let streamId = v.getUint32(7, !le) & 0x00FFFFFF;
             if (streamId !== 0) {
-                Log.w(this.TAG, 'Meet tag which has StreamID != 0!');
+                Log.w(FLVDemuxer.TAG, 'Meet tag which has StreamID != 0!');
             }
 
             let dataOffset = offset + 11;
@@ -478,7 +482,7 @@ export class FLVDemuxer {
 
             let prevTagSize = v.getUint32(11 + dataSize, !le);
             if (prevTagSize !== 11 + dataSize) {
-                Log.w(this.TAG, `Invalid PrevTagSize ${prevTagSize}`);
+                Log.w(FLVDemuxer.TAG, `Invalid PrevTagSize ${prevTagSize}`);
             }
 
             offset += 11 + dataSize + 4;  // tagBody + dataSize + prevTagSize
@@ -487,7 +491,7 @@ export class FLVDemuxer {
         // dispatch parsed frames to consumer (typically, the remuxer)
         if (this._isInitialMetadataDispatched()) {
             if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
-                this._onDataAvailable(this._audioTrack, this._videoTrack);
+                this._onTrackData(this._audioTrack, this._videoTrack);
             }
         }
 
@@ -499,17 +503,17 @@ export class FLVDemuxer {
 
         if (scriptData.hasOwnProperty('onMetaData')) {
             if (scriptData.onMetaData == null || typeof scriptData.onMetaData !== 'object') {
-                Log.w(this.TAG, 'Invalid onMetaData structure!');
+                Log.w(FLVDemuxer.TAG, 'Invalid onMetaData structure!');
                 return;
             }
             if (this._metadata) {
-                Log.w(this.TAG, 'Found another onMetaData tag!');
+                Log.w(FLVDemuxer.TAG, 'Found another onMetaData tag!');
             }
             this._metadata = scriptData;
             let onMetaData = this._metadata.onMetaData;
 
-            if (this._onMetaDataArrived) {
-                this._onMetaDataArrived(Object.assign({}, onMetaData));
+            if (this._onScriptMetadata) {
+                this._onScriptMetadata(Object.assign({}, onMetaData));
             }
 
             if (typeof onMetaData.hasAudio === 'boolean') {  // hasAudio
@@ -566,15 +570,15 @@ export class FLVDemuxer {
             }
             this._dispatch = false;
             this._mediaInfo.metadata = onMetaData;
-            Log.v(this.TAG, 'Parsed onMetaData');
+            Log.v(FLVDemuxer.TAG, 'Parsed flv.onMetaData');
             if (this._mediaInfo.isComplete()) {
                 this._onMediaInfo(this._mediaInfo);
             }
         }
 
         if (Object.keys(scriptData).length > 0) {
-            if (this._onScriptDataArrived) {
-                this._onScriptDataArrived(Object.assign({}, scriptData));
+            if (this._onScriptData) {
+                this._onScriptData(Object.assign({}, scriptData));
             }
         }
     }
@@ -599,7 +603,7 @@ export class FLVDemuxer {
 
     _parseAudioData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number) {
         if (dataSize <= 1) {
-            Log.w(this.TAG, 'Flv: Invalid audio packet, missing SoundData payload!');
+            Log.w(FLVDemuxer.TAG, 'Flv: Invalid audio packet, missing SoundData payload!');
             return;
         }
 
@@ -617,7 +621,7 @@ export class FLVDemuxer {
         let soundFormat = soundSpec >>> 4;
         if (soundFormat === 9) { // Enhanced FLV
             if (dataSize <= 5) {
-                Log.w(this.TAG, 'Flv: Invalid audio packet, missing AudioFourCC in Ehnanced FLV payload!');
+                Log.w(FLVDemuxer.TAG, 'Flv: Invalid audio packet, missing AudioFourCC in Ehnanced FLV payload!');
                 return;
             }
             let packetType = soundSpec & 0x0F;
@@ -686,7 +690,7 @@ export class FLVDemuxer {
                         // If AudioSpecificConfig is not changed, ignore it to avoid generating initialization segment repeatedly
                         return;
                     } else {
-                        Log.w(this.TAG, 'AudioSpecificConfig has been changed, re-generate initialization segment');
+                        Log.w(FLVDemuxer.TAG, 'AudioSpecificConfig has been changed, re-generate initialization segment');
                     }
                 }
                 let misc = aacData.data;
@@ -697,12 +701,12 @@ export class FLVDemuxer {
                 meta.config = misc.config;
                 // The decode result of an aac sample is 1024 PCM samples
                 meta.refSampleDuration = 1024 / meta.audioSampleRate * meta.timescale;
-                Log.v(this.TAG, 'Parsed AudioSpecificConfig');
+                Log.v(FLVDemuxer.TAG, 'Parsed AudioSpecificConfig');
 
                 if (this._isInitialMetadataDispatched()) {
                     // Non-initial metadata, force dispatch (or flush) parsed frames to remuxer
                     if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
-                        this._onDataAvailable(this._audioTrack, this._videoTrack);
+                        this._onTrackData(this._audioTrack, this._videoTrack);
                     }
                 } else {
                     this._audioInitialMetadataDispatched = true;
@@ -731,7 +735,7 @@ export class FLVDemuxer {
                 track.samples.push(aacSample);
                 track.length += aacData.data.length;
             } else {
-                Log.e(this.TAG, `Flv: Unsupported AAC data type ${aacData.packetType}`);
+                Log.e(FLVDemuxer.TAG, `Flv: Unsupported AAC data type ${aacData.packetType}`);
             }
         } else if (soundFormat === 2) {  // MP3
             if (!meta.codec) {
@@ -746,7 +750,7 @@ export class FLVDemuxer {
                 meta.originalCodec = misc.originalCodec;
                 // The decode result of an mp3 sample is 1152 PCM samples
                 meta.refSampleDuration = 1152 / meta.audioSampleRate * meta.timescale;
-                Log.v(this.TAG, 'Parsed MPEG Audio Frame Header');
+                Log.v(FLVDemuxer.TAG, 'Parsed MPEG Audio Frame Header');
 
                 this._audioInitialMetadataDispatched = true;
                 this._onTrackMetadata('audio', meta);
@@ -816,7 +820,7 @@ export class FLVDemuxer {
     // !!@todo: switch to retrun a type instead of any
     _parseAACAudioData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number): any {
         if (dataSize <= 1) {
-            Log.w(this.TAG, 'Flv: Invalid AAC packet, missing AACPacketType or/and Data!');
+            Log.w(FLVDemuxer.TAG, 'Flv: Invalid AAC packet, missing AACPacketType or/and Data!');
             return;
         }
 
@@ -940,7 +944,7 @@ export class FLVDemuxer {
     // !!@todo: switch to retrun a type instead of any
     _parseMP3AudioData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, requestHeader: boolean) : any {
         if (dataSize < 4) {
-            Log.w(this.TAG, 'Flv: Invalid MP3 packet, header missing!');
+            Log.w(FLVDemuxer.TAG, 'Flv: Invalid MP3 packet, header missing!');
             return;
         }
 
@@ -1029,7 +1033,7 @@ export class FLVDemuxer {
 
     _parseOpusSequenceHeader(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number) {
         if (dataSize <= 16) {
-            Log.w(this.TAG, 'Flv: Invalid OpusSequenceHeader, lack of data!');
+            Log.w(FLVDemuxer.TAG, 'Flv: Invalid OpusSequenceHeader, lack of data!');
             return;
         }
         let meta = this._audioMetadata;
@@ -1070,7 +1074,7 @@ export class FLVDemuxer {
                 // If OpusSequenceHeader is not changed, ignore it to avoid generating initialization segment repeatedly
                 return;
             } else {
-                Log.w(this.TAG, 'OpusSequenceHeader has been changed, re-generate initialization segment');
+                Log.w(FLVDemuxer.TAG, 'OpusSequenceHeader has been changed, re-generate initialization segment');
             }
         }
         meta.audioSampleRate = misc.samplingFrequence;
@@ -1080,12 +1084,12 @@ export class FLVDemuxer {
         meta.config = misc.config;
         // The decode result of an opus sample is 20ms
         meta.refSampleDuration = 20;
-        Log.v(this.TAG, 'Parsed OpusSequenceHeader');
+        Log.v(FLVDemuxer.TAG, 'Parsed OpusSequenceHeader');
 
         if (this._isInitialMetadataDispatched()) {
             // Non-initial metadata, force dispatch (or flush) parsed frames to remuxer
             if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
-                this._onDataAvailable(this._audioTrack, this._videoTrack);
+                this._onTrackData(this._audioTrack, this._videoTrack);
             }
         } else {
             this._audioInitialMetadataDispatched = true;
@@ -1185,7 +1189,7 @@ export class FLVDemuxer {
                 // If FlacSequenceHeader is not changed, ignore it to avoid generating initialization segment repeatedly
                 return;
             } else {
-                Log.w(this.TAG, 'FlacSequenceHeader has been changed, re-generate initialization segment');
+                Log.w(FLVDemuxer.TAG, 'FlacSequenceHeader has been changed, re-generate initialization segment');
             }
         }
         meta.audioSampleRate = misc.samplingFrequence;
@@ -1196,12 +1200,12 @@ export class FLVDemuxer {
         meta.config = misc.config;
         meta.refSampleDuration = block_size != null ? block_size * 1000 / misc.samplingFrequence : null; // practical encoder sends 4608 blobksize (lower bound limitation)
 
-        Log.v(this.TAG, 'Parsed FlacSequenceHeader');
+        Log.v(FLVDemuxer.TAG, 'Parsed FlacSequenceHeader');
 
         if (this._isInitialMetadataDispatched()) {
             // Non-initial metadata, force dispatch (or flush) parsed frames to remuxer
             if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
-                this._onDataAvailable(this._audioTrack, this._videoTrack);
+                this._onTrackData(this._audioTrack, this._videoTrack);
             }
         } else {
             this._audioInitialMetadataDispatched = true;
@@ -1239,7 +1243,7 @@ export class FLVDemuxer {
 
     _parseVideoData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number) {
         if (dataSize <= 1) {
-            Log.w(this.TAG, 'Flv: Invalid video packet, missing VideoData payload!');
+            Log.w(FLVDemuxer.TAG, 'Flv: Invalid video packet, missing VideoData payload!');
             return;
         }
 
@@ -1283,7 +1287,7 @@ export class FLVDemuxer {
 
     _parseAVCVideoPacket(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: number) {
         if (dataSize < 4) {
-            Log.w(this.TAG, 'Flv: Invalid AVC packet, missing AVCPacketType or/and CompositionTime');
+            Log.w(FLVDemuxer.TAG, 'Flv: Invalid AVC packet, missing AVCPacketType or/and CompositionTime');
             return;
         }
 
@@ -1308,7 +1312,7 @@ export class FLVDemuxer {
 
     _parseHEVCVideoPacket(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: number) {
         if (dataSize < 4) {
-            Log.w(this.TAG, 'Flv: Invalid HEVC packet, missing HEVCPacketType or/and CompositionTime');
+            Log.w(FLVDemuxer.TAG, 'Flv: Invalid HEVC packet, missing HEVCPacketType or/and CompositionTime');
             return;
         }
 
@@ -1378,7 +1382,7 @@ export class FLVDemuxer {
 
     _parseAVCDecoderConfigurationRecord(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number) {
         if (dataSize < 7) {
-            Log.w(this.TAG, 'Flv: Invalid AVCDecoderConfigurationRecord, lack of data!');
+            Log.w(FLVDemuxer.TAG, 'Flv: Invalid AVCDecoderConfigurationRecord, lack of data!');
             return;
         }
 
@@ -1405,7 +1409,7 @@ export class FLVDemuxer {
                     // AVCDecoderConfigurationRecord is not changed, ignore it to avoid initialization segment re-generating
                     return;
                 } else {
-                    Log.w(this.TAG, 'AVCDecoderConfigurationRecord has been changed, re-generate initialization segment');
+                    Log.w(FLVDemuxer.TAG, 'AVCDecoderConfigurationRecord has been changed, re-generate initialization segment');
                 }
             }
         }
@@ -1431,7 +1435,7 @@ export class FLVDemuxer {
             this._onError(DemuxErrors.FORMAT_ERROR, 'Flv: Invalid AVCDecoderConfigurationRecord: No SPS');
             return;
         } else if (spsCount > 1) {
-            Log.w(this.TAG, `Flv: Strange AVCDecoderConfigurationRecord: SPS Count = ${spsCount}`);
+            Log.w(FLVDemuxer.TAG, `Flv: Strange AVCDecoderConfigurationRecord: SPS Count = ${spsCount}`);
         }
 
         let offset = 6;
@@ -1516,7 +1520,7 @@ export class FLVDemuxer {
             this._onError(DemuxErrors.FORMAT_ERROR, 'Flv: Invalid AVCDecoderConfigurationRecord: No PPS');
             return;
         } else if (ppsCount > 1) {
-            Log.w(this.TAG, `Flv: Strange AVCDecoderConfigurationRecord: PPS Count = ${ppsCount}`);
+            Log.w(FLVDemuxer.TAG, `Flv: Strange AVCDecoderConfigurationRecord: PPS Count = ${ppsCount}`);
         }
 
         offset++;
@@ -1535,12 +1539,12 @@ export class FLVDemuxer {
 
         meta.avcc = new Uint8Array(dataSize);
         meta.avcc.set(new Uint8Array(arrayBuffer, dataOffset, dataSize), 0);
-        Log.v(this.TAG, 'Parsed AVCDecoderConfigurationRecord');
+        Log.v(FLVDemuxer.TAG, 'Parsed AVCDecoderConfigurationRecord');
 
         if (this._isInitialMetadataDispatched()) {
             // flush parsed frames
             if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
-                this._onDataAvailable(this._audioTrack, this._videoTrack);
+                this._onTrackData(this._audioTrack, this._videoTrack);
             }
         } else {
             this._videoInitialMetadataDispatched = true;
@@ -1552,7 +1556,7 @@ export class FLVDemuxer {
 
     _parseHEVCDecoderConfigurationRecord(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number) {
         if (dataSize < 22) {
-            Log.w(this.TAG, 'Flv: Invalid HEVCDecoderConfigurationRecord, lack of data!');
+            Log.w(FLVDemuxer.TAG, 'Flv: Invalid HEVCDecoderConfigurationRecord, lack of data!');
             return;
         }
 
@@ -1579,7 +1583,7 @@ export class FLVDemuxer {
                     // HEVCDecoderConfigurationRecord not changed, ignore it to avoid initialization segment re-generating
                     return;
                 } else {
-                    Log.w(this.TAG, 'HEVCDecoderConfigurationRecord has been changed, re-generate initialization segment');
+                    Log.w(FLVDemuxer.TAG, 'HEVCDecoderConfigurationRecord has been changed, re-generate initialization segment');
                 }
             }
         }
@@ -1671,12 +1675,12 @@ export class FLVDemuxer {
 
         meta.hvcc = new Uint8Array(dataSize);
         meta.hvcc.set(new Uint8Array(arrayBuffer, dataOffset, dataSize), 0);
-        Log.v(this.TAG, 'Parsed HEVCDecoderConfigurationRecord');
+        Log.v(FLVDemuxer.TAG, 'Parsed HEVCDecoderConfigurationRecord');
 
         if (this._isInitialMetadataDispatched()) {
             // flush parsed frames
             if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
-                this._onDataAvailable(this._audioTrack, this._videoTrack);
+                this._onTrackData(this._audioTrack, this._videoTrack);
             }
         } else {
             this._videoInitialMetadataDispatched = true;
@@ -1688,7 +1692,7 @@ export class FLVDemuxer {
 
     _parseAV1CodecConfigurationRecord(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number) {
         if (dataSize < 4) {
-            Log.w(this.TAG, 'Flv: Invalid AV1CodecConfigurationRecord, lack of data!');
+            Log.w(FLVDemuxer.TAG, 'Flv: Invalid AV1CodecConfigurationRecord, lack of data!');
             return;
         }
 
@@ -1710,7 +1714,7 @@ export class FLVDemuxer {
             meta.duration = this._duration;
         } else {
             if (typeof meta.av1c !== 'undefined') {
-                Log.w(this.TAG, 'Found another AV1CodecConfigurationRecord!');
+                Log.w(FLVDemuxer.TAG, 'Found another AV1CodecConfigurationRecord!');
             }
         }
 
@@ -1766,7 +1770,7 @@ export class FLVDemuxer {
         }
         meta.av1c = new Uint8Array(dataSize);
         meta.av1c.set(new Uint8Array(arrayBuffer, dataOffset, dataSize), 0);
-        Log.v(this.TAG, 'Preparing AV1CodecConfigurationRecord');
+        Log.v(FLVDemuxer.TAG, 'Preparing AV1CodecConfigurationRecord');
     }
 
     _parseAVCVideoData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: FlvVideoFrameType, cts: number) {
@@ -1782,7 +1786,7 @@ export class FLVDemuxer {
 
         while (offset < dataSize) {
             if (offset + 4 >= dataSize) {
-                Log.w(this.TAG, `Malformed Nalu near timestamp ${dts}, offset = ${offset}, dataSize = ${dataSize}`);
+                Log.w(FLVDemuxer.TAG, `Malformed Nalu near timestamp ${dts}, offset = ${offset}, dataSize = ${dataSize}`);
                 break;  // data not enough for next Nalu
             }
             // Nalu with length-header (AVC1)
@@ -1791,7 +1795,7 @@ export class FLVDemuxer {
                 naluSize >>>= 8;
             }
             if (naluSize > dataSize - lengthSize) {
-                Log.w(this.TAG, `Malformed Nalus near timestamp ${dts}, NaluSize > DataSize!`);
+                Log.w(FLVDemuxer.TAG, `Malformed Nalus near timestamp ${dts}, NaluSize > DataSize!`);
                 return;
             }
 
@@ -1840,7 +1844,7 @@ export class FLVDemuxer {
 
         while (offset < dataSize) {
             if (offset + 4 >= dataSize) {
-                Log.w(this.TAG, `Malformed Nalu near timestamp ${dts}, offset = ${offset}, dataSize = ${dataSize}`);
+                Log.w(FLVDemuxer.TAG, `Malformed Nalu near timestamp ${dts}, offset = ${offset}, dataSize = ${dataSize}`);
                 break;  // data not enough for next Nalu
             }
             // Nalu with length-header (HVC1)
@@ -1849,7 +1853,7 @@ export class FLVDemuxer {
                 naluSize >>>= 8;
             }
             if (naluSize > dataSize - lengthSize) {
-                Log.w(this.TAG, `Malformed Nalus near timestamp ${dts}, NaluSize > DataSize!`);
+                Log.w(FLVDemuxer.TAG, `Malformed Nalus near timestamp ${dts}, NaluSize > DataSize!`);
                 return;
             }
 
@@ -1904,7 +1908,7 @@ export class FLVDemuxer {
                 this._onError(DemuxErrors.FORMAT_ERROR, 'Flv: Invalid AV1 VideoData');
                 return;
             }
-            Log.v(this.TAG, `Parsed AV1 metadata: ${JSON.stringify(config)}`);
+            Log.v(FLVDemuxer.TAG, `Parsed AV1 metadata: ${JSON.stringify(config)}`);
             meta.codecWidth = config.codec_size.width;
             meta.codecHeight = config.codec_size.height;
             meta.presentWidth = config.present_size.width;
@@ -1917,12 +1921,12 @@ export class FLVDemuxer {
             mi.sarNum = meta.sarRatio.width;
             mi.sarDen = meta.sarRatio.height;
 
-            Log.v(this.TAG, 'Parsed AV1DecoderConfigurationRecord');
+            Log.v(FLVDemuxer.TAG, 'Parsed AV1DecoderConfigurationRecord');
 
             if (this._isInitialMetadataDispatched()) {
                 // flush parsed frames
                 if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
-                    this._onDataAvailable(this._audioTrack, this._videoTrack);
+                    this._onTrackData(this._audioTrack, this._videoTrack);
                 }
             } else {
                 this._videoInitialMetadataDispatched = true;
@@ -1982,7 +1986,7 @@ export class FLVDemuxer {
 
     _parseVP9CodecConfigurationRecord(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number) {
         if (dataSize < 4) {
-            Log.w(this.TAG, 'Flv: invalid VP9CodecConfigurationRecord, lack of data!');
+            Log.w(FLVDemuxer.TAG, 'Flv: invalid VP9CodecConfigurationRecord, lack of data!');
             return;
         }
         let meta = this._videoMetadata;
@@ -2003,7 +2007,7 @@ export class FLVDemuxer {
             meta.duration = this._duration;
         } else {
             if (typeof meta.av1c !== 'undefined') {
-                Log.w(this.TAG, 'Found another AV1CodecConfigurationRecord!');
+                Log.w(FLVDemuxer.TAG, 'Found another AV1CodecConfigurationRecord!');
             }
         }
 
@@ -2059,7 +2063,7 @@ export class FLVDemuxer {
         }
         meta.av1c = new Uint8Array(dataSize);
         meta.av1c.set(new Uint8Array(arrayBuffer, dataOffset, dataSize), 0);
-        Log.v(this.TAG, 'Preparing AV1CodecConfigurationRecord');
+        Log.v(FLVDemuxer.TAG, 'Preparing AV1CodecConfigurationRecord');
     }
 
     _parseVP9VideoData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: number, cts: number) {
@@ -2076,7 +2080,7 @@ export class FLVDemuxer {
 
         while (offset < dataSize) {
             if (offset + 4 >= dataSize) {
-                Log.w(this.TAG, `Malformed Nalu near timestamp ${dts}, offset = ${offset}, dataSize = ${dataSize}`);
+                Log.w(FLVDemuxer.TAG, `Malformed Nalu near timestamp ${dts}, offset = ${offset}, dataSize = ${dataSize}`);
                 break;  // data not enough for next Nalu
             }   
 

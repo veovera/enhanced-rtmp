@@ -1,19 +1,13 @@
 /*
- * Copyright (C) 2021 magicxqq. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
  *
+ * Copyright (C) 2021 magicxqq.
  * @author magicxqq <xqq@xqq.im>
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Modified by Slavik Lozben.
+ * Additional changes Copyright (C) 2025 Veovera Software Organization.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * See Git history for full details.
  */
 
 import Log from '../utils/logger';
@@ -253,8 +247,8 @@ class TSDemuxer extends BaseDemuxer {
         if (!this.onError
                 || !this.onMediaInfo
                 || !this.onTrackMetadata
-                || !this.onDataAvailable) {
-            throw new IllegalStateException('onError & onMediaInfo & onTrackMetadata & onDataAvailable callback must be specified');
+                || !this.onTrackData) {
+            throw new IllegalStateException('onError & onMediaInfo & onTrackMetadata & onTrackData callback must be specified');
         }
 
         let offset = 0;
@@ -1277,7 +1271,7 @@ class TSDemuxer extends BaseDemuxer {
     private dispatchVideoMediaSegment() {
         if (this.isInitSegmentDispatched()) {
             if (this.video_track_.length) {
-                this.onDataAvailable(null, this.video_track_);
+                this.onTrackData(null, this.video_track_);
             }
         }
     }
@@ -1285,7 +1279,7 @@ class TSDemuxer extends BaseDemuxer {
     private dispatchAudioMediaSegment() {
         if (this.isInitSegmentDispatched()) {
             if (this.audio_track_.length) {
-                this.onDataAvailable(this.audio_track_, null);
+                this.onTrackData(this.audio_track_, null);
             }
         }
     }
@@ -1293,7 +1287,7 @@ class TSDemuxer extends BaseDemuxer {
     private dispatchAudioVideoMediaSegment() {
         if (this.isInitSegmentDispatched()) {
             if (this.audio_track_.length || this.video_track_.length) {
-                this.onDataAvailable(this.audio_track_, this.video_track_);
+                this.onTrackData(this.audio_track_, this.video_track_);
             }
         }
     }
