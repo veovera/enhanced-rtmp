@@ -7,7 +7,7 @@
   "scripts": {
     "build": "node build.js",
     "dev": "node build.js --watch",
-    "serve": "http-server .",
+    "serve": "http-server . -c-1",
     "start": "npm run build && npm run serve",
     "type-check": "tsc --noEmit",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
