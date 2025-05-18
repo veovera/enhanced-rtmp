@@ -4,9 +4,10 @@
  * Copyright (C) 2022 もにょてっく
  * @author もにょ〜ん <monyone.teihen@gmail.com>
  * 
- * Modified by Slavik Lozben
- * See Git history for details
- * Additional changes Copyright (C) 2025 Slavik Lozben
+ * Modified by Slavik Lozben.
+ * Additional changes Copyright (C) 2025 Veovera Software Organization.
+ *
+ * See Git history for full details.
  */
 
 import ExpGolomb from './exp-golomb.js';
@@ -165,12 +166,12 @@ class AV1OBUParser {
         let still_picture = gb.readBool();
         let reduced_still_picture_header = gb.readBool();
 
-        let frame_presentation_time_length_minus_1 = 0;
+        let frame_presentation_time_length_minus_1 = -1;
         let fps = 0, fps_fixed = true, fps_num = 0, fps_den = 1;
         let decoder_model_info_present_flag = false;
         let decoder_model_present_for_this_op = false;
-        let buffer_delay_length_minus_1: number | undefined = undefined;
-        let buffer_removal_time_length_minus_1: number | undefined = undefined;
+        let buffer_delay_length_minus_1 = -1;
+        let buffer_removal_time_length_minus_1 = -1;
         let operating_points: OperatingPoint[] = [];
         if (reduced_still_picture_header) {
             operating_points.push({
@@ -392,7 +393,6 @@ class AV1OBUParser {
         let film_grain_params_present = gb.readBool();
 
         gb.destroy();
-        gb = null;
 
         let codec_mimetype = `av01.${seq_profile}.${AV1OBUParser.getLevelString(level, tier)}.${bitDepth.toString(10).padStart(2, '0')}`;
         let sar_width = 1, sar_height = 1, sar_scale = 1;
@@ -529,8 +529,10 @@ class AV1OBUParser {
         if (sequence_header.decoder_model_info_present_flag) {
             let buffer_removal_time_present_flag = gb.readBool();
             if (buffer_removal_time_present_flag) {
-                for (let opNum = 0; opNum <= sequence_header.operating_points_cnt_minus_1; opNum++) {
-                    if (sequence_header.operating_points[opNum].decoder_model_present_for_this_op[opNum]) {
+                const count = sequence_header.operating_points_cnt_minus_1 ?? 0;
+
+                for (let opNum = 0; opNum <= count; opNum++) {
+                    if (sequence_header.operating_points[opNum].decoder_model_present_for_this_op) {
                         let opPtIdc = sequence_header.operating_points[opNum].operating_point_idc;
                         let inTemporalLayer = (opPtIdc >> temporal_id ) & 1
                         let inSpatialLayer = (opPtIdc >> (spatial_id + 8)) & 1
@@ -573,7 +575,6 @@ class AV1OBUParser {
         // fmp4 can't support reference frame resolution change, so ignored
 
         gb.destroy();
-        gb = null;
         return meta;
     }
 
