@@ -1,19 +1,13 @@
 /*
- * Copyright (C) 2023 zheng qian. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
  *
+ * Copyright (C) 2023 zheng qian.
  * @author zheng qian <xqq@xqq.im>
+ * 
+ * Modified by Slavik Lozben.
+ * Additional changes Copyright (C) 2025 Veovera Software Organization.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * See Git history for full details.
  */
 
 import Log from '../utils/logger';
@@ -29,8 +23,8 @@ class MSEPlayer {
 
     private _type: string = 'MSEPlayer';
 
-    private _media_element: HTMLMediaElement = null;
-    private _player_engine: PlayerEngine = null;
+    private _media_element: HTMLMediaElement | null = null;
+    private _player_engine: PlayerEngine | null = null;
 
     public constructor(mediaDataSource: any, config?: any) {
         const typeLowerCase: string = mediaDataSource.type.toLowerCase();
@@ -55,43 +49,43 @@ class MSEPlayer {
     }
 
     public destroy(): void {
-        this._player_engine.destroy();
+        this._player_engine!.destroy();
         this._player_engine = null;
         this._media_element = null;
     }
 
     public on(event: string, listener: (...args: any[]) => void): void {
-        this._player_engine.on(event, listener);
+        this._player_engine!.on(event, listener);
     }
 
     public off(event: string, listener: (...args: any[]) => void): void {
-        this._player_engine.off(event, listener);
+        this._player_engine!.off(event, listener);
     }
 
     public attachMediaElement(mediaElement: HTMLMediaElement): void {
         this._media_element = mediaElement;
-        this._player_engine.attachMediaElement(mediaElement);
+        this._player_engine!.attachMediaElement(mediaElement);
     }
 
     public detachMediaElement(): void {
         this._media_element = null;
-        this._player_engine.detachMediaElement();
+        this._player_engine!.detachMediaElement();
     }
 
     public load(): void {
-        this._player_engine.load();
+        this._player_engine!.load();
     }
 
     public unload(): void {
-        this._player_engine.unload();
+        this._player_engine!.unload();
     }
 
     public play(): Promise<void> {
-        return this._player_engine.play();
+        return this._player_engine!.play();
     }
 
     public pause(): void {
-        this._player_engine.pause();
+        this._player_engine!.pause();
     }
 
     public get type(): string {
@@ -99,27 +93,27 @@ class MSEPlayer {
     }
 
     public get buffered(): TimeRanges {
-        return this._media_element.buffered;
+        return this._media_element!.buffered;
     }
 
     public get duration(): number {
-        return this._media_element.duration;
+        return this._media_element!.duration;
     }
 
     public get volume(): number {
-        return this._media_element.volume;
+        return this._media_element!.volume;
     }
 
     public set volume(value) {
-        this._media_element.volume = value;
+        this._media_element!.volume = value;
     }
 
     public get muted(): boolean {
-        return this._media_element.muted;
+        return this._media_element!.muted;
     }
 
     public set muted(muted) {
-        this._media_element.muted = muted;
+        this._media_element!.muted = muted;
     }
 
     public get currentTime(): number {
@@ -130,15 +124,15 @@ class MSEPlayer {
     }
 
     public set currentTime(seconds: number) {
-        this._player_engine.seek(seconds);
+        this._player_engine!.seek(seconds);
     }
 
-    public get mediaInfo(): MediaInfo {
-        return this._player_engine.mediaInfo;
+    public get mediaInfo(): MediaInfo | undefined {
+        return this._player_engine!.mediaInfo;
     }
 
     public get statisticsInfo(): any {
-        return this._player_engine.statisticsInfo;
+        return this._player_engine!.statisticsInfo;
     }
 
 }
