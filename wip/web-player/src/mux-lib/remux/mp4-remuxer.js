@@ -359,7 +359,7 @@ class MP4Remuxer {
                 continue; //pass the first sample with the invalid dts
             }
 
-            if (this._audioMeta.codec !== 'mp3' && refSampleDuration != null) {
+            if (this._audioMeta.codec !== 'mp3' && !Number.isNaN(refSampleDuration)) {
                 // for AAC codec, we need to keep dts increase based on refSampleDuration
                 let curRefDts = originalDts;
                 const maxAudioFramesDrift = 3;

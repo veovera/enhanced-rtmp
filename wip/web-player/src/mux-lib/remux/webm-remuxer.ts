@@ -68,8 +68,7 @@
 import { IRemuxer } from './iremuxer';
 import { WebMGenerator, WebMTrackInfo, WebMFrame } from './webm-generator';
 import { Callback, assertCallback } from '../utils/common';
-import { FLVDemuxer } from '../demux/flv-demuxer';
-import { AudioTrackInfo, VideoTrackInfo, VideoSample, AudioSample } from '../demux/flv-demuxer';
+import { FLVDemuxer, AudioTrackInfo, VideoTrackInfo, VideoSample, AudioSample, AudioMetadata, VideoMetadata } from '../demux/flv-demuxer.js';
 import { ConfigOptions } from '../config';
 import Log from '../utils/logger';
 import { MediaSegmentInfoList } from '../core/media-segment-info';
@@ -88,8 +87,8 @@ export class WebMRemuxer implements IRemuxer {
   private _audioStashedLastSample: AudioSample | null;
   private _videoStashedLastSample: VideoSample | null;
 
-  private _audioMeta: object;
-  private _videoMeta: object;
+  private _audioMeta!: AudioMetadata;
+  private _videoMeta!: VideoMetadata;
 
   private _audioSegmentInfoList: MediaSegmentInfoList;
   private _videoSegmentInfoList: MediaSegmentInfoList;
@@ -109,9 +108,6 @@ export class WebMRemuxer implements IRemuxer {
     this._videoNextDts = undefined;
     this._audioStashedLastSample = null;
     this._videoStashedLastSample = null;
-
-    this._audioMeta = {};
-    this._videoMeta = {};
 
     this._audioSegmentInfoList = new MediaSegmentInfoList('audio');
     this._videoSegmentInfoList = new MediaSegmentInfoList('video');
@@ -219,7 +215,7 @@ export class WebMRemuxer implements IRemuxer {
     }
   }
 
-  private _onTrackMetadata = (type: string, metadata: object): void => {
+  private _onTrackMetadata = (type: string, metadata: AudioMetadata | VideoMetadata): void => {
     Log.a(WebMRemuxer.TAG, 'onTrackMetadata must be implemented!');
     /*
     let metabox = null;

@@ -6,6 +6,8 @@
  * 
  */
 
+import Log from "../utils/logger";
+
 // This file defines the data structure and interfaces for a WebM muxer.
 
 export type WebMCodec = 'VP8' | 'VP9' | 'AV1' | 'Opus' | 'Vorbis';
@@ -25,8 +27,27 @@ export interface WebMFrame {
 }
 
 export class WebMGenerator {
+  static readonly TAG = 'WebMGenerator';
+
   private tracks: WebMTrackInfo[];
   private frames: WebMFrame[][];
+
+  
+  static createMimeType(options: {
+    type: 'video' | 'audio',
+    codecs: string[] // e.g. ['vp9', 'opus'] or ['av01.0.08M.08']
+  }): string {
+  
+    const { type, codecs } = options;
+
+    if (!type || !Array.isArray(codecs) || codecs.length === 0) {
+      Log.a(this.TAG, 'type and at least one codec are required');
+    }
+
+    const base = `${type}/webm`;
+    const codecStr = codecs.join(', ');
+    return `${base}; codecs="${codecStr}"`;
+  }
 
   constructor(tracks: WebMTrackInfo[]) {
     this.tracks = tracks;

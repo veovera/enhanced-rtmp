@@ -23,7 +23,7 @@ import buffersAreEqual from '../utils/typedarray-equality.js';
 import AV1OBUParser from './av1-parser.js';
 import ExpGolomb from './exp-golomb.js';
 import { Callback, assertCallback } from '../utils/common';
-import { AV1OBUType, AV1FrameType } from './av1-parser.js';
+import { AV1OBUType, AV1Metadata } from './av1-parser.js';
 
 //
 // you can find enhanced flv specification here: https://veovera.org/docs/enhanced/enhanced-rtmp-v2
@@ -80,6 +80,78 @@ export interface AudioTrackInfo {
     length: number;
 }
 
+export interface AudioMetadata {
+    type: 'audio';
+    id: number;
+    timescale: number;
+    duration: number;
+    audioSampleRate: number;
+    channelCount: number;
+    config: Uint8Array;
+    codec: string;
+    originalCodec: string;
+    sampleSize: number;
+    littleEndian: boolean;
+    refSampleDuration: number;
+}
+
+const AudioMetadataDefault: AudioMetadata = {
+    type: 'audio',
+    id: NaN,
+    timescale: NaN,
+    duration: NaN,
+    audioSampleRate: NaN,
+    channelCount: NaN,
+    config: new Uint8Array(0),
+    codec: '',
+    originalCodec: '',
+    sampleSize: NaN,
+    littleEndian: false,
+    refSampleDuration: NaN,
+}
+
+export interface VideoMetadata {
+    type: 'video';
+    id: number;
+    timescale: number;
+    duration: number;
+    codecWidth: number;
+    codecHeight: number;
+    presentWidth: number;
+    presentHeight: number;
+    profile: string;
+    level: string;
+    bitDepth: number;
+    chromaFormat: number;
+    sarRatio: { width: number, height: number };
+    frameRate: { fixed: boolean, fps: number, fps_num: number, fps_den: number };
+    refSampleDuration: number;
+    codec: string;
+    av1Extra?: AV1Metadata;
+    av1c?: Uint8Array;  // AV1CodecConfigurationRecord
+    avcc?: Uint8Array;  // AVCDecoderConfigurationRecord
+    hvcc?: Uint8Array;  // HEVCDecoderConfigurationRecord
+}
+
+const VideoMetadataDefault: VideoMetadata = {
+    type: 'video',
+    id: NaN,
+    timescale: NaN,
+    duration: NaN,
+    codecWidth: NaN,
+    codecHeight: NaN,
+    presentWidth: NaN,
+    presentHeight: NaN,
+    profile: '',
+    level: '',
+    bitDepth: NaN,
+    chromaFormat: NaN,
+    sarRatio: { width: NaN, height: NaN },
+    frameRate: { fixed: false, fps: NaN, fps_num: NaN, fps_den: NaN },
+    refSampleDuration: NaN,
+    codec: '',
+}
+
 export interface VideoTrackInfo {
     type: 'video';
     id: number;
@@ -134,7 +206,6 @@ export class FLVDemuxer {
 
     private _config: any;
 
-    //!!@ take a look at all the naming of callbacks and rename to something that makes sense, take a look at the remux as well
     private _onError: Callback;
     private _onMediaInfo: Callback;         // Called when complete media information (like codecs, duration, resolution) is available. 
     private _onScriptMetadata: Callback;    // Called when FLV script data (metaData) is parsed and available.
@@ -157,11 +228,9 @@ export class FLVDemuxer {
 
     private _mediaInfo: MediaInfo;
 
-    // !!@TODO: define metadata types
-    //!!@
-    private _metadata: any;
-    private _audioMetadata: any;
-    private _videoMetadata: any;
+    private _scriptData: any;
+    private _audioMetadata!: AudioMetadata;
+    private _videoMetadata!: VideoMetadata;
 
     private _naluLengthSize: number;
     private _timestampBase: number;
@@ -223,10 +292,6 @@ export class FLVDemuxer {
         this._mediaInfo = new MediaInfo();
         this._mediaInfo.hasAudio = this._hasAudio;
         this._mediaInfo.hasVideo = this._hasVideo;
-
-        this._metadata = null;
-        this._audioMetadata = null;
-        this._videoMetadata = null;
 
         this._naluLengthSize = 4;
         this._timestampBase = 0;    // int32, in milliseconds
@@ -506,11 +571,11 @@ export class FLVDemuxer {
                 Log.w(FLVDemuxer.TAG, 'Invalid onMetaData structure!');
                 return;
             }
-            if (this._metadata) {
+            if (this._scriptData) {
                 Log.w(FLVDemuxer.TAG, 'Found another onMetaData tag!');
             }
-            this._metadata = scriptData;
-            let onMetaData = this._metadata.onMetaData;
+            this._scriptData = scriptData;
+            let onMetaData = this._scriptData.onMetaData;
 
             if (this._onScriptMetadata) {
                 this._onScriptMetadata(Object.assign({}, onMetaData));
@@ -669,13 +734,15 @@ export class FLVDemuxer {
             }
 
             // initial metadata
-            meta = this._audioMetadata = {};
-            meta.type = 'audio';
-            meta.id = track.id;
-            meta.timescale = this._timescale;
-            meta.duration = this._duration;
-            meta.audioSampleRate = soundRate;
-            meta.channelCount = (soundType === 0 ? 1 : 2);
+            meta = this._audioMetadata = {
+                ...AudioMetadataDefault,
+                type: 'audio',
+                id: track.id,
+                timescale: this._timescale,
+                duration: this._duration,
+                audioSampleRate: soundRate,
+                channelCount: (soundType === 0 ? 1 : 2),
+            };
         }
 
         if (soundFormat === 10) {  // AAC
@@ -1046,11 +1113,13 @@ export class FLVDemuxer {
             }
 
             // initial metadata
-            meta = this._audioMetadata = {};
-            meta.type = 'audio';
-            meta.id = track.id;
-            meta.timescale = this._timescale;
-            meta.duration = this._duration;
+            meta = this._audioMetadata = {
+                ...AudioMetadataDefault,
+                type: 'audio',
+                id: track.id,
+                timescale: this._timescale,
+                duration: this._duration, 
+            }
         }
 
         // Identification Header
@@ -1149,11 +1218,13 @@ export class FLVDemuxer {
             }
 
             // initial metadata
-            meta = this._audioMetadata = {};
-            meta.type = 'audio';
-            meta.id = track.id;
-            meta.timescale = this._timescale;
-            meta.duration = this._duration;
+            meta = this._audioMetadata = {
+                ...AudioMetadataDefault,
+                type: 'audio',
+                id: track.id,
+                timescale: this._timescale,
+                duration: this._duration,
+            }
         }
 
         // METADATA_BLOCK_HEADER
@@ -1161,7 +1232,7 @@ export class FLVDemuxer {
         let gb = new ExpGolomb(header);
         let minimum_block_size = gb.readBits(16); // minimum_block_size
         let maximum_block_size = gb.readBits(16); // maximum_block_size
-        let block_size = maximum_block_size === minimum_block_size ? maximum_block_size : null;
+        let block_size = maximum_block_size === minimum_block_size ? maximum_block_size : NaN;
         gb.readBits(24); // minimum_frame_size
         gb.readBits(24); // maximum_frame_size
         let samplingFrequence = gb.readBits(20);
@@ -1198,7 +1269,7 @@ export class FLVDemuxer {
         meta.codec = misc.codec;
         meta.originalCodec = misc.originalCodec;
         meta.config = misc.config;
-        meta.refSampleDuration = block_size != null ? block_size * 1000 / misc.samplingFrequence : null; // practical encoder sends 4608 blobksize (lower bound limitation)
+        meta.refSampleDuration = block_size * 1000 / misc.samplingFrequence; // practical encoder sends 4608 blobksize (lower bound limitation)
 
         Log.v(FLVDemuxer.TAG, 'Parsed FlacSequenceHeader');
 
@@ -1397,11 +1468,13 @@ export class FLVDemuxer {
                 this._mediaInfo.hasVideo = true;
             }
 
-            meta = this._videoMetadata = {};
-            meta.type = 'video';
-            meta.id = track.id;
-            meta.timescale = this._timescale;
-            meta.duration = this._duration;
+            meta = this._videoMetadata = {
+                ...VideoMetadataDefault,
+                type: 'video',
+                id: track.id,
+                timescale: this._timescale,
+                duration: this._duration
+            };
         } else {
             if (typeof meta.avcc !== 'undefined') {
                 let new_avcc = new Uint8Array(arrayBuffer, dataOffset, dataSize);
@@ -1571,11 +1644,13 @@ export class FLVDemuxer {
                 this._mediaInfo.hasVideo = true;
             }
 
-            meta = this._videoMetadata = {};
-            meta.type = 'video';
-            meta.id = track.id;
-            meta.timescale = this._timescale;
-            meta.duration = this._duration;
+            meta = this._videoMetadata = {
+                ...VideoMetadataDefault,
+                type: 'video',
+                id: track.id,
+                timescale: this._timescale,
+                duration: this._duration
+            };
         } else {
             if (typeof meta.hvcc !== 'undefined') {
                 let new_hvcc = new Uint8Array(arrayBuffer, dataOffset, dataSize);
@@ -1707,11 +1782,13 @@ export class FLVDemuxer {
                 this._mediaInfo.hasVideo = true;
             }
 
-            meta = this._videoMetadata = {};
-            meta.type = 'video';
-            meta.id = track.id;
-            meta.timescale = this._timescale;
-            meta.duration = this._duration;
+            meta = this._videoMetadata = {
+                ...VideoMetadataDefault,
+                type: 'video',
+                id: track.id,
+                timescale: this._timescale,
+                duration: this._duration
+            };
         } else {
             if (typeof meta.av1c !== 'undefined') {
                 Log.w(FLVDemuxer.TAG, 'Found another AV1CodecConfigurationRecord!');
@@ -1748,7 +1825,7 @@ export class FLVDemuxer {
         let fps_num = meta.frameRate.fps_num;
         meta.refSampleDuration = meta.timescale * (fps_den / fps_num);
         meta.codec = config.codec_mimetype;
-        meta.extra = config;
+        meta.av1Extra = config;
 
         let mi = this._mediaInfo;
         mi.fps = meta.frameRate.fps;
@@ -1903,7 +1980,7 @@ export class FLVDemuxer {
         if (keyframe) {
             let meta = this._videoMetadata;
 
-            const config = AV1OBUParser.parseOBUs(new Uint8Array(arrayBuffer, dataOffset, dataSize), meta.extra) as any; // !!@ fix any
+            const config = AV1OBUParser.parseOBUs(new Uint8Array(arrayBuffer, dataOffset, dataSize), meta.av1Extra) as any; // !!@ fix any
             if (config == null) {
                 this._onError(DemuxErrors.FORMAT_ERROR, 'Flv: Invalid AV1 VideoData');
                 return;
@@ -2000,11 +2077,13 @@ export class FLVDemuxer {
                 this._mediaInfo.hasVideo = true;
             }
 
-            meta = this._videoMetadata = {};
-            meta.type = 'video';
-            meta.id = track.id;
-            meta.timescale = this._timescale;
-            meta.duration = this._duration;
+            meta = this._videoMetadata = {
+                ...VideoMetadataDefault,
+                type: 'video',
+                id: track.id,
+                timescale: this._timescale,
+                duration: this._duration
+            };
         } else {
             if (typeof meta.av1c !== 'undefined') {
                 Log.w(FLVDemuxer.TAG, 'Found another AV1CodecConfigurationRecord!');
@@ -2041,7 +2120,7 @@ export class FLVDemuxer {
         let fps_num = meta.frameRate.fps_num;
         meta.refSampleDuration = meta.timescale * (fps_den / fps_num);
         meta.codec = config.codec_mimetype;
-        meta.extra = config;
+        //!!@FIXME: meta.extra = config;
 
         let mi = this._mediaInfo;
         mi.fps = meta.frameRate.fps;

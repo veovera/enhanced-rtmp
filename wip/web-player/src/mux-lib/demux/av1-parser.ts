@@ -78,7 +78,7 @@ type FrameResolutions = {
     RenderHeight: number;
 }
 
-type AV1Metadata = {
+export type AV1Metadata = {
     codec_mimetype: string,
     level: number,
     level_string: string,
@@ -119,7 +119,7 @@ type AV1Metadata = {
 
 class AV1OBUParser {
 
-    static parseOBUs(uint8array: Uint8Array, meta?: AV1Metadata | null) {
+    static parseOBUs(uint8array: Uint8Array, meta?: AV1Metadata) : AV1Metadata | undefined {
         for (let i = 0; i < uint8array.byteLength; ) {
             let first = i;
             let forbidden_bit = (uint8array[i] & 0x80) >> 7;
