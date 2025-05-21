@@ -29,6 +29,24 @@ import { AV1OBUType, AV1Metadata } from './av1-parser.js';
 // you can find enhanced flv specification here: https://veovera.org/docs/enhanced/enhanced-rtmp-v2
 //
 
+export enum FlvSoundFormat {
+    LPcmPlatformEndian  = 0,
+    AdPcm               = 1,
+    Mp3                 = 2,
+    LPcmLittleEndian    = 3,
+    Nellymoser16KMono   = 4,
+    Nellymoser8KMono    = 5,
+    Nellymoser          = 6,
+    G711ALaw            = 7,
+    G711MuLaw           = 8,
+    ExHeader            = 9,   // New: used to signal FOURCC mode
+    Aac                 = 10,
+    Speex               = 11,
+    // 12 and 13 are reserved
+    Mp3_8K              = 14,
+    Native              = 15   // Device-specific sound
+}
+
 export enum FlvVideoFrameType {
     // 0 - Reserved
     KeyFrame                = 1,    // Seekable frame
@@ -683,8 +701,8 @@ export class FLVDemuxer {
 
         let soundSpec = v.getUint8(0);
 
-        let soundFormat = soundSpec >>> 4;
-        if (soundFormat === 9) { // Enhanced FLV
+        let soundFormat = (soundSpec >>> 4) as FlvSoundFormat;
+        if (soundFormat === FlvSoundFormat.ExHeader) { // Enhanced FLV
             if (dataSize <= 5) {
                 Log.w(FLVDemuxer.TAG, 'Flv: Invalid audio packet, missing AudioFourCC in Ehnanced FLV payload!');
                 return;
@@ -692,6 +710,7 @@ export class FLVDemuxer {
             let packetType = soundSpec & 0x0F;
             let fourcc = String.fromCharCode(... (new Uint8Array(arrayBuffer, dataOffset, dataSize)).slice(1, 5));
 
+            // !!@TODO: where is support for aac and mp3?
             switch(fourcc){
             case 'Opus':
                 this._parseOpusAudioPacket(arrayBuffer, dataOffset + 5, dataSize - 5, tagTimestamp, packetType);
@@ -705,9 +724,8 @@ export class FLVDemuxer {
 
             return;
         }
-        // Legacy FLV
 
-        if (soundFormat !== 2 && soundFormat !== 3 && soundFormat !== 10) {  // PCM or MP3 or AAC
+        if (soundFormat !== FlvSoundFormat.Mp3 && soundFormat !== FlvSoundFormat.LPcmLittleEndian && soundFormat !== FlvSoundFormat.Aac) {
             this._onError(DemuxErrors.CODEC_UNSUPPORTED, 'Flv: Unsupported audio codec idx: ' + soundFormat);
             return;
         }
@@ -745,7 +763,7 @@ export class FLVDemuxer {
             };
         }
 
-        if (soundFormat === 10) {  // AAC
+        if (soundFormat === FlvSoundFormat.Aac) {
             let aacData = this._parseAACAudioData(arrayBuffer, dataOffset + 1, dataSize - 1);
             if (aacData == undefined) {
                 return;
@@ -804,7 +822,7 @@ export class FLVDemuxer {
             } else {
                 Log.e(FLVDemuxer.TAG, `Flv: Unsupported AAC data type ${aacData.packetType}`);
             }
-        } else if (soundFormat === 2) {  // MP3
+        } else if (soundFormat === FlvSoundFormat.Mp3) {
             if (!meta.codec) {
                 // We need metadata for mp3 audio track, extract info from frame header
                 let misc = this._parseMP3AudioData(arrayBuffer, dataOffset + 1, dataSize - 1, true);
@@ -848,7 +866,7 @@ export class FLVDemuxer {
             let mp3Sample = {unit: data, length: data.byteLength, dts: dts, pts: dts};
             track.samples.push(mp3Sample);
             track.length += data.length;
-        } else if (soundFormat === 3) {
+        } else if (soundFormat === FlvSoundFormat.LPcmLittleEndian) {
             if (!meta.codec) {
                 meta.audioSampleRate = soundRate;
                 meta.sampleSize = (soundSize + 1) * 8;
@@ -2006,11 +2024,13 @@ export class FLVDemuxer {
                     this._onTrackData(this._audioTrack, this._videoTrack);
                 }
             } else {
-                this._videoInitialMetadataDispatched = true;
+                // notify new metadata
+                this._dispatch = false;
+                this._onTrackMetadata('video', meta);
             }
-            // notify new metadata
-            this._dispatch = false;
-            this._onTrackMetadata('video', meta);
+            
+            // !!@TODO: ensure that the metadata is dispatched only once in other places (search for _isInitialMetadataDispatched/_videoInitialMetadataDispatched)
+            this._videoInitialMetadataDispatched = true;
         }
 
         /* !!@FIXME: NEEDS Inspect Per OBUs */
