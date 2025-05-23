@@ -4,7 +4,10 @@
  * Copyright (C) 2023 zheng qian
  * @author zheng qian <xqq@xqq.im>
  * 
- * This file has been modified. See Git history for details.
+ * Modified by Slavik Lozben.
+ * Additional changes Copyright (C) 2025 Veovera Software Organization.
+ *
+ * See Git history for full details.
  */
 
 import EventEmitter from 'eventemitter3';
@@ -29,29 +32,29 @@ class PlayerEngineMainThread implements PlayerEngine {
 
     private readonly TAG: string = 'PlayerEngineMainThread';
 
-    private _emitter: EventEmitter = new EventEmitter();
+    private _emitter: EventEmitter | null = new EventEmitter();
     private _media_data_source: any;
     private _config: any;
 
-    private _media_element?: HTMLMediaElement = null;
+    private _media_element?: HTMLMediaElement | null = null;
 
-    private _mse_controller?: MSEController = null;
-    private _transmuxer?: Transmuxer = null;
+    private _mse_controller?: MSEController | null = null;
+    private _transmuxer?: Transmuxer | null = null;
 
-    private _pending_seek_time?: number = null;
+    private _pending_seek_time?: number | null = null;
 
-    private _seeking_handler?: SeekingHandler = null;
-    private _loading_controller?: LoadingController = null;
-    private _startup_stall_jumper?: StartupStallJumper = null;
-    private _live_latency_chaser?: LiveLatencyChaser = null;
-    private _live_latency_synchronizer?: LiveLatencySynchronizer = null;
+    private _seeking_handler?: SeekingHandler | null = null;
+    private _loading_controller?: LoadingController | null = null;
+    private _startup_stall_jumper?: StartupStallJumper | null = null;
+    private _live_latency_chaser?: LiveLatencyChaser | null = null;
+    private _live_latency_synchronizer?: LiveLatencySynchronizer | null = null;
 
     private _mse_source_opened: boolean = false;
     private _has_pending_load: boolean = false;
     private _loaded_metadata_received: boolean = false;
 
-    private _media_info?: MediaInfo = null;
-    private _statistics_info?: any = null;
+    private _media_info?: MediaInfo | null = null;
+    private _statistics_info?: any | null = null;
 
     private e?: any = null;
 
@@ -73,7 +76,7 @@ class PlayerEngineMainThread implements PlayerEngine {
     }
 
     public destroy(): void {
-        this._emitter.emit(PlayerEvents.DESTROYING);
+        this._emitter?.emit(PlayerEvents.DESTROYING);
         if (this._transmuxer) {
             this.unload();
         }
@@ -83,22 +86,22 @@ class PlayerEngineMainThread implements PlayerEngine {
         this.e = null;
         this._media_data_source = null;
 
-        this._emitter.removeAllListeners();
+        this._emitter?.removeAllListeners();
         this._emitter = null;
     }
 
     public on(event: string, listener: (...args: any[]) => void): void {
-        this._emitter.addListener(event, listener);
+        this._emitter?.addListener(event, listener);
         // For media_info / statistics_info event, trigger it immediately
         if (event === PlayerEvents.MEDIA_INFO && this._media_info) {
-            Promise.resolve().then(() => this._emitter.emit(PlayerEvents.MEDIA_INFO, this.mediaInfo));
+            Promise.resolve().then(() => this._emitter?.emit(PlayerEvents.MEDIA_INFO, this.mediaInfo));
         } else if (event == PlayerEvents.STATISTICS_INFO && this._statistics_info) {
-            Promise.resolve().then(() => this._emitter.emit(PlayerEvents.STATISTICS_INFO, this.statisticsInfo));
+            Promise.resolve().then(() => this._emitter?.emit(PlayerEvents.STATISTICS_INFO, this.statisticsInfo));
         }
     }
 
     public off(event: string, listener: (...args: any[]) => void): void {
-        this._emitter.removeListener(event, listener);
+        this._emitter?.removeListener(event, listener);
     }
 
     public attachMediaElement(mediaElement: HTMLMediaElement): void {
@@ -121,8 +124,8 @@ class PlayerEngineMainThread implements PlayerEngine {
         this._mse_controller.on(MSEEvents.END_STREAMING, this._onMSEEndStreaming.bind(this));
 
         this._mse_controller.initialize({
-            getCurrentTime: () => this._media_element.currentTime,
-            getReadyState: () => this._media_element.readyState,
+            getCurrentTime: () => this._media_element?.currentTime,
+            getReadyState: () => this._media_element?.readyState,
         });
 
         // Attach media source into media element
@@ -138,7 +141,7 @@ class PlayerEngineMainThread implements PlayerEngine {
 
     public detachMediaElement(): void {
         if (this._media_element) {
-            this._mse_controller.shutdown();
+            this._mse_controller?.shutdown();
 
             // Remove all appended event listeners
             this._media_element.removeEventListener('loadedmetadata', this.e.onMediaLoadedMetadata);
@@ -150,7 +153,7 @@ class PlayerEngineMainThread implements PlayerEngine {
             this._media_element.load();
             this._media_element = null;
 
-            this._mse_controller.revokeObjectURL();
+            this._mse_controller?.revokeObjectURL();
         }
         if (this._mse_controller) {
             this._mse_controller.destroy();
@@ -178,70 +181,70 @@ class PlayerEngineMainThread implements PlayerEngine {
         this._transmuxer = new Transmuxer(this._media_data_source, this._config);
 
         this._transmuxer.on(TransmuxingEvents.INIT_SEGMENT, (type: string, is: any) => {
-            this._mse_controller.appendInitSegment(is);
+            this._mse_controller?.appendInitSegment(is);
         });
         this._transmuxer.on(TransmuxingEvents.MEDIA_SEGMENT, (type: string, ms: any) => {
-            this._mse_controller.appendMediaSegment(ms);
+            this._mse_controller?.appendMediaSegment(ms);
             if (!this._config.isLive && type === 'video' && ms.data && ms.data.byteLength > 0 && ('info' in ms)) {
-                this._seeking_handler.appendSyncPoints(ms.info.syncPoints);
+                this._seeking_handler?.appendSyncPoints(ms.info.syncPoints);
             }
-            this._loading_controller.notifyBufferedPositionChanged(ms.info.endDts / 1000);
+            this._loading_controller?.notifyBufferedPositionChanged(ms.info.endDts / 1000);
         });
         this._transmuxer.on(TransmuxingEvents.LOADING_COMPLETE, () => {
-            this._mse_controller.endOfStream();
-            this._emitter.emit(PlayerEvents.LOADING_COMPLETE);
+            this._mse_controller?.endOfStream();
+            this._emitter?.emit(PlayerEvents.LOADING_COMPLETE);
         });
         this._transmuxer.on(TransmuxingEvents.RECOVERED_EARLY_EOF, () => {
-            this._emitter.emit(PlayerEvents.RECOVERED_EARLY_EOF);
+            this._emitter?.emit(PlayerEvents.RECOVERED_EARLY_EOF);
         });
         this._transmuxer.on(TransmuxingEvents.IO_ERROR, (detail: any, info: any) => {
-            this._emitter.emit(PlayerEvents.ERROR, ErrorTypes.NETWORK_ERROR, detail, info);
+            this._emitter?.emit(PlayerEvents.ERROR, ErrorTypes.NETWORK_ERROR, detail, info);
         });
         this._transmuxer.on(TransmuxingEvents.DEMUX_ERROR, (detail: any, info: any) => {
-            this._emitter.emit(PlayerEvents.ERROR, ErrorTypes.MEDIA_ERROR, detail, info);
+            this._emitter?.emit(PlayerEvents.ERROR, ErrorTypes.MEDIA_ERROR, detail, info);
         });
         this._transmuxer.on(TransmuxingEvents.MEDIA_INFO, (mediaInfo: MediaInfo) => {
             this._media_info = mediaInfo;
-            this._emitter.emit(PlayerEvents.MEDIA_INFO, Object.assign({}, mediaInfo));
+            this._emitter?.emit(PlayerEvents.MEDIA_INFO, Object.assign({}, mediaInfo));
         });
         this._transmuxer.on(TransmuxingEvents.STATISTICS_INFO, (statInfo: any) => {
             this._statistics_info = this._fillStatisticsInfo(statInfo);
-            this._emitter.emit(PlayerEvents.STATISTICS_INFO, Object.assign({}, statInfo));
+            this._emitter?.emit(PlayerEvents.STATISTICS_INFO, Object.assign({}, statInfo));
         });
         this._transmuxer.on(TransmuxingEvents.RECOMMEND_SEEKPOINT, (milliseconds: number) => {
             if (this._media_element && !this._config.accurateSeek) {
-                this._seeking_handler.directSeek(milliseconds / 1000);
+                this._seeking_handler?.directSeek(milliseconds / 1000);
             }
         });
         this._transmuxer.on(TransmuxingEvents.METADATA_ARRIVED, (metadata: any) => {
-            this._emitter.emit(PlayerEvents.METADATA_ARRIVED, metadata);
+            this._emitter?.emit(PlayerEvents.METADATA_ARRIVED, metadata);
         });
         this._transmuxer.on(TransmuxingEvents.SCRIPTDATA_ARRIVED, (data: any) => {
-            this._emitter.emit(PlayerEvents.SCRIPTDATA_ARRIVED, data);
+            this._emitter?.emit(PlayerEvents.SCRIPTDATA_ARRIVED, data);
         });
         this._transmuxer.on(TransmuxingEvents.TIMED_ID3_METADATA_ARRIVED, (timed_id3_metadata: any) => {
-            this._emitter.emit(PlayerEvents.TIMED_ID3_METADATA_ARRIVED, timed_id3_metadata);
+            this._emitter?.emit(PlayerEvents.TIMED_ID3_METADATA_ARRIVED, timed_id3_metadata);
         });
         this._transmuxer.on(TransmuxingEvents.PGS_SUBTITLE_ARRIVED, (pgs_data: any) => {
-            this._emitter.emit(PlayerEvents.PGS_SUBTITLE_ARRIVED, pgs_data);
+            this._emitter?.emit(PlayerEvents.PGS_SUBTITLE_ARRIVED, pgs_data);
         });
         this._transmuxer.on(TransmuxingEvents.SYNCHRONOUS_KLV_METADATA_ARRIVED, (synchronous_klv_metadata: any) => {
-            this._emitter.emit(PlayerEvents.SYNCHRONOUS_KLV_METADATA_ARRIVED, synchronous_klv_metadata);
+            this._emitter?.emit(PlayerEvents.SYNCHRONOUS_KLV_METADATA_ARRIVED, synchronous_klv_metadata);
         });
         this._transmuxer.on(TransmuxingEvents.ASYNCHRONOUS_KLV_METADATA_ARRIVED, (asynchronous_klv_metadata: any) => {
-            this._emitter.emit(PlayerEvents.ASYNCHRONOUS_KLV_METADATA_ARRIVED, asynchronous_klv_metadata);
+            this._emitter?.emit(PlayerEvents.ASYNCHRONOUS_KLV_METADATA_ARRIVED, asynchronous_klv_metadata);
         });
         this._transmuxer.on(TransmuxingEvents.SMPTE2038_METADATA_ARRIVED, (smpte2038_metadata: any) => {
-            this._emitter.emit(PlayerEvents.SMPTE2038_METADATA_ARRIVED, smpte2038_metadata);
+            this._emitter?.emit(PlayerEvents.SMPTE2038_METADATA_ARRIVED, smpte2038_metadata);
         });
         this._transmuxer.on(TransmuxingEvents.SCTE35_METADATA_ARRIVED, (scte35_metadata: any) => {
-            this._emitter.emit(PlayerEvents.SCTE35_METADATA_ARRIVED, scte35_metadata);
+            this._emitter?.emit(PlayerEvents.SCTE35_METADATA_ARRIVED, scte35_metadata);
         });
         this._transmuxer.on(TransmuxingEvents.PES_PRIVATE_DATA_DESCRIPTOR, (descriptor: any) => {
-            this._emitter.emit(PlayerEvents.PES_PRIVATE_DATA_DESCRIPTOR, descriptor);
+            this._emitter?.emit(PlayerEvents.PES_PRIVATE_DATA_DESCRIPTOR, descriptor);
         });
         this._transmuxer.on(TransmuxingEvents.PES_PRIVATE_DATA_ARRIVED, (private_data: any) => {
-            this._emitter.emit(PlayerEvents.PES_PRIVATE_DATA_ARRIVED, private_data);
+            this._emitter?.emit(PlayerEvents.PES_PRIVATE_DATA_ARRIVED, private_data);
         });
 
         this._seeking_handler = new SeekingHandler(
@@ -312,11 +315,11 @@ class PlayerEngineMainThread implements PlayerEngine {
     }
 
     public play(): Promise<void> {
-        return this._media_element.play();
+        return this._media_element!.play();
     }
 
     public pause(): void {
-        this._media_element.pause();
+        this._media_element!.pause();
     }
 
     public seek(seconds: number): void {
@@ -348,16 +351,16 @@ class PlayerEngineMainThread implements PlayerEngine {
             this._live_latency_chaser.notifyBufferedRangeUpdate();
         }
 
-        this._loading_controller.notifyBufferedPositionChanged();
+        this._loading_controller?.notifyBufferedPositionChanged();
     }
 
     private _onMSEBufferFull(): void {
         Log.v(this.TAG, 'MSE SourceBuffer is full, suspend transmuxing task');
-        this._loading_controller.suspendTransmuxer();
+        this._loading_controller?.suspendTransmuxer();
     }
 
     private _onMSEError(info: any): void {
-        this._emitter.emit(PlayerEvents.ERROR, ErrorTypes.MEDIA_ERROR, ErrorDetails.MEDIA_MSE_ERROR, info);
+        this._emitter?.emit(PlayerEvents.ERROR, ErrorTypes.MEDIA_ERROR, ErrorDetails.MEDIA_MSE_ERROR, info);
     }
 
     private _onMSEStartStreaming(): void {
@@ -370,7 +373,7 @@ class PlayerEngineMainThread implements PlayerEngine {
             return;
         }
         Log.v(this.TAG, 'Resume transmuxing task due to ManagedMediaSource onStartStreaming');
-        this._loading_controller.resumeTransmuxer();
+        this._loading_controller?.resumeTransmuxer();
     }
 
     private _onMSEEndStreaming(): void {
@@ -379,32 +382,32 @@ class PlayerEngineMainThread implements PlayerEngine {
             return;
         }
         Log.v(this.TAG, 'Suspend transmuxing task due to ManagedMediaSource onEndStreaming');
-        this._loading_controller.suspendTransmuxer();
+        this._loading_controller?.suspendTransmuxer();
     }
 
     private _onMediaLoadedMetadata(e: any): void {
         this._loaded_metadata_received = true;
         if (this._pending_seek_time != null) {
-            this._seeking_handler.seek(this._pending_seek_time);
+            this._seeking_handler?.seek(this._pending_seek_time);
             this._pending_seek_time = null;
         }
     }
 
     private _onRequestDirectSeek(target: number): void {
-        this._seeking_handler.directSeek(target);
+        this._seeking_handler?.directSeek(target);
     }
 
     private _onRequiredUnbufferedSeek(milliseconds: number): void {
-        this._mse_controller.flush();
-        this._transmuxer.seek(milliseconds);
+        this._mse_controller?.flush();
+        this._transmuxer?.seek(milliseconds);
     }
 
     private _onRequestPauseTransmuxer(): void {
-        this._transmuxer.pause();
+        this._transmuxer?.pause();
     }
 
     private _onRequestResumeTransmuxer(): void {
-        this._transmuxer.resume();
+        this._transmuxer?.resume();
     }
 
     private _fillStatisticsInfo(stat_info: any): any {
@@ -422,9 +425,9 @@ class PlayerEngineMainThread implements PlayerEngine {
             const quality = this._media_element.getVideoPlaybackQuality();
             decoded = quality.totalVideoFrames;
             dropped = quality.droppedVideoFrames;
-        } else if (this._media_element['webkitDecodedFrameCount'] != undefined) {
-            decoded = this._media_element['webkitDecodedFrameCount'];
-            dropped = this._media_element['webkitDroppedFrameCount'];
+        } else if ((this._media_element as any)['webkitDecodedFrameCount'] != undefined) {
+            decoded = (this._media_element as any)['webkitDecodedFrameCount'];
+            dropped = (this._media_element as any)['webkitDroppedFrameCount'];
         } else {
             has_quality_info = false;
         }
