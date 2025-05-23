@@ -47,7 +47,7 @@ class Log {
         }
     }
 
-    static i(tag, msg) {
+    static i(tag: string, msg: string) {
         if (!Log.ENABLE_INFO) {
             return;
         }
