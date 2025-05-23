@@ -8,8 +8,8 @@
 
 export type Callback = (...args: any[]) => void;
 
-export const assertCallback = (...args: unknown[]): never => {
-  throw new Error('Callback not implemented');
+export const assertCallback = (...args: any[]): void => {
+  throw new Error('Callback function has not been implemented.');
 }; 
 
 export function initObjectWithFalsyValues<T extends object>(template: T): T {
