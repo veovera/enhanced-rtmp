@@ -1,25 +1,25 @@
 /*
- * Copyright (C) 2016 Bilibili. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
  *
+ * Copyright (C) 2016 Bilibili
  * @author zheng qian <xqq@xqq.im>
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Modified and migrated to TypeScript by Slavik Lozben.
+ * Additional changes Copyright (C) Veovera Software Organization.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * See Git history for full details.
  */
 
 // Represents an media sample (audio / video)
 export class SampleInfo {
+    dts: number;
+    pts: number;
+    duration: number;
+    originalDts: number;
+    isSyncPoint: boolean;
+    fileposition: number | null;
 
-    constructor(dts, pts, duration, originalDts, isSync) {
+    constructor(dts: number, pts: number, duration: number, originalDts: number, isSync: boolean) {
         this.dts = dts;
         this.pts = pts;
         this.duration = duration;
@@ -27,12 +27,20 @@ export class SampleInfo {
         this.isSyncPoint = isSync;
         this.fileposition = null;
     }
-
 }
 
 // Media Segment concept is defined in Media Source Extensions spec.
 // Particularly in ISO BMFF format, an Media Segment contains a moof box followed by a mdat box.
 export class MediaSegmentInfo {
+    beginDts: number;
+    endDts: number;
+    beginPts: number;
+    endPts: number;
+    originalBeginDts: number;
+    originalEndDts: number;
+    syncPoints: SampleInfo[];
+    firstSample: SampleInfo | null;
+    lastSample: SampleInfo | null;
 
     constructor() {
         this.beginDts = 0;
@@ -46,7 +54,7 @@ export class MediaSegmentInfo {
         this.lastSample = null;   // SampleInfo
     }
 
-    appendSyncPoint(sampleInfo) {  // also called Random Access Point
+    appendSyncPoint(sampleInfo: SampleInfo) {  // also called Random Access Point
         sampleInfo.isSyncPoint = true;
         this.syncPoints.push(sampleInfo);
     }
@@ -55,16 +63,13 @@ export class MediaSegmentInfo {
 
 // Ordered list for recording video IDR frames, sorted by originalDts
 export class IDRSampleList {
-
-    constructor() {
-        this._list = [];
-    }
+    private _list: SampleInfo[] = [];
 
     clear() {
         this._list = [];
     }
 
-    appendArray(syncPoints) {
+    appendArray(syncPoints: SampleInfo[]) {
         let list = this._list;
 
         if (syncPoints.length === 0) {
@@ -78,7 +83,7 @@ export class IDRSampleList {
         Array.prototype.push.apply(list, syncPoints);
     }
 
-    getLastSyncPointBeforeDts(dts) {
+    getLastSyncPointBeforeDts(dts: number) {
         if (this._list.length == 0) {
             return null;
         }
@@ -113,11 +118,12 @@ export class IDRSampleList {
 
 // Data structure for recording information of media segments in single track.
 export class MediaSegmentInfoList {
+    private _type: string;
+    private _list: MediaSegmentInfo[] = [];
+    private _lastAppendLocation: number = -1;
 
-    constructor(type) {
+    constructor(type: string) {
         this._type = type;
-        this._list = [];
-        this._lastAppendLocation = -1;  // cached last insert location
     }
 
     get type() {
@@ -137,7 +143,7 @@ export class MediaSegmentInfoList {
         this._lastAppendLocation = -1;
     }
 
-    _searchNearestSegmentBefore(originalBeginDts) {
+    _searchNearestSegmentBefore(originalBeginDts: number) {
         let list = this._list;
         if (list.length === 0) {
             return -2;
@@ -155,9 +161,11 @@ export class MediaSegmentInfoList {
         }
 
         while (lbound <= ubound) {
+            const sample = list[mid].lastSample;
             mid = lbound + Math.floor((ubound - lbound) / 2);
-            if (mid === last || (originalBeginDts > list[mid].lastSample.originalDts &&
-                                (originalBeginDts < list[mid + 1].originalBeginDts))) {
+
+            if (mid === last || (sample && originalBeginDts > sample.originalDts) && 
+                (originalBeginDts < list[mid + 1].originalBeginDts)) {
                 idx = mid;
                 break;
             } else if (list[mid].originalBeginDts < originalBeginDts) {
@@ -169,21 +177,21 @@ export class MediaSegmentInfoList {
         return idx;
     }
 
-    _searchNearestSegmentAfter(originalBeginDts) {
+    _searchNearestSegmentAfter(originalBeginDts: number) {
         return this._searchNearestSegmentBefore(originalBeginDts) + 1;
     }
 
-    append(mediaSegmentInfo) {
+    append(mediaSegmentInfo: MediaSegmentInfo) {
         let list = this._list;
         let msi = mediaSegmentInfo;
         let lastAppendIdx = this._lastAppendLocation;
         let insertIdx = 0;
 
-        if (lastAppendIdx !== -1 && lastAppendIdx < list.length &&
-                                    msi.originalBeginDts >= list[lastAppendIdx].lastSample.originalDts &&
-                                    ((lastAppendIdx === list.length - 1) ||
-                                    (lastAppendIdx < list.length - 1 &&
-                                    msi.originalBeginDts < list[lastAppendIdx + 1].originalBeginDts))) {
+        if (lastAppendIdx !== -1 && 
+            lastAppendIdx < list.length &&
+            (list[lastAppendIdx].lastSample && msi.originalBeginDts >= list[lastAppendIdx].lastSample.originalDts) &&
+            ((lastAppendIdx === list.length - 1) || (lastAppendIdx < list.length - 1 &&
+            msi.originalBeginDts < list[lastAppendIdx + 1].originalBeginDts))) {
             insertIdx = lastAppendIdx + 1;  // use cached location idx
         } else {
             if (list.length > 0) {
@@ -195,7 +203,7 @@ export class MediaSegmentInfoList {
         this._list.splice(insertIdx, 0, msi);
     }
 
-    getLastSegmentBefore(originalBeginDts) {
+    getLastSegmentBefore(originalBeginDts: number) {
         let idx = this._searchNearestSegmentBefore(originalBeginDts);
         if (idx >= 0) {
             return this._list[idx];
@@ -204,7 +212,7 @@ export class MediaSegmentInfoList {
         }
     }
 
-    getLastSampleBefore(originalBeginDts) {
+    getLastSampleBefore(originalBeginDts: number) {
         let segment = this.getLastSegmentBefore(originalBeginDts);
         if (segment != null) {
             return segment.lastSample;
@@ -213,7 +221,7 @@ export class MediaSegmentInfoList {
         }
     }
 
-    getLastSyncPointBefore(originalBeginDts) {
+    getLastSyncPointBefore(originalBeginDts: number) {
         let segmentIdx = this._searchNearestSegmentBefore(originalBeginDts);
         let syncPoints = this._list[segmentIdx].syncPoints;
         while (syncPoints.length === 0 && segmentIdx > 0) {
