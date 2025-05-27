@@ -10,6 +10,11 @@
  * See Git history for full details.
  */
 
+export enum TrackType {
+    Audio = 'audio',
+    Video = 'video',
+}
+
 // Represents an media sample (audio / video)
 export class SampleInfo {
     dts: number;
@@ -118,23 +123,23 @@ export class IDRSampleList {
 
 // Data structure for recording information of media segments in single track.
 export class MediaSegmentInfoList {
-    private _type: string;
+    private _type: TrackType;
     private _list: MediaSegmentInfo[] = [];
     private _lastAppendLocation: number = -1;
 
-    constructor(type: string) {
+    constructor(type: TrackType) {
         this._type = type;
     }
 
-    get type() {
+    get type(): TrackType {
         return this._type;
     }
 
-    get length() {
+    get length(): number {
         return this._list.length;
     }
 
-    isEmpty() {
+    isEmpty(): boolean {
         return this._list.length === 0;
     }
 
@@ -143,7 +148,7 @@ export class MediaSegmentInfoList {
         this._lastAppendLocation = -1;
     }
 
-    _searchNearestSegmentBefore(originalBeginDts: number) {
+    _searchNearestSegmentBefore(originalBeginDts: number): number {
         let list = this._list;
         if (list.length === 0) {
             return -2;
@@ -203,7 +208,7 @@ export class MediaSegmentInfoList {
         this._list.splice(insertIdx, 0, msi);
     }
 
-    getLastSegmentBefore(originalBeginDts: number) {
+    getLastSegmentBefore(originalBeginDts: number): MediaSegmentInfo | null {
         let idx = this._searchNearestSegmentBefore(originalBeginDts);
         if (idx >= 0) {
             return this._list[idx];
@@ -212,7 +217,7 @@ export class MediaSegmentInfoList {
         }
     }
 
-    getLastSampleBefore(originalBeginDts: number) {
+    getLastSampleBefore(originalBeginDts: number): SampleInfo | null {
         let segment = this.getLastSegmentBefore(originalBeginDts);
         if (segment != null) {
             return segment.lastSample;
@@ -221,7 +226,7 @@ export class MediaSegmentInfoList {
         }
     }
 
-    getLastSyncPointBefore(originalBeginDts: number) {
+    getLastSyncPointBefore(originalBeginDts: number): SampleInfo | null {
         let segmentIdx = this._searchNearestSegmentBefore(originalBeginDts);
         let syncPoints = this._list[segmentIdx].syncPoints;
         while (syncPoints.length === 0 && segmentIdx > 0) {

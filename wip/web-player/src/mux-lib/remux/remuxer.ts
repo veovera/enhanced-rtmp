@@ -40,8 +40,8 @@ export abstract class Remuxer {
 
   protected _config: ConfigOptions;
   protected _isLive: boolean;
-  protected _isAudioMetadataSet = false;
-  protected _isVideoMetadataSet = false;
+  protected _isAudioMetadataDisplatched = false;
+  protected _isVideoMetadataDisplatched = false;
 
   constructor(config: ConfigOptions) {
     this._config = config;
@@ -49,10 +49,10 @@ export abstract class Remuxer {
   }
 
   get isAudioMetadataDispatched(): boolean {
-    return this._isAudioMetadataSet;
+    return this._isAudioMetadataDisplatched;
   }
 
   get isVideoMetadataDispatched(): boolean {
-    return this._isVideoMetadataSet;
+    return this._isVideoMetadataDisplatched;
   }
 } 

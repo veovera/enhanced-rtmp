@@ -14,17 +14,14 @@ import Log from '../utils/logger.js';
 import MP4 from './mp4-generator.js';
 import AAC from './aac-silent.js';
 import Browser from '../utils/browser.js';
-import { SampleInfo, MediaSegmentInfo, MediaSegmentInfoList } from '../core/media-segment-info.js';
+import { SampleInfo, MediaSegmentInfo, MediaSegmentInfoList, TrackType } from '../core/media-segment-info.js';
 import { IllegalStateException } from '../utils/exception.js';
+import { Remuxer } from './remuxer.js';
 
-/** @implements {import('./iremuxer.ts').IRemuxer} */
-class MP4Remuxer {
+export class MP4Remuxer extends Remuxer {
 
     constructor(config) {
-        this.TAG = 'MP4Remuxer';
-
-        this._config = config;
-        this._isLive = (config.isLive === true) ? true : false;
+        super(config);
 
         this._dtsBase = -1;
         this._dtsBaseInited = false;
@@ -47,8 +44,8 @@ class MP4Remuxer {
         // Workaround for chrome < 50: Always force first sample as a Random Access Point in media segment
         // see https://bugs.chromium.org/p/chromium/issues/detail?id=229412
         this._forceFirstIDR = (Browser.chrome &&
-                              (Browser.version.major < 50 ||
-                              (Browser.version.major === 50 && Browser.version.build < 2661))) ? true : false;
+            (Browser.version.major < 50 ||
+                (Browser.version.major === 50 && Browser.version.build < 2661))) ? true : false;
 
         // Workaround for IE11/Edge: Fill silent aac frame after keyframe-seeking
         // Make audio beginDts equals with video beginDts, in order to fix seek freeze
@@ -137,13 +134,15 @@ class MP4Remuxer {
         }
     }
 
-    _onTrackMetadata(type, metadata) {
+    _onTrackMetadata(metadata) {
         let metabox = null;
 
         let container = 'mp4';
         let codec = metadata.codec;
+        const type = metadata.type;
 
-        if (type === 'audio') {
+        if (metadata.type === TrackType.Audio) {
+            this._isAudioMetadataDispatched = true;
             this._audioMeta = metadata;
             if (metadata.codec === 'mp3' && this._mp3UseMpegAudio) {
                 // 'audio/mpeg' for MP3 audio track
@@ -154,11 +153,10 @@ class MP4Remuxer {
                 // 'audio/mp4, codecs="codec"'
                 metabox = MP4.generateInitSegment(metadata);
             }
-        } else if (type === 'video') {
+        } else {
+            this._isVideoMetadataDisplatched = true;
             this._videoMeta = metadata;
             metabox = MP4.generateInitSegment(metadata);
-        } else {
-            return;
         }
 
         // dispatch metabox (Initialization Segment)
@@ -518,15 +516,15 @@ class MP4Remuxer {
         info.originalBeginDts = mp4Samples[0].originalDts;
         info.originalEndDts = latest.originalDts + latest.duration;
         info.firstSample = new SampleInfo(mp4Samples[0].dts,
-                                          mp4Samples[0].pts,
-                                          mp4Samples[0].duration,
-                                          mp4Samples[0].originalDts,
-                                          false);
+            mp4Samples[0].pts,
+            mp4Samples[0].duration,
+            mp4Samples[0].originalDts,
+            false);
         info.lastSample = new SampleInfo(latest.dts,
-                                         latest.pts,
-                                         latest.duration,
-                                         latest.originalDts,
-                                         false);
+            latest.pts,
+            latest.duration,
+            latest.originalDts,
+            false);
         if (!this._isLive) {
             this._audioSegmentInfoList.append(info);
         }
@@ -723,15 +721,15 @@ class MP4Remuxer {
         info.originalBeginDts = mp4Samples[0].originalDts;
         info.originalEndDts = latest.originalDts + latest.duration;
         info.firstSample = new SampleInfo(mp4Samples[0].dts,
-                                          mp4Samples[0].pts,
-                                          mp4Samples[0].duration,
-                                          mp4Samples[0].originalDts,
-                                          mp4Samples[0].isKeyframe);
+            mp4Samples[0].pts,
+            mp4Samples[0].duration,
+            mp4Samples[0].originalDts,
+            mp4Samples[0].isKeyframe);
         info.lastSample = new SampleInfo(latest.dts,
-                                         latest.pts,
-                                         latest.duration,
-                                         latest.originalDts,
-                                         latest.isKeyframe);
+            latest.pts,
+            latest.duration,
+            latest.originalDts,
+            latest.isKeyframe);
         if (!this._isLive) {
             this._videoSegmentInfoList.append(info);
         }

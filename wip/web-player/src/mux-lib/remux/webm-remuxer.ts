@@ -192,9 +192,9 @@ export class WebMRemuxer extends Remuxer {
 
   _onTrackMetadata = (metadata: AudioMetadata | VideoMetadata): void => {
     if (metadata.type === TrackType.Audio) {
-      this._isAudioMetadataSet = true;
+      this._isAudioMetadataDisplatched = true;
     } else {
-      this._isVideoMetadataSet = true;
+      this._isVideoMetadataDisplatched = true;
     }
 
     Log.a(WebMRemuxer.TAG, 'onTrackMetadata: onInitSegment callback must be specified!', this._onInitSegment);

@@ -24,6 +24,8 @@ import AV1OBUParser from './av1-parser.js';
 import ExpGolomb from './exp-golomb.js';
 import { Callback, assertCallback } from '../utils/common';
 import { AV1OBUType, AV1Metadata } from './av1-parser.js';
+import { TrackType } from '../core/media-segment-info.js';
+import { Remuxer } from '../remux/remuxer.js';
 
 //
 // you can find enhanced flv specification here: https://veovera.org/docs/enhanced/enhanced-rtmp-v2
@@ -91,7 +93,7 @@ export enum VP9FrameType {
 }
 
 export interface AudioTrackInfo {
-    type: 'audio';
+    type: TrackType.Audio;
     id: number;
     sequenceNumber: number;
     samples: AudioSample[];
@@ -99,7 +101,7 @@ export interface AudioTrackInfo {
 }
 
 export interface AudioMetadata {
-    type: 'audio';
+    type: TrackType.Audio;
     id: number;
     timescale: number;
     duration: number;
@@ -114,7 +116,7 @@ export interface AudioMetadata {
 }
 
 const AudioMetadataDefault: AudioMetadata = {
-    type: 'audio',
+    type: TrackType.Audio,
     id: NaN,
     timescale: NaN,
     duration: NaN,
@@ -129,7 +131,7 @@ const AudioMetadataDefault: AudioMetadata = {
 }
 
 export interface VideoMetadata {
-    type: 'video';
+    type: TrackType.Video;
     id: number;
     timescale: number;
     duration: number;
@@ -152,7 +154,7 @@ export interface VideoMetadata {
 }
 
 const VideoMetadataDefault: VideoMetadata = {
-    type: 'video',
+    type: TrackType.Video,
     id: NaN,
     timescale: NaN,
     duration: NaN,
@@ -171,7 +173,7 @@ const VideoMetadataDefault: VideoMetadata = {
 }
 
 export interface VideoTrackInfo {
-    type: 'video';
+    type: TrackType.Video;
     id: number;
     sequenceNumber: number;
     samples: VideoSample[];
@@ -223,6 +225,7 @@ export class FLVDemuxer {
     private static readonly TAG = 'FLVDemuxer';
 
     private _config: any;
+    private _remuxer: Remuxer;
 
     private _onError: Callback;
     private _onMediaInfo: Callback;         // Called when complete media information (like codecs, duration, resolution) is available. 
@@ -233,16 +236,13 @@ export class FLVDemuxer {
 
     private _dataOffset: number;
     private _firstParse: boolean;
-    private _dispatch: boolean;
+    private _dispatch: boolean;             // !!@ do we need this flag?
 
     private _hasAudio: boolean;
     private _hasVideo: boolean;
 
     private _hasAudioFlagOverrided: boolean;
     private _hasVideoFlagOverrided: boolean;
-
-    private _audioInitialMetadataDispatched: boolean;
-    private _videoInitialMetadataDispatched: boolean;
 
     private _mediaInfo: MediaInfo;
 
@@ -284,13 +284,15 @@ export class FLVDemuxer {
     private _audioTrack: AudioTrackInfo;
     private _littleEndian: boolean; 
 
-    constructor(probeData: any, config: any) {
+    //!!@ retype any to something more specific
+    constructor(probeData: any, config: any, remuxer: Remuxer) {
         this._config = config;
+        this._remuxer = remuxer;
 
         this._onError = assertCallback;
         this._onMediaInfo = assertCallback;
-        this._onScriptMetadata = assertCallback; //??
-        this._onScriptData = assertCallback; //??
+        this._onScriptMetadata = assertCallback;
+        this._onScriptData = assertCallback;
         this._onTrackMetadata = assertCallback;
         this._onTrackData = assertCallback;
 
@@ -304,9 +306,6 @@ export class FLVDemuxer {
         this._hasAudioFlagOverrided = false;
         this._hasVideoFlagOverrided = false;
         
-        this._audioInitialMetadataDispatched = false;
-        this._videoInitialMetadataDispatched = false;
-
         this._mediaInfo = new MediaInfo();
         this._mediaInfo.hasAudio = this._hasAudio;
         this._mediaInfo.hasVideo = this._hasVideo;
@@ -323,8 +322,8 @@ export class FLVDemuxer {
             fps_den: 1000
         };
 
-        this._videoTrack = {type: 'video', id: 1, sequenceNumber: 0, samples: [], length: 0} as VideoTrackInfo;
-        this._audioTrack = {type: 'audio', id: 2, sequenceNumber: 0, samples: [], length: 0} as AudioTrackInfo;
+        this._videoTrack = {type: TrackType.Video, id: 1, sequenceNumber: 0, samples: [], length: 0};
+        this._audioTrack = {type: TrackType.Audio, id: 2, sequenceNumber: 0, samples: [], length: 0};
 
         this._littleEndian = (function () {
             let buf = new ArrayBuffer(2);
@@ -334,7 +333,7 @@ export class FLVDemuxer {
     }
 
     destroy() {
-        // nothing to do, TS does not support it, garbage collector will do the rest
+        // nothing to do, garbage collector should do its job
     }
 
     static probe(buffer: ArrayBuffer): any {
@@ -467,16 +466,20 @@ export class FLVDemuxer {
         this._mediaInfo = new MediaInfo();
     }
 
+    //!!@ we need to seperate audio and video metadata dispatched?
     _isInitialMetadataDispatched() {
-        if (this._hasAudio && this._hasVideo) {  // both audio & video
-            return this._audioInitialMetadataDispatched && this._videoInitialMetadataDispatched;
+        if (this._hasAudio && this._hasVideo) {
+            return this._remuxer.isAudioMetadataDispatched && this._remuxer.isVideoMetadataDispatched;
+        } 
+        
+        if (this._hasAudio) {  // audio only
+            return this._remuxer.isAudioMetadataDispatched;
+        } 
+        
+        if (this._hasVideo) {  // video only
+            return this._remuxer.isVideoMetadataDispatched;
         }
-        if (this._hasAudio && !this._hasVideo) {  // audio only
-            return this._audioInitialMetadataDispatched;
-        }
-        if (!this._hasAudio && this._hasVideo) {  // video only
-            return this._videoInitialMetadataDispatched;
-        }
+
         return false;
     }
 
@@ -754,7 +757,7 @@ export class FLVDemuxer {
             // initial metadata
             meta = this._audioMetadata = {
                 ...AudioMetadataDefault,
-                type: 'audio',
+                type: TrackType.Audio,
                 id: track.id,
                 timescale: this._timescale,
                 duration: this._duration,
@@ -793,12 +796,11 @@ export class FLVDemuxer {
                     if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
                         this._onTrackData(this._audioTrack, this._videoTrack);
                     }
-                } else {
-                    this._audioInitialMetadataDispatched = true;
-                }
+                } 
+
                 // then notify new metadata
                 this._dispatch = false;
-                this._onTrackMetadata('audio', meta);
+                this._onTrackMetadata(meta);
 
                 let mi = this._mediaInfo;
                 mi.audioCodec = meta.originalCodec;
@@ -837,8 +839,7 @@ export class FLVDemuxer {
                 meta.refSampleDuration = 1152 / meta.audioSampleRate * meta.timescale;
                 Log.v(FLVDemuxer.TAG, 'Parsed MPEG Audio Frame Header');
 
-                this._audioInitialMetadataDispatched = true;
-                this._onTrackMetadata('audio', meta);
+                this._onTrackMetadata(meta);
 
                 let mi = this._mediaInfo;
                 mi.audioCodec = meta.codec;
@@ -874,8 +875,7 @@ export class FLVDemuxer {
                 meta.codec = 'ipcm';
                 meta.originalCodec = 'ipcm';
 
-                this._audioInitialMetadataDispatched = true;
-                this._onTrackMetadata('audio', meta);
+                this._onTrackMetadata(meta);
 
                 let mi = this._mediaInfo;
                 mi.audioCodec = meta.codec;
@@ -1133,7 +1133,7 @@ export class FLVDemuxer {
             // initial metadata
             meta = this._audioMetadata = {
                 ...AudioMetadataDefault,
-                type: 'audio',
+                type: TrackType.Audio,
                 id: track.id,
                 timescale: this._timescale,
                 duration: this._duration, 
@@ -1178,12 +1178,10 @@ export class FLVDemuxer {
             if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
                 this._onTrackData(this._audioTrack, this._videoTrack);
             }
-        } else {
-            this._audioInitialMetadataDispatched = true;
         }
         // then notify new metadata
         this._dispatch = false;
-        this._onTrackMetadata('audio', meta);
+        this._onTrackMetadata(meta);        
 
         let mi = this._mediaInfo;
         mi.audioCodec = meta.originalCodec;
@@ -1238,7 +1236,7 @@ export class FLVDemuxer {
             // initial metadata
             meta = this._audioMetadata = {
                 ...AudioMetadataDefault,
-                type: 'audio',
+                type: TrackType.Audio,
                 id: track.id,
                 timescale: this._timescale,
                 duration: this._duration,
@@ -1296,12 +1294,10 @@ export class FLVDemuxer {
             if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
                 this._onTrackData(this._audioTrack, this._videoTrack);
             }
-        } else {
-            this._audioInitialMetadataDispatched = true;
         }
         // then notify new metadata
         this._dispatch = false;
-        this._onTrackMetadata('audio', meta);
+        this._onTrackMetadata(meta);
 
         let mi = this._mediaInfo;
         mi.audioCodec = meta.originalCodec;
@@ -1460,7 +1456,7 @@ export class FLVDemuxer {
                 // empty, AV1 end of sequence
                 break;
             case FlvVideoPacketType.Metadata:
-                this._onError(DemuxErrors.FORMAT_ERROR, `Flv: unsupported AV1 video packet type ${packetType}`);
+                this._onError(DemuxErrors.FORMAT_ERROR, `Flv: unsupported AV1 video packet type ${packetType} (FlvVideoPacketType.Metadata)`);
                 break;
 
             default:
@@ -1488,7 +1484,7 @@ export class FLVDemuxer {
 
             meta = this._videoMetadata = {
                 ...VideoMetadataDefault,
-                type: 'video',
+                type: TrackType.Video,
                 id: track.id,
                 timescale: this._timescale,
                 duration: this._duration
@@ -1637,12 +1633,10 @@ export class FLVDemuxer {
             if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
                 this._onTrackData(this._audioTrack, this._videoTrack);
             }
-        } else {
-            this._videoInitialMetadataDispatched = true;
         }
         // notify new metadata
         this._dispatch = false;
-        this._onTrackMetadata('video', meta);
+        this._onTrackMetadata(meta);
     }
 
     _parseHEVCDecoderConfigurationRecord(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number) {
@@ -1664,7 +1658,7 @@ export class FLVDemuxer {
 
             meta = this._videoMetadata = {
                 ...VideoMetadataDefault,
-                type: 'video',
+                type: TrackType.Video,
                 id: track.id,
                 timescale: this._timescale,
                 duration: this._duration
@@ -1775,12 +1769,10 @@ export class FLVDemuxer {
             if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
                 this._onTrackData(this._audioTrack, this._videoTrack);
             }
-        } else {
-            this._videoInitialMetadataDispatched = true;
         }
         // notify new metadata
         this._dispatch = false;
-        this._onTrackMetadata('video', meta);
+        this._onTrackMetadata(meta);
     }
 
     _parseAV1CodecConfigurationRecord(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number) {
@@ -1802,7 +1794,7 @@ export class FLVDemuxer {
 
             meta = this._videoMetadata = {
                 ...VideoMetadataDefault,
-                type: 'video',
+                type: TrackType.Video,
                 id: track.id,
                 timescale: this._timescale,
                 duration: this._duration
@@ -1866,6 +1858,10 @@ export class FLVDemuxer {
         meta.av1c = new Uint8Array(dataSize);
         meta.av1c.set(new Uint8Array(arrayBuffer, dataOffset, dataSize), 0);
         Log.v(FLVDemuxer.TAG, 'Preparing AV1CodecConfigurationRecord');
+
+        // notify new metadata
+        this._dispatch = false;
+        this._onTrackMetadata(meta);
     }
 
     _parseAVCVideoData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: FlvVideoFrameType, cts: number) {
@@ -2018,19 +2014,10 @@ export class FLVDemuxer {
 
             Log.v(FLVDemuxer.TAG, 'Parsed AV1DecoderConfigurationRecord');
 
-            if (this._isInitialMetadataDispatched()) {
-                // flush parsed frames
-                if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
-                    this._onTrackData(this._audioTrack, this._videoTrack);
-                }
-            } else {
-                // notify new metadata
-                this._dispatch = false;
-                this._onTrackMetadata('video', meta);
+            // flush parsed frames
+            if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
+                this._onTrackData(this._audioTrack, this._videoTrack);
             }
-            
-            // !!@TODO: ensure that the metadata is dispatched only once in other places (search for _isInitialMetadataDispatched/_videoInitialMetadataDispatched)
-            this._videoInitialMetadataDispatched = true;
         }
 
         /* !!@FIXME: NEEDS Inspect Per OBUs */
@@ -2072,7 +2059,7 @@ export class FLVDemuxer {
                 // empty, AV1 end of sequence
                 break;
             case FlvVideoPacketType.Metadata:
-                this._onError(DemuxErrors.FORMAT_ERROR, `Flv: unsupported VP9 video packet type ${packetType} `);
+                this._onError(DemuxErrors.FORMAT_ERROR, `Flv: unsupported VP9 video packet type ${packetType} (FlvVideoPacketType.Metadata)`);
                 break;
 
             default:
@@ -2099,7 +2086,7 @@ export class FLVDemuxer {
 
             meta = this._videoMetadata = {
                 ...VideoMetadataDefault,
-                type: 'video',
+                type: TrackType.Video,
                 id: track.id,
                 timescale: this._timescale,
                 duration: this._duration

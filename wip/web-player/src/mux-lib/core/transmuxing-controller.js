@@ -278,8 +278,6 @@ class TransmuxingController {
     }
 
     _setupFLVDemuxerRemuxer(probeData) {
-        this._demuxer = new FLVDemuxer(probeData, this._config);
-
         if (!this._remuxer) {
             if (useWebM) {
                 this._remuxer = new WebMRemuxer(this._config);
@@ -287,6 +285,8 @@ class TransmuxingController {
                 this._remuxer = new MP4Remuxer(this._config);
             }
         }
+
+        this._demuxer = new FLVDemuxer(probeData, this._config, this._remuxer);
 
         let mds = this._mediaDataSource;
         if (mds.duration != undefined && !isNaN(mds.duration)) {
@@ -306,8 +306,8 @@ class TransmuxingController {
         this._demuxer.onScriptMetadata = this._onScriptMetadata.bind(this);
         this._demuxer.onScriptData = this._onScriptData.bind(this);
 
+        //!!@ _remuxer has a reference to _demuxer, so we need to bind them together?
         this._remuxer.bindDataSource(this._demuxer.bindDataSource(this._ioctl));
-
         this._remuxer.onInitSegment = this._onRemuxerInitSegmentArrival.bind(this);
         this._remuxer.onMediaSegment = this._onRemuxerMediaSegmentArrival.bind(this);
     }
@@ -338,6 +338,7 @@ class TransmuxingController {
         this._remuxer.onMediaSegment = this._onRemuxerMediaSegmentArrival.bind(this);
     }
 
+    //!!@ is this ever called?
     _onMediaInfo(mediaInfo) {
         if (this._mediaInfo == null) {
             // Store first segment's mediainfo as global mediaInfo
