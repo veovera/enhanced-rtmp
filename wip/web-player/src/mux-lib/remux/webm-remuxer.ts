@@ -65,56 +65,31 @@
  * =============================================================================
  */
 
-import { IRemuxer } from './iremuxer';
-import { WebMGenerator, WebMTrackInfo, WebMFrame } from './webm-generator';
-import { Callback, assertCallback } from '../utils/common';
+import { Remuxer, InitSegment } from './remuxer.js';
+import { WebMGenerator, WebMTrackInfo, WebMFrame } from './webm-generator.js';
+import { Callback, assertCallback } from '../utils/common.js';
 import { FLVDemuxer, AudioTrackInfo, VideoTrackInfo, VideoSample, AudioSample, AudioMetadata, VideoMetadata } from '../demux/flv-demuxer.js';
-import { ConfigOptions } from '../config';
-import Log from '../utils/logger';
-import { MediaSegmentInfoList } from '../core/media-segment-info';
+import { ConfigOptions } from '../config.js';
+import Log from '../utils/logger.js';
+import { MediaSegmentInfoList, TrackType } from '../core/media-segment-info.js';
 
-export class WebMRemuxer implements IRemuxer {
+export class WebMRemuxer extends Remuxer {
   static readonly TAG = 'WebMRemuxer';
 
-  private _config: ConfigOptions;
-  private _isLive: boolean;
+  private _dtsBase = Infinity;
+  private _audioDtsBase = Infinity;
+  private _videoDtsBase = Infinity;
+  private _audioNextDts = NaN;
+  private _videoNextDts = NaN;
+  private _audioStashedLastSample: AudioSample | null = null;
+  private _videoStashedLastSample: VideoSample | null = null;
+  private _generator: WebMGenerator = new WebMGenerator();
 
-  private _dtsBase: number;
-  private _audioDtsBase: number;
-  private _videoDtsBase: number;
-  private _audioNextDts: number | undefined;
-  private _videoNextDts: number | undefined;
-  private _audioStashedLastSample: AudioSample | null;
-  private _videoStashedLastSample: VideoSample | null;
+  private _audioSegmentInfoList = new MediaSegmentInfoList(TrackType.Audio);
+  private _videoSegmentInfoList = new MediaSegmentInfoList(TrackType.Video);
 
-  private _audioMeta!: AudioMetadata;
-  private _videoMeta!: VideoMetadata;
-
-  private _audioSegmentInfoList: MediaSegmentInfoList;
-  private _videoSegmentInfoList: MediaSegmentInfoList;
-
-  private _onInitSegment: Callback;
-  private _onMediaSegment: Callback;
-
-  constructor(config: ConfigOptions) {
-    this._config = config;
-
-    this._isLive = config.isLive;
-
-    this._dtsBase = Infinity;
-    this._audioDtsBase = Infinity;
-    this._videoDtsBase = Infinity;
-    this._audioNextDts = undefined;
-    this._videoNextDts = undefined;
-    this._audioStashedLastSample = null;
-    this._videoStashedLastSample = null;
-
-    this._audioSegmentInfoList = new MediaSegmentInfoList('audio');
-    this._videoSegmentInfoList = new MediaSegmentInfoList('video');
-
-    this._onInitSegment = assertCallback;
-    this._onMediaSegment = assertCallback;
-  }
+  private _onInitSegment = assertCallback;
+  private _onMediaSegment = assertCallback;
 
   destroy(): void {
     Log.v(WebMRemuxer.TAG, 'nothing to destroy');
@@ -149,7 +124,7 @@ export class WebMRemuxer implements IRemuxer {
   }
   
   insertDiscontinuity(): void {
-    this._audioNextDts = this._videoNextDts = undefined;
+    this._audioNextDts = this._videoNextDts = NaN;
   } 
   
   seek(originalDts: number): void {
@@ -168,20 +143,20 @@ export class WebMRemuxer implements IRemuxer {
     let audioSample = this._audioStashedLastSample;
 
     let videoTrack: VideoTrackInfo = {
-      type: 'video',
+      type: TrackType.Video,
       id: 1,
       sequenceNumber: 0,
       samples: [],
       length: 0
     };
 
-    if (videoSample != null) {
+    if (videoSample) {
       videoTrack.samples.push(videoSample);
       videoTrack.length = videoSample.length;
     }
 
     let audioTrack: AudioTrackInfo = {
-      type: 'audio',
+      type: TrackType.Audio,
       id: 2,
       sequenceNumber: 0,
       samples: [],
@@ -200,7 +175,7 @@ export class WebMRemuxer implements IRemuxer {
     this._remuxAudio(audioTrack, true);
   }
   
-  private _onTrackData = (audioTrack: AudioTrackInfo, videoTrack: VideoTrackInfo): void => {
+  _onTrackData = (audioTrack: AudioTrackInfo, videoTrack: VideoTrackInfo): void => {
     Log.a(WebMRemuxer.TAG, 'onMediaSegment callback must be specificed!', this._onMediaSegment);
     
     if (this._dtsBase === Infinity) {
@@ -215,44 +190,24 @@ export class WebMRemuxer implements IRemuxer {
     }
   }
 
-  private _onTrackMetadata = (type: string, metadata: AudioMetadata | VideoMetadata): void => {
-    Log.a(WebMRemuxer.TAG, 'onTrackMetadata must be implemented!');
-    /*
-    let metabox = null;
-
-    let container = 'webm';
-    let codec = metadata.codec;
-
-    if (type === 'audio') {
-      this._audioMeta = metadata;
-      if (metadata.codec === 'mp3' && this._mp3UseMpegAudio) {
-        // 'audio/mpeg' for MP3 audio track
-        container = 'mpeg';
-        codec = '';
-        metabox = new Uint8Array();
-      } else {
-        // 'audio/mp4, codecs="codec"'
-        metabox = MP4.generateInitSegment(metadata);
-      }
-    } else if (type === 'video') {
-      this._videoMeta = metadata;
-      metabox = MP4.generateInitSegment(metadata);
+  _onTrackMetadata = (metadata: AudioMetadata | VideoMetadata): void => {
+    if (metadata.type === TrackType.Audio) {
+      this._isAudioMetadataSet = true;
     } else {
-      return;
+      this._isVideoMetadataSet = true;
     }
 
-    // dispatch metabox (Initialization Segment)
-    if (!this._onInitSegment) {
-      throw new IllegalStateException('MP4Remuxer: onInitSegment callback must be specified!');
-    }
-    this._onInitSegment(type, {
-      type: type,
-      data: metabox.buffer,
-      codec: codec,
-      container: `${type}/${container}`,
-      mediaDuration: metadata.duration  // in timescale 1000 (milliseconds)
-    });
-    */
+    Log.a(WebMRemuxer.TAG, 'onTrackMetadata: onInitSegment callback must be specified!', this._onInitSegment);
+    const segmentData = this._generator.generateInitSegment();
+    const initSegment: InitSegment = {
+      type: metadata.type,
+      data: segmentData.buffer,
+      codec: `${metadata.codec},${metadata.codec}`,
+      container: 'video/webm',
+      mediaDuration: metadata.duration
+    };
+
+    this._onInitSegment(metadata.type, initSegment);
   }
 
   private _calculateDtsBase (audioTrack: AudioTrackInfo, videoTrack: VideoTrackInfo): void {

@@ -6,9 +6,48 @@
  * 
  */
 
+// web
+import { AudioMetadata, VideoMetadata } from "../demux/flv-demuxer";
 import Log from "../utils/logger";
 
-// This file defines the data structure and interfaces for a WebM muxer.
+/**
+ * WebM MSE Bitstream Format Overview
+ *
+ * When remuxing into WebM for Media Source Extensions (MSE), the format differs from a traditional WebM file.
+ * You must generate a streamable WebM structure, consisting of an Initialization Segment followed by Media Segments.
+ *
+ * == Initialization Segment ==
+ *   - EBML Header
+ *   - Segment
+ *     - Info
+ *     - Tracks
+ *       - TrackEntry for each stream (e.g. VP9, AV1, Opus)
+ *       - CodecPrivate containing codec config (e.g. AV1CodecConfigurationRecord or OpusHead)
+ *
+ *   Notes:
+ *   - Only required once at the start.
+ *   - Contains metadata needed to decode future clusters.
+ *
+ * == Media Segments (aka Chunks) ==
+ *   - Cluster
+ *     - Timecode (relative to Segment timecode scale)
+ *     - One or more SimpleBlock or BlockGroup entries
+ *       - Each represents a single audio or video frame
+ *
+ *   Notes:
+ *   - No Cues, Chapters, SeekHead, or Tags should be included.
+ *   - Timestamps must be monotonically increasing.
+ *   - Clusters should be short (e.g. 500ms–2s) and independently decodable.
+ *
+ * == MSE Requirements ==
+ *   - WebM stream must be well-formed but not seekable.
+ *   - Append an init segment once via `SourceBuffer.appendBuffer()`, then stream clusters.
+ *   - TimecodeScale typically set to 1,000,000 (1ms units), but nanosecond precision is supported.
+ *
+ * For more details:
+ *   - https://www.webmproject.org/docs/container/
+ *   - https://datatracker.ietf.org/doc/html/draft-lhomme-cellar-ebml
+ */
 
 export type WebMCodec = 'VP8' | 'VP9' | 'AV1' | 'Opus' | 'Vorbis';
 
@@ -29,8 +68,8 @@ export interface WebMFrame {
 export class WebMGenerator {
   static readonly TAG = 'WebMGenerator';
 
-  private tracks: WebMTrackInfo[];
-  private frames: WebMFrame[][];
+  private _tracks: WebMTrackInfo[] = [];
+  private _frames: WebMFrame[][] = [];
 
   
   static createMimeType(options: {
@@ -49,12 +88,6 @@ export class WebMGenerator {
     return `${base}; codecs="${codecStr}"`;
   }
 
-  constructor(tracks: WebMTrackInfo[]) {
-    this.tracks = tracks;
-    this.frames = tracks.map(() => []);
-    // TODO: Initialize WebM header/structure
-  }
-
   /**
    * Add a frame to a specific track.
    * @param trackIndex Index of the track (0 = first track)
@@ -62,7 +95,7 @@ export class WebMGenerator {
    */
   addFrame(trackIndex: number, frame: WebMFrame): void {
     // TODO: Store frame for muxing
-    this.frames[trackIndex].push(frame);
+    //this.frames[trackIndex].push(frame);
   }
 
   /**
@@ -77,7 +110,57 @@ export class WebMGenerator {
    * Reset the generator to start a new file.
    */
   reset(): void {
-    this.frames = this.tracks.map(() => []);
+    //this.frames = this.tracks.map(() => []);
     // TODO: Reset internal state if needed
+  }
+
+  generateInitSegment(): Uint8Array {
+    // Stub for now; replace with proper EBML + Tracks for WebM
+    const ebmlHeader = this.encodeEbmlHeader();
+    const segmentInfo = this.encodeSegmentInfo();
+    const tracks = this.encodeTracks();
+
+    //return this.concatUint8Arrays([ebmlHeader, segmentInfo, tracks]);
+    return new Uint8Array();
+  }
+
+  /*
+  private encodeSimpleBlock(tag: FLVTag): Uint8Array | null {
+    // You'd need to encode WebM blocks here
+    // Stubbed — implement using actual SimpleBlock format
+    return tag.data;
+  }
+  */
+
+  private writeCluster(timecode: number, blocks: Uint8Array[]): Uint8Array[] {
+    // Wrap blocks in a Cluster element (with timecode)
+    // Stub — replace with real EBML-encoded Cluster
+    return blocks;
+  }
+
+  private encodeEbmlHeader(): Uint8Array {
+    // Stub — EBML header encoding
+    return new Uint8Array();
+  }
+
+  private encodeSegmentInfo(): Uint8Array {
+    // Stub — encode Segment Info with timecodeScale etc.
+    return new Uint8Array();
+  }
+
+  private encodeTracks(): Uint8Array {
+    // Stub — encode TrackEntry for VP9 and/or Opus
+    return new Uint8Array();
+  }
+
+  private concatUint8Arrays(chunks: Uint8Array[]): Uint8Array {
+    const size = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    const result = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) {
+      result.set(chunk, offset);
+      offset += chunk.length;
+    }
+    return result;
   }
 } 
