@@ -17,7 +17,7 @@ import { PGSData } from './pgs-data';
 type OnErrorCallback = (type: string, info: string) => void;
 type OnMediaInfoCallback = (mediaInfo: MediaInfo) => void;
 type OnScriptMetadataCallback = (metadata: any) => void;
-type OnTrackMetadataCallback = (type: string, metadata: any) => void;
+type OnTrackMetadataCallback = (metadata: any) => void;
 type OnTrackDataCallback = (audioTrack: any, videoTrack: any) => void;
 type OnTimedID3MetadataCallback = (timed_id3_data: PESPrivateData) => void;
 type onPGSSubitleDataCallback = (pgs_data: PGSData) => void;

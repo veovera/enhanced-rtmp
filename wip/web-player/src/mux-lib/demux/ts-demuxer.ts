@@ -1239,7 +1239,7 @@ class TSDemuxer extends BaseDemuxer {
                 Log.v(this.TAG, `Generated first AVCDecoderConfigurationRecord for mimeType: ${meta.codec}`);
             }
         }
-        this.onTrackMetadata('video', meta);
+        this.onTrackMetadata(meta);
         this.video_init_segment_dispatched_ = true;
         this.video_metadata_changed_ = false;
 
@@ -1937,7 +1937,7 @@ class TSDemuxer extends BaseDemuxer {
             Log.v(this.TAG, `Generated first AudioSpecificConfig for mimeType: ${meta.codec}`);
         }
 
-        this.onTrackMetadata('audio', meta);
+        this.onTrackMetadata(meta);
         this.audio_init_segment_dispatched_ = true;
         this.video_metadata_changed_ = false;
 
