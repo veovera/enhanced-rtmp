@@ -1,18 +1,28 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Modified by Slavik Lozben.
+ * Additional changes Copyright (C) 2025 Veovera Software Organization.
+ *
+ * See Git history for full details.
+ */
+
 import Log from "../utils/logger";
 import ExpGolomb from "./exp-golomb";
 import { MPEG4AudioObjectTypes, MPEG4SamplingFrequencies, MPEG4SamplingFrequencyIndex } from "./mpeg4-audio";
 
 export class AACFrame {
-    audio_object_type: MPEG4AudioObjectTypes;
-    sampling_freq_index: MPEG4SamplingFrequencyIndex;
-    sampling_frequency: number;
-    channel_config: number;
+    // chose sane defaults
+    audio_object_type: MPEG4AudioObjectTypes = MPEG4AudioObjectTypes.kAAC_LC;
+    sampling_freq_index: MPEG4SamplingFrequencyIndex = MPEG4SamplingFrequencyIndex.k44100Hz;
+    sampling_frequency: number = MPEG4SamplingFrequencies[MPEG4SamplingFrequencyIndex.k44100Hz];
+    channel_config: number = 2;
 
-    data: Uint8Array;
+    data: Uint8Array = new Uint8Array();
 }
 
 export class LOASAACFrame extends AACFrame {
-    other_data_present: boolean;
+    other_data_present: boolean = false;
 }
 
 export class AACADTSParser {
@@ -21,15 +31,12 @@ export class AACADTSParser {
 
     private data_: Uint8Array;
     private current_syncword_offset_: number;
-    private eof_flag_: boolean;
-    private has_last_incomplete_data: boolean;
+    private eof_flag_: boolean = false;
+    private has_last_incomplete_data: boolean = false;
 
     public constructor(data: Uint8Array) {
         this.data_ = data;
         this.current_syncword_offset_ = this.findNextSyncwordOffset(0);
-        if (this.eof_flag_) {
-            Log.e(this.TAG, `Could not found ADTS syncword until payload end`);
-        }
     }
 
     private findNextSyncwordOffset(syncword_offset: number): number {
@@ -54,7 +61,7 @@ export class AACADTSParser {
 
     public readNextAACFrame(): AACFrame | null {
         let data = this.data_;
-        let aac_frame: AACFrame = null;
+        let aac_frame: AACFrame | null = null;
 
         while (aac_frame == null) {
             if (this.eof_flag_) {
@@ -117,7 +124,7 @@ export class AACADTSParser {
         return this.has_last_incomplete_data;
     }
 
-    public getIncompleteData(): Uint8Array {
+    public getIncompleteData(): Uint8Array | null {
         if (!this.has_last_incomplete_data) {
             return null;
         }
@@ -132,8 +139,8 @@ export class AACLOASParser {
 
     private data_: Uint8Array;
     private current_syncword_offset_: number;
-    private eof_flag_: boolean;
-    private has_last_incomplete_data: boolean;
+    private eof_flag_: boolean = false;
+    private has_last_incomplete_data: boolean = false;
 
     public constructor(data: Uint8Array) {
         this.data_ = data;
@@ -175,7 +182,7 @@ export class AACLOASParser {
 
     public readNextAACFrame(privious?: LOASAACFrame): LOASAACFrame | null {
         let data = this.data_;
-        let aac_frame: LOASAACFrame = null;
+        let aac_frame: LOASAACFrame | null = null;
 
         while (aac_frame == null) {
             if (this.eof_flag_) {
@@ -316,7 +323,7 @@ export class AACLOASParser {
         return this.has_last_incomplete_data;
     }
 
-    public getIncompleteData(): Uint8Array {
+    public getIncompleteData(): Uint8Array | null {
         if (!this.has_last_incomplete_data) {
             return null;
         }
@@ -334,7 +341,7 @@ export class AudioSpecificConfig {
     public original_codec_mimetype: string;
 
     public constructor(frame: AACFrame) {
-        let config: Array<number> = null;
+        let config: Array<number>;
 
         let original_audio_object_type = frame.audio_object_type;
         let audio_object_type = frame.audio_object_type;
