@@ -49,118 +49,167 @@ import Log from "../utils/logger";
  *   - https://datatracker.ietf.org/doc/html/draft-lhomme-cellar-ebml
  */
 
-export type WebMCodec = 'VP8' | 'VP9' | 'AV1' | 'Opus' | 'Vorbis';
-
-export interface WebMTrackInfo {
-  codec: WebMCodec;
-  width?: number;
-  height?: number;
-  sampleRate?: number;
-  channels?: number;
+type WebMCodec = 'VP8' | 'VP9' | 'AV1' | 'Opus' | 'Vorbis';
+enum EbmlId {
+  Ebml                = 0x1A45DFA3,
+  Segment             = 0x18538067,
+  Info                = 0x1549A966,
+  TimecodeScale       = 0x002AD7B1,
+  MuxingApp           = 0x00004D80,
+  WritingApp          = 0x00005741,
+  Tracks              = 0x1654AE6B,
+  TrackEntry          = 0x000000AE,
+  TrackNumber         = 0x000000D7,
+  TrackUid            = 0x000073C5,
+  TrackType           = 0x00000083,
+  CodecId             = 0x00000086,
+  CodecPrivate        = 0x000063A2,
+  DefaultDuration     = 0x0023E383,
+  Video               = 0x000000E0,
+  PixelWidth          = 0x000000B0,
+  PixelHeight         = 0x000000BA,
+  EbmlVersion         = 0x4286,
+  EbmlReadVersion     = 0x42F7,
+  EbmlMaxIdLength     = 0x42F2,
+  EbmlMaxSizeLength   = 0x42F3,
+  DocType             = 0x4282,
+  DocTypeVersion      = 0x4287,
+  DocTypeReadVersion  = 0x4285,
+  Cluster             = 0x1F43B675,
+  Timecode            = 0xE7,
+  SimpleBlock         = 0xA3,
 }
 
-export interface WebMFrame {
-  data: Uint8Array;
-  timestamp: number; // in milliseconds
-  keyframe?: boolean;
+/**
+ * Encodes a string into a UTF-8 Uint8Array.
+ */
+function writeString(str: string): Uint8Array {
+  return new TextEncoder().encode(str);
 }
 
+/**
+ * Writes an unsigned integer in a fixed-size big-endian format.
+ */
+function writeUInt(value: number, size: number): Uint8Array {
+  const bytes = new Uint8Array(size);
+  for (let i = size - 1; i >= 0; i--) {
+    bytes[i] = value & 0xff;
+    value >>= 8;
+  }
+  return bytes;
+}
+
+/**
+ * Writes a simple EBML variable-length integer (VINT).
+ */
+function writeVint(value: number): Uint8Array {
+  if (value < 0x80) {
+    return new Uint8Array([0x80 | value]);
+  }
+  if (value < 0x4000) {
+    return new Uint8Array([0x40 | (value >> 8), value & 0xff]);
+  }
+  throw new Error('VINT too large for this implementation.');
+}
+
+/**
+ * Encodes an EBML element with its ID and payload.
+ */
+function encodeElement(id: number, data: Uint8Array): Uint8Array {
+  const idBytes = writeUInt(id, Math.ceil(Math.log2(id + 1) / 8));
+  const sizeBytes = writeVint(data.length);
+  return concatUint8Arrays([idBytes, sizeBytes, data]);
+}
+
+/**
+ * Concatenates multiple Uint8Arrays into one.
+ */
+function concatUint8Arrays(buffers: Uint8Array[]): Uint8Array {
+  const totalLength = buffers.reduce((sum, buf) => sum + buf.length, 0);
+  const result = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const buf of buffers) {
+    result.set(buf, offset);
+    offset += buf.length;
+  }
+  return result;
+}
+
+/**
+ * Generates a minimal WebM initialization segment containing AV1 codec config.
+ */
 export class WebMGenerator {
   static readonly TAG = 'WebMGenerator';
 
-  private _tracks: WebMTrackInfo[] = [];
-  private _frames: WebMFrame[][] = [];
+  static generateVideoInitSegment(codecPrivate: Uint8Array): Uint8Array {
+    const ebmlHeader = encodeElement(EbmlId.Ebml, concatUint8Arrays([
+      encodeElement(EbmlId.EbmlVersion, writeUInt(1, 1)),   
+      encodeElement(EbmlId.EbmlReadVersion, writeUInt(1, 1)),
+      encodeElement(EbmlId.EbmlMaxIdLength, writeUInt(4, 1)),
+      encodeElement(EbmlId.EbmlMaxSizeLength, writeUInt(8, 1)),
+      encodeElement(EbmlId.DocType, writeString('webm')),
+      encodeElement(EbmlId.DocTypeVersion, writeUInt(2, 1)),
+      encodeElement(EbmlId.DocTypeReadVersion, writeUInt(2, 1)),
+    ]));
 
-  
-  static createMimeType(options: {
-    type: 'video' | 'audio',
-    codecs: string[] // e.g. ['vp9', 'opus'] or ['av01.0.08M.08']
-  }): string {
-  
-    const { type, codecs } = options;
+    const segmentInfo = encodeElement(EbmlId.Info, concatUint8Arrays([
+      encodeElement(EbmlId.TimecodeScale, writeUInt(1000000, 3)),  // TimecodeScale in μs
+      encodeElement(EbmlId.MuxingApp, writeString('e-remux')),
+      encodeElement(EbmlId.WritingApp, writeString('e-remux')),
+    ]));
 
-    if (!type || !Array.isArray(codecs) || codecs.length === 0) {
-      Log.a(this.TAG, 'type and at least one codec are required');
-    }
+    const videoTrack = encodeElement(EbmlId.TrackEntry, concatUint8Arrays([
+      encodeElement(EbmlId.TrackNumber, writeUInt(1, 1)),
+      encodeElement(EbmlId.TrackUid, writeUInt(1, 1)),
+      encodeElement(EbmlId.TrackType, writeUInt(1, 1)), // 1 = video
+      encodeElement(EbmlId.CodecId, writeString('V_AV1')),
+      encodeElement(EbmlId.CodecPrivate, codecPrivate),
+      encodeElement(EbmlId.DefaultDuration, writeUInt(33366666, 4)), // ~30 fps
+      encodeElement(EbmlId.Video, concatUint8Arrays([
+        encodeElement(EbmlId.PixelWidth, writeUInt(1280, 2)),
+        encodeElement(EbmlId.PixelHeight, writeUInt(720, 2)),
+      ])),
+    ]));
 
-    const base = `${type}/webm`;
-    const codecStr = codecs.join(', ');
-    return `${base}; codecs="${codecStr}"`;
+    const tracks = encodeElement(EbmlId.Tracks, concatUint8Arrays([videoTrack]));
+    const segment = encodeElement(EbmlId.Segment, concatUint8Arrays([segmentInfo, tracks]));
+
+    return concatUint8Arrays([ebmlHeader, segment]);
   }
 
-  /**
-   * Add a frame to a specific track.
-   * @param trackIndex Index of the track (0 = first track)
-   * @param frame Frame data and timestamp
-   */
-  addFrame(trackIndex: number, frame: WebMFrame): void {
-    // TODO: Store frame for muxing
-    //this.frames[trackIndex].push(frame);
-  }
-
-  /**
-   * Finalize and return the complete WebM file as a Uint8Array.
-   */
-  finalize(): Uint8Array {
-    // TODO: Mux all frames and return the WebM file
+  static generateAudioInitSegment(codecPrivate: Uint8Array): Uint8Array {
+    Log.a(WebMGenerator.TAG, 'generateAudioInitSegment not implemented');
+    // !!@ Implement audio track init segment (e.g. OpusHead or Vorbis)
     return new Uint8Array();
   }
 
-  /**
-   * Reset the generator to start a new file.
-   */
-  reset(): void {
-    //this.frames = this.tracks.map(() => []);
-    // TODO: Reset internal state if needed
+  static generateVideoSegment(rawData: Uint8Array): Uint8Array {
+    // Minimal WebM Cluster with a single SimpleBlock
+    const timecode = 0;     // In ms, relative to cluster
+    const trackNumber = 1;  // Matches TrackNumber in init segment
+    const keyframe = true;
+
+    // Write SimpleBlock
+    const simpleBlockHeader = new Uint8Array(4);
+    simpleBlockHeader[0] = 0x80 | trackNumber;      // Track Number (VINT with 1-byte)
+    simpleBlockHeader[1] = (timecode >> 8) & 0xff;  // Timecode high byte
+    simpleBlockHeader[2] = timecode & 0xff;         // Timecode low byte
+    simpleBlockHeader[3] = keyframe ? 0x80 : 0x00;  // Flags: keyframe
+
+    const simpleBlock = concatUint8Arrays([simpleBlockHeader, rawData]);
+    const blockElement = encodeElement(EbmlId.SimpleBlock, simpleBlock); // 0xA3 = SimpleBlock
+
+    // Write Cluster
+    const clusterTimecode = encodeElement(EbmlId.Timecode, writeUInt(timecode, 2)); // 0xE7 = Timecode
+    const cluster = encodeElement(EbmlId.Cluster, concatUint8Arrays([clusterTimecode, blockElement])); // Cluster
+
+    return cluster;
   }
 
-  generateInitSegment(): Uint8Array {
-    // Stub for now; replace with proper EBML + Tracks for WebM
-    const ebmlHeader = this.encodeEbmlHeader();
-    const segmentInfo = this.encodeSegmentInfo();
-    const tracks = this.encodeTracks();
+  static generateAudioSegment(rawData: Uint8Array): Uint8Array {
+    Log.a(WebMGenerator.TAG, 'generateAudioSegment not implemented');
 
-    //return this.concatUint8Arrays([ebmlHeader, segmentInfo, tracks]);
+    // !!@ Implement audio segment generation
     return new Uint8Array();
   }
-
-  /*
-  private encodeSimpleBlock(tag: FLVTag): Uint8Array | null {
-    // You'd need to encode WebM blocks here
-    // Stubbed — implement using actual SimpleBlock format
-    return tag.data;
-  }
-  */
-
-  private writeCluster(timecode: number, blocks: Uint8Array[]): Uint8Array[] {
-    // Wrap blocks in a Cluster element (with timecode)
-    // Stub — replace with real EBML-encoded Cluster
-    return blocks;
-  }
-
-  private encodeEbmlHeader(): Uint8Array {
-    // Stub — EBML header encoding
-    return new Uint8Array();
-  }
-
-  private encodeSegmentInfo(): Uint8Array {
-    // Stub — encode Segment Info with timecodeScale etc.
-    return new Uint8Array();
-  }
-
-  private encodeTracks(): Uint8Array {
-    // Stub — encode TrackEntry for VP9 and/or Opus
-    return new Uint8Array();
-  }
-
-  private concatUint8Arrays(chunks: Uint8Array[]): Uint8Array {
-    const size = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-    const result = new Uint8Array(size);
-    let offset = 0;
-    for (const chunk of chunks) {
-      result.set(chunk, offset);
-      offset += chunk.length;
-    }
-    return result;
-  }
-} 
+}

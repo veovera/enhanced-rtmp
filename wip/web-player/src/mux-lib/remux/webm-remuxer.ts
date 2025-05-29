@@ -66,10 +66,9 @@
  */
 
 import { Remuxer, InitSegment } from './remuxer.js';
-import { WebMGenerator, WebMTrackInfo, WebMFrame } from './webm-generator.js';
+import { WebMGenerator } from './webm-generator.js';
 import { Callback, assertCallback } from '../utils/common.js';
 import { FLVDemuxer, AudioTrackInfo, VideoTrackInfo, VideoSample, AudioSample, AudioMetadata, VideoMetadata } from '../demux/flv-demuxer.js';
-import { ConfigOptions } from '../config.js';
 import Log from '../utils/logger.js';
 import { MediaSegmentInfoList, TrackType } from '../core/media-segment-info.js';
 
@@ -79,11 +78,10 @@ export class WebMRemuxer extends Remuxer {
   private _dtsBase = Infinity;
   private _audioDtsBase = Infinity;
   private _videoDtsBase = Infinity;
-  private _audioNextDts = NaN;
-  private _videoNextDts = NaN;
+  private _audioNextDts = NaN; // !!@ do we need this?
+  private _videoNextDts = NaN; // !!@ do we need this?
   private _audioStashedLastSample: AudioSample | null = null;
   private _videoStashedLastSample: VideoSample | null = null;
-  private _generator: WebMGenerator = new WebMGenerator();
 
   private _audioSegmentInfoList = new MediaSegmentInfoList(TrackType.Audio);
   private _videoSegmentInfoList = new MediaSegmentInfoList(TrackType.Video);
@@ -147,7 +145,8 @@ export class WebMRemuxer extends Remuxer {
       id: 1,
       sequenceNumber: 0,
       samples: [],
-      length: 0
+      length: 0,
+      rawData: new Uint8Array()
     };
 
     if (videoSample) {
@@ -191,14 +190,20 @@ export class WebMRemuxer extends Remuxer {
   }
 
   _onTrackMetadata = (metadata: AudioMetadata | VideoMetadata): void => {
+    Log.a(WebMRemuxer.TAG, 'onTrackMetadata: onInitSegment callback must be specified!', this._onInitSegment);
+
+    let segmentData: Uint8Array;
+
     if (metadata.type === TrackType.Audio) {
+      const audioMetadata = metadata as AudioMetadata;
+      segmentData = WebMGenerator.generateAudioInitSegment(new Uint8Array()); // !!@ fix this
       this._isAudioMetadataDisplatched = true;
     } else {
+      const videoMetadata = metadata as VideoMetadata;
+      segmentData = WebMGenerator.generateVideoInitSegment(videoMetadata.av1c!);
       this._isVideoMetadataDisplatched = true;
     }
 
-    Log.a(WebMRemuxer.TAG, 'onTrackMetadata: onInitSegment callback must be specified!', this._onInitSegment);
-    const segmentData = this._generator.generateInitSegment();
     const initSegment: InitSegment = {
       type: metadata.type,
       data: segmentData.buffer,
@@ -226,12 +231,21 @@ export class WebMRemuxer extends Remuxer {
   }
 
   private _remuxVideo(videoTrack: VideoTrackInfo, force: boolean = false): void {
-    throw new Error('Method not implemented.');
-    //!!@this.generator.remuxVideo(videoTrack);
+    if (this._isVideoMetadataDisplatched != true ||videoTrack.rawData.length === 0) {
+      return;
+    }
+
+    const segment = WebMGenerator.generateVideoSegment(videoTrack.rawData);
+    this._onMediaSegment(TrackType.Video, {
+      type: TrackType.Video,
+      data: segment.buffer,
+      sampleCount: videoTrack.samples.length,
+      info: videoTrack.samples[0]
+    });
   }
 
   private _remuxAudio(audioTrack: AudioTrackInfo, force: boolean = false): void {
-    throw new Error('Method not implemented.');
+    Log.a(WebMRemuxer.TAG, '_remuxAudio method not implemented.');
     //!!@this.generator.remuxAudio(audioTrack);
   }
 } 
