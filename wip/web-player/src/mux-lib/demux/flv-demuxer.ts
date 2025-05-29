@@ -31,6 +31,17 @@ import { Remuxer } from '../remux/remuxer.js';
 // you can find enhanced flv specification here: https://veovera.org/docs/enhanced/enhanced-rtmp-v2
 //
 
+type ProbeResult =
+    | { needMoreData: true }
+    | { match: false }
+    | {
+        match: true;
+        consumed: number;
+        dataOffset: number;
+        hasAudioTrack: boolean;
+        hasVideoTrack: boolean;
+    };
+
 export enum FlvSoundFormat {
     LPcmPlatformEndian  = 0,
     AdPcm               = 1,
@@ -148,9 +159,12 @@ export interface VideoMetadata {
     refSampleDuration: number;
     codec: string;
     av1Extra?: AV1Metadata;
+    
+    // !!@ can this be all collapsed into codecConfig? make sure we don't alloc and copying into this?
     av1c?: Uint8Array;  // AV1CodecConfigurationRecord
     avcc?: Uint8Array;  // AVCDecoderConfigurationRecord
     hvcc?: Uint8Array;  // HEVCDecoderConfigurationRecord
+    vp9c?: Uint8Array;  // VP9CodecConfigurationRecord
 }
 
 const VideoMetadataDefault: VideoMetadata = {
@@ -178,6 +192,7 @@ export interface VideoTrackInfo {
     sequenceNumber: number;
     samples: VideoSample[];
     length: number;
+    rawData: Uint8Array;    // !!@ to optimize, how can we avoid creating and copying into this? 
 }
 
 export interface VideoUnit {
@@ -322,7 +337,7 @@ export class FLVDemuxer {
             fps_den: 1000
         };
 
-        this._videoTrack = {type: TrackType.Video, id: 1, sequenceNumber: 0, samples: [], length: 0};
+        this._videoTrack = {type: TrackType.Video, id: 1, sequenceNumber: 0, samples: [], length: 0, rawData: new Uint8Array()};
         this._audioTrack = {type: TrackType.Audio, id: 2, sequenceNumber: 0, samples: [], length: 0};
 
         this._littleEndian = (function () {
@@ -336,14 +351,14 @@ export class FLVDemuxer {
         // nothing to do, garbage collector should do its job
     }
 
-    static probe(buffer: ArrayBuffer): any {
+    static probe(buffer: ArrayBuffer): ProbeResult {
         let foo: number;
         let data = new Uint8Array(buffer);
         if (data.byteLength < 9) {
             return {needMoreData: true};
         }
 
-        let mismatch = {match: false};
+        let mismatch: ProbeResult = {match: false};
 
         if (data[0] !== 0x46 || data[1] !== 0x4C || data[2] !== 0x56 || data[3] !== 0x01) {
             return mismatch;
@@ -495,7 +510,13 @@ export class FLVDemuxer {
         if (byteStart === 0) {  // buffer with FLV header
             if (chunk.byteLength > 13) {
                 let probeData = FLVDemuxer.probe(chunk);
-                offset = probeData.dataOffset;
+                if ('match' in probeData && probeData.match === true) {
+                    offset = probeData.dataOffset;
+                    this._hasAudio = probeData.hasAudioTrack && this._hasAudio;
+                    this._hasVideo = probeData.hasVideoTrack && this._hasVideo;
+                } else {
+                    return 0;
+                }            
             } else {
                 return 0;
             }
@@ -1805,10 +1826,13 @@ export class FLVDemuxer {
             }
         }
 
-        let version = v.getUint8(0) & 0x7F;
-        let seq_profile = (v.getUint8(1) & 0xE0) >> 5;
-        let seq_level_idx = (v.getUint8(1) & 0x8F) >> 0;
-        let seq_tier = (v.getUint8(2) & 0x80) >> 7;
+        const version = v.getUint8(0) & 0x7F;
+        const seq_profile = (v.getUint8(1) & 0xE0) >> 5;
+        const seq_level_idx = (v.getUint8(1) & 0x8F) >> 0;
+        const seq_tier = (v.getUint8(2) & 0x80) >> 7;
+
+        // used to advance the parser
+        void seq_profile, seq_level_idx, seq_tier;
 
         if (version !== 1) {
             this._onError(DemuxErrors.FORMAT_ERROR, 'Flv: Invalid AV1CodecConfigurationRecord');
@@ -1855,8 +1879,7 @@ export class FLVDemuxer {
         if (mi.isComplete()) {
             this._onMediaInfo(mi);
         }
-        meta.av1c = new Uint8Array(dataSize);
-        meta.av1c.set(new Uint8Array(arrayBuffer, dataOffset, dataSize), 0);
+        meta.av1c = new Uint8Array(arrayBuffer, dataOffset, dataSize).slice();  // !!@ do we need to slice? it causes an extra copy
         Log.v(FLVDemuxer.TAG, 'Preparing AV1CodecConfigurationRecord');
 
         // notify new metadata
@@ -2016,6 +2039,7 @@ export class FLVDemuxer {
 
             // flush parsed frames
             if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
+                this._videoTrack.rawData = new Uint8Array(arrayBuffer, dataOffset, dataSize);
                 this._onTrackData(this._audioTrack, this._videoTrack);
             }
         }
@@ -2092,24 +2116,27 @@ export class FLVDemuxer {
                 duration: this._duration
             };
         } else {
-            if (typeof meta.av1c !== 'undefined') {
-                Log.w(FLVDemuxer.TAG, 'Found another AV1CodecConfigurationRecord!');
+            if (typeof meta.vp9c !== 'undefined') {
+                Log.w(FLVDemuxer.TAG, 'Found another VP9CodecConfigurationRecord!');
             }
         }
 
-        let version = v.getUint8(0) & 0x7F;
-        let seq_profile = (v.getUint8(1) & 0xE0) >> 5;
-        let seq_level_idx = (v.getUint8(1) & 0x8F) >> 0;
-        let seq_tier = (v.getUint8(2) & 0x80) >> 7;
+        const version = v.getUint8(0) & 0x7F;
+        const seq_profile = (v.getUint8(1) & 0xE0) >> 5;
+        const seq_level_idx = (v.getUint8(1) & 0x8F) >> 0;
+        const seq_tier = (v.getUint8(2) & 0x80) >> 7;
+
+        // used to advance the parser
+        void seq_profile, seq_level_idx, seq_tier;
 
         if (version !== 1) {
-            this._onError(DemuxErrors.FORMAT_ERROR, 'Flv: Invalid AV1CodecConfigurationRecord');
+            this._onError(DemuxErrors.FORMAT_ERROR, 'Flv: Invalid VP9CodecConfigurationRecord');
             return;
         }
 
         const config = AV1OBUParser.parseOBUs(new Uint8Array(arrayBuffer, dataOffset + 4, dataSize - 4));
         if (config == null) {
-            this._onError(DemuxErrors.FORMAT_ERROR, 'Flv: Invalid AV1CodecConfigurationRecord');
+            this._onError(DemuxErrors.FORMAT_ERROR, 'Flv: Invalid VP9CodecConfigurationRecord');
             return;
         }
 
@@ -2147,8 +2174,8 @@ export class FLVDemuxer {
         if (mi.isComplete()) {
             this._onMediaInfo(mi);
         }
-        meta.av1c = new Uint8Array(dataSize);
-        meta.av1c.set(new Uint8Array(arrayBuffer, dataOffset, dataSize), 0);
+
+        meta.vp9c = new Uint8Array(arrayBuffer, dataOffset, dataSize).slice();
         Log.v(FLVDemuxer.TAG, 'Preparing AV1CodecConfigurationRecord');
     }
 
