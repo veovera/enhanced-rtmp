@@ -68,9 +68,10 @@
 import { Remuxer, InitSegment } from './remuxer.js';
 import { WebMGenerator } from './webm-generator.js';
 import { Callback, assertCallback } from '../utils/common.js';
-import { FLVDemuxer, AudioTrackInfo, VideoTrackInfo, VideoSample, AudioSample, AudioMetadata, VideoMetadata } from '../demux/flv-demuxer.js';
+import { FLVDemuxer, AudioTrack, VideoTrack, VideoFrame, AudioFrame, AudioMetadata, VideoMetadata } from '../demux/flv-demuxer.js';
 import Log from '../utils/logger.js';
 import { MediaSegmentInfoList, TrackType } from '../core/media-segment-info.js';
+import { MediaSegmentInfo, FrameInfo } from '../core/media-segment-info.js';
 
 export class WebMRemuxer extends Remuxer {
   static readonly TAG = 'WebMRemuxer';
@@ -80,8 +81,8 @@ export class WebMRemuxer extends Remuxer {
   private _videoDtsBase = Infinity;
   private _audioNextDts = NaN; // !!@ do we need this?
   private _videoNextDts = NaN; // !!@ do we need this?
-  private _audioStashedLastSample: AudioSample | null = null;
-  private _videoStashedLastSample: VideoSample | null = null;
+  private _audioStashedLastFrame: AudioFrame | null = null;
+  private _videoStashedLastFrame: VideoFrame | null = null;
 
   private _audioSegmentInfoList = new MediaSegmentInfoList(TrackType.Audio);
   private _videoSegmentInfoList = new MediaSegmentInfoList(TrackType.Video);
@@ -126,8 +127,8 @@ export class WebMRemuxer extends Remuxer {
   } 
   
   seek(originalDts: number): void {
-    this._audioStashedLastSample = null;
-    this._videoStashedLastSample = null;
+    this._audioStashedLastFrame = null;
+    this._videoStashedLastFrame = null;
     this._videoSegmentInfoList.clear();
     this._audioSegmentInfoList.clear();
   }
@@ -136,45 +137,45 @@ export class WebMRemuxer extends Remuxer {
     return this._dtsBase < Infinity ? this._dtsBase : undefined;
   }
   
-  flushStashedSamples(): void {
-    let videoSample = this._videoStashedLastSample;
-    let audioSample = this._audioStashedLastSample;
+  flushStashedFrames(): void {
+    let videoFrame = this._videoStashedLastFrame;
+    let audioFrame = this._audioStashedLastFrame;
 
-    let videoTrack: VideoTrackInfo = {
+    let videoTrack: VideoTrack = {
       type: TrackType.Video,
       id: 1,
       sequenceNumber: 0,
-      samples: [],
+      frames: [],
       length: 0,
       rawData: new Uint8Array()
     };
 
-    if (videoSample) {
-      videoTrack.samples.push(videoSample);
-      videoTrack.length = videoSample.length;
+    if (videoFrame) {
+      videoTrack.frames.push(videoFrame);
+      videoTrack.length = videoFrame.length;
     }
 
-    let audioTrack: AudioTrackInfo = {
+    let audioTrack: AudioTrack = {
       type: TrackType.Audio,
       id: 2,
       sequenceNumber: 0,
-      samples: [],
+      frames: [],
       length: 0
     };
 
-    if (audioSample != null) {
-      audioTrack.samples.push(audioSample);
-      audioTrack.length = audioSample.length;
+    if (audioFrame != null) {
+      audioTrack.frames.push(audioFrame);
+      audioTrack.length = audioFrame.length;
     }
 
-    this._videoStashedLastSample = null;
-    this._audioStashedLastSample = null;
+    this._videoStashedLastFrame = null;
+    this._audioStashedLastFrame = null;
 
     this._remuxVideo(videoTrack, true);
     this._remuxAudio(audioTrack, true);
   }
   
-  _onTrackData = (audioTrack: AudioTrackInfo, videoTrack: VideoTrackInfo): void => {
+  _onTrackData = (audioTrack: AudioTrack, videoTrack: VideoTrack): void => {
     Log.a(WebMRemuxer.TAG, 'onMediaSegment callback must be specificed!', this._onMediaSegment);
     
     if (this._dtsBase === Infinity) {
@@ -207,7 +208,7 @@ export class WebMRemuxer extends Remuxer {
     const initSegment: InitSegment = {
       type: metadata.type,
       data: segmentData.buffer,
-      codec: `${metadata.codec},${metadata.codec}`,
+      codec: `${metadata.codec}`,
       container: 'video/webm',
       mediaDuration: metadata.duration
     };
@@ -215,36 +216,86 @@ export class WebMRemuxer extends Remuxer {
     this._onInitSegment(metadata.type, initSegment);
   }
 
-  private _calculateDtsBase (audioTrack: AudioTrackInfo, videoTrack: VideoTrackInfo): void {
+  private _calculateDtsBase (audioTrack: AudioTrack, videoTrack: VideoTrack): void {
     if (this._dtsBase < Infinity) {
       return;
     }
 
-    if (audioTrack.samples.length > 0) {
-      this._audioDtsBase = audioTrack.samples[0].dts;
+    if (audioTrack.frames.length > 0) {
+      this._audioDtsBase = audioTrack.frames[0].dts;
     }
-    if (videoTrack.samples.length > 0) {
-      this._videoDtsBase = videoTrack.samples[0].dts;
+    if (videoTrack.frames.length > 0) {
+      this._videoDtsBase = videoTrack.frames[0].dts;
     }
 
     this._dtsBase = Math.min(this._audioDtsBase, this._videoDtsBase);
   }
 
-  private _remuxVideo(videoTrack: VideoTrackInfo, force: boolean = false): void {
-    if (this._isVideoMetadataDisplatched != true ||videoTrack.rawData.length === 0) {
+  private _remuxVideo(videoTrack: VideoTrack, force: boolean = false): void {
+    if (this._isVideoMetadataDisplatched != true || !videoTrack.rawData  || videoTrack.frames.length === 0) {
       return;
     }
 
-    const segment = WebMGenerator.generateVideoSegment(videoTrack.rawData);
+    if (videoTrack.frames.length === 1 && !force) {
+      // !!@ is this a needed case? check audio track for this logic as well
+      // Ignore and keep in demuxer's queue
+      return;
+    }
+
+    const info = new MediaSegmentInfo();
+    const firstFrame = videoTrack.frames[0];
+    const lastFrame = videoTrack.frames[videoTrack.frames.length - 1];
+
+    // Add all keyframes to syncPoints
+    for (const frame of videoTrack.frames) {
+      if (frame.isKeyframe) {
+        const syncPoint = new FrameInfo(
+          frame.dts,
+          frame.pts,
+          0, // duration will be calculated by seeking handler
+          frame.dts,
+          true
+        );
+        info.appendSyncPoint(syncPoint);
+      }
+    }
+
+    // Set segment info
+    info.beginDts = firstFrame.dts;
+    info.endDts = lastFrame.dts;
+    info.beginPts = firstFrame.pts;
+    info.endPts = lastFrame.pts;
+    info.originalBeginDts = firstFrame.dts;
+    info.originalEndDts = lastFrame.dts;
+    info.firstFrame = new FrameInfo(
+      firstFrame.dts,
+      firstFrame.pts,
+      0,
+      firstFrame.dts,
+      firstFrame.isKeyframe
+    );
+    info.lastFrame = new FrameInfo(
+      lastFrame.dts,
+      lastFrame.pts,
+      0,
+      lastFrame.dts,
+      lastFrame.isKeyframe
+    );
+
+    const segment = WebMGenerator.generateVideoSegment(
+      videoTrack.rawData,
+      firstFrame.dts,
+      firstFrame.isKeyframe
+    );
     this._onMediaSegment(TrackType.Video, {
       type: TrackType.Video,
       data: segment.buffer,
-      sampleCount: videoTrack.samples.length,
-      info: videoTrack.samples[0]
+      frameCount: videoTrack.frames.length,
+      info: info
     });
   }
 
-  private _remuxAudio(audioTrack: AudioTrackInfo, force: boolean = false): void {
+  private _remuxAudio(audioTrack: AudioTrack, force: boolean = false): void {
     Log.a(WebMRemuxer.TAG, '_remuxAudio method not implemented.');
     //!!@this.generator.remuxAudio(audioTrack);
   }

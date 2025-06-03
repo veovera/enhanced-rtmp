@@ -1,20 +1,13 @@
 /*
- * Copyright (C) 2016 Bilibili. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
  *
- * This file is derived from dailymotion's hls.js library (hls.js/src/remux/mp4-generator.js)
+ * Copyright (C) 2016 Bilibili.
  * @author zheng qian <xqq@xqq.im>
+ * 
+ * Modified by Slavik Lozben.
+ * Additional changes Copyright (C) 2025 Veovera Software Organization.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * See Git history for full details.
  */
 
 //  MP4 boxes generator for ISO BMFF (ISO Base Media File Format, defined in ISO/IEC 14496-12)
@@ -357,7 +350,7 @@ class MP4 {
             0x00, 0x00, 0x00, 0x00,  // reserved: 2 * 4 bytes
             0x00, 0x00, 0x00, 0x00,
             0x00, channelCount,      // channelCount(2)
-            0x00, 0x10,              // sampleSize(2)
+            0x00, 0x10,              // 16 bitsPerSample (2-byte field)
             0x00, 0x00, 0x00, 0x00,  // reserved(4)
             (sampleRate >>> 8) & 0xFF,  // Audio sample rate
             (sampleRate) & 0xFF,
@@ -377,7 +370,7 @@ class MP4 {
             0x00, 0x00, 0x00, 0x00,  // reserved: 2 * 4 bytes
             0x00, 0x00, 0x00, 0x00,
             0x00, channelCount,      // channelCount(2)
-            0x00, 0x10,              // sampleSize(2)
+            0x00, 0x10,              // 16 bitsPerSample (2-byte field)
             0x00, 0x00, 0x00, 0x00,  // reserved(4)
             (sampleRate >>> 8) & 0xFF,  // Audio sample rate
             (sampleRate) & 0xFF,
@@ -397,7 +390,7 @@ class MP4 {
             0x00, 0x00, 0x00, 0x00,  // reserved: 2 * 4 bytes
             0x00, 0x00, 0x00, 0x00,
             0x00, channelCount,      // channelCount(2)
-            0x00, 0x10,              // sampleSize(2)
+            0x00, 0x10,              // 16 bitsPerSample (2-byte field)
             0x00, 0x00, 0x00, 0x00,  // reserved(4)
             (sampleRate >>> 8) & 0xFF,  // Audio sample rate
             (sampleRate) & 0xFF,
@@ -417,7 +410,7 @@ class MP4 {
             0x00, 0x00, 0x00, 0x00,  // reserved: 2 * 4 bytes
             0x00, 0x00, 0x00, 0x00,
             0x00, channelCount,      // channelCount(2)
-            0x00, 0x10,              // sampleSize(2)
+            0x00, 0x10,              // 16 bitsPerSample (2-byte field)
             0x00, 0x00, 0x00, 0x00,  // reserved(4)
             (sampleRate >>> 8) & 0xFF,  // Audio sample rate
             (sampleRate) & 0xFF,
@@ -467,7 +460,7 @@ class MP4 {
             0x00, 0x00, 0x00, 0x00,  // reserved: 2 * 4 bytes
             0x00, 0x00, 0x00, 0x00,
             0x00, channelCount, // channelCount(2)
-            0x00, 0x10,              // sampleSize(2)
+            0x00, 0x10,              // 16 bitsPerSample (2-byte field)
             0x00, 0x00, 0x00, 0x00,  // reserved(4)
             (sampleRate >>> 8) & 0xFF,  // Audio sample rate
             (sampleRate) & 0xFF,
@@ -556,16 +549,16 @@ class MP4 {
     static fLaC(meta) {
         let channelCount = meta.channelCount;
         let sampleRate = Math.min(meta.audioSampleRate, 65535);
-        let sampleSize = meta.sampleSize;
+        let bitsPerSample = meta.bitsPerSample;
 
         let data = new Uint8Array([
-            0x00, 0x00, 0x00, 0x00,  // reserved(4)
-            0x00, 0x00, 0x00, 0x01,  // reserved(2) + data_reference_index(2)
-            0x00, 0x00, 0x00, 0x00,  // reserved: 2 * 4 bytes
-            0x00, 0x00, 0x00, 0x00,
-            0x00, channelCount, // channelCount(2)
-            0x00, (sampleSize), // sampleSize(2)
-            0x00, 0x00, 0x00, 0x00,  // reserved(4)
+            0x00, 0x00, 0x00, 0x00,     // reserved(4)
+            0x00, 0x00, 0x00, 0x01,     // reserved(2) + data_reference_index(2)
+            0x00, 0x00, 0x00, 0x00,     // reserved: 2 * 4 bytes
+            0x00, 0x00, 0x00, 0x00,     // reserved: 2 * 4 bytes
+            0x00, channelCount,         // channelCount(2)
+            0x00, (bitsPerSample),      // bitsPerSample (2-byte field)
+            0x00, 0x00, 0x00, 0x00,     // reserved(4)
             (sampleRate >>> 8) & 0xFF,  // Audio sample rate
             (sampleRate) & 0xFF,
             0x00, 0x00
@@ -585,16 +578,16 @@ class MP4 {
     static ipcm(meta) {
         let channelCount = meta.channelCount;
         let sampleRate = Math.min(meta.audioSampleRate, 65535);
-        let sampleSize = meta.sampleSize;
+        let bitsPerSample = meta.bitsPerSample;
 
         let data = new Uint8Array([
-            0x00, 0x00, 0x00, 0x00,  // reserved(4)
-            0x00, 0x00, 0x00, 0x01,  // reserved(2) + data_reference_index(2)
-            0x00, 0x00, 0x00, 0x00,  // reserved: 2 * 4 bytes
-            0x00, 0x00, 0x00, 0x00,
-            0x00, channelCount, // channelCount(2)
-            0x00, (sampleSize), // sampleSize(2)
-            0x00, 0x00, 0x00, 0x00,  // reserved(4)
+            0x00, 0x00, 0x00, 0x00,     // reserved(4)
+            0x00, 0x00, 0x00, 0x01,     // reserved(2) + data_reference_index(2)
+            0x00, 0x00, 0x00, 0x00,     // reserved: 2 * 4 bytes
+            0x00, 0x00, 0x00, 0x00,     // reserved: 2 * 4 bytes
+            0x00, channelCount,         // channelCount(2)
+            0x00, (bitsPerSample),      // bitsPerSample (2-byte field)
+            0x00, 0x00, 0x00, 0x00,     // reserved(4)
             (sampleRate >>> 8) & 0xFF,  // Audio sample rate
             (sampleRate) & 0xFF,
             0x00, 0x00
@@ -619,10 +612,10 @@ class MP4 {
 
     static pcmC(meta) {
         let littleEndian = meta.littleEndian ? 0x01 : 0x00
-        let sampleSize = meta.sampleSize;
+        let bitsPerSample = meta.bitsPerSample;
         let data = new Uint8Array([
             0x00, 0x00, 0x00, 0x00, // version, flag
-            littleEndian, sampleSize
+            littleEndian, bitsPerSample
         ]);
         return MP4.box(MP4.types.pcmC, data);
     }
@@ -795,12 +788,12 @@ class MP4 {
 
     // Sample Dependency Type box
     static sdtp(track) {
-        let samples = track.samples || [];
-        let sampleCount = samples.length;
-        let data = new Uint8Array(4 + sampleCount);
+        let frames = track.frames || [];
+        let frameCount = frames.length;
+        let data = new Uint8Array(4 + frameCount);
         // 0~4 bytes: version(0) & flags
-        for (let i = 0; i < sampleCount; i++) {
-            let flags = samples[i].flags;
+        for (let i = 0; i < frameCount; i++) {
+            let flags = frames[i].flags;
             data[i + 4] = (flags.isLeading << 6)    // is_leading: 2 (bit)
                         | (flags.dependsOn << 4)    // sample_depends_on
                         | (flags.isDependedOn << 2) // sample_is_depended_on
@@ -811,29 +804,29 @@ class MP4 {
 
     // Track fragment run box
     static trun(track, offset) {
-        let samples = track.samples || [];
-        let sampleCount = samples.length;
-        let dataSize = 12 + 16 * sampleCount;
+        let frames = track.frames || [];
+        let frameCount = frames.length;
+        let dataSize = 12 + 16 * frameCount;
         let data = new Uint8Array(dataSize);
         offset += 8 + dataSize;
 
         data.set([
             0x00, 0x00, 0x0F, 0x01,      // version(0) & flags
-            (sampleCount >>> 24) & 0xFF, // sample_count
-            (sampleCount >>> 16) & 0xFF,
-            (sampleCount >>>  8) & 0xFF,
-            (sampleCount) & 0xFF,
+            (frameCount >>> 24) & 0xFF,
+            (frameCount >>> 16) & 0xFF,
+            (frameCount >>>  8) & 0xFF,
+            (frameCount) & 0xFF,
             (offset >>> 24) & 0xFF,      // data_offset
             (offset >>> 16) & 0xFF,
             (offset >>>  8) & 0xFF,
             (offset) & 0xFF
         ], 0);
 
-        for (let i = 0; i < sampleCount; i++) {
-            let duration = samples[i].duration;
-            let size = samples[i].size;
-            let flags = samples[i].flags;
-            let cts = samples[i].cts;
+        for (let i = 0; i < frameCount; i++) {
+            let duration = frames[i].duration;
+            let size = frames[i].size;
+            let flags = frames[i].flags;
+            let cts = frames[i].cts;
             data.set([
                 (duration >>> 24) & 0xFF,  // sample_duration
                 (duration >>> 16) & 0xFF,

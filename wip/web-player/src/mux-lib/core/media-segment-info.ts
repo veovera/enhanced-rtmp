@@ -15,8 +15,8 @@ export enum TrackType {
     Video = 'video',
 }
 
-// Represents an media sample (audio / video)
-export class SampleInfo {
+// Represents an media frame (audio / video)
+export class FrameInfo {
     dts: number;
     pts: number;
     duration: number;
@@ -37,44 +37,32 @@ export class SampleInfo {
 // Media Segment concept is defined in Media Source Extensions spec.
 // Particularly in ISO BMFF format, an Media Segment contains a moof box followed by a mdat box.
 export class MediaSegmentInfo {
-    beginDts: number;
-    endDts: number;
-    beginPts: number;
-    endPts: number;
-    originalBeginDts: number;
-    originalEndDts: number;
-    syncPoints: SampleInfo[];
-    firstSample: SampleInfo | null;
-    lastSample: SampleInfo | null;
+    beginDts = 0
+    endDts = 0
+    beginPts = 0
+    endPts = 0
+    originalBeginDts = 0
+    originalEndDts = 0
+    syncPoints: FrameInfo[] = []
+    firstFrame: FrameInfo | null = null
+    lastFrame: FrameInfo | null = null
 
-    constructor() {
-        this.beginDts = 0;
-        this.endDts = 0;
-        this.beginPts = 0;
-        this.endPts = 0;
-        this.originalBeginDts = 0;
-        this.originalEndDts = 0;
-        this.syncPoints = [];     // SampleInfo[n], for video IDR frames only
-        this.firstSample = null;  // SampleInfo
-        this.lastSample = null;   // SampleInfo
-    }
-
-    appendSyncPoint(sampleInfo: SampleInfo) {  // also called Random Access Point
-        sampleInfo.isSyncPoint = true;
-        this.syncPoints.push(sampleInfo);
+    appendSyncPoint(frameInfo: FrameInfo) {  // also called Random Access Point
+        frameInfo.isSyncPoint = true;
+        this.syncPoints.push(frameInfo);
     }
 
 }
 
 // Ordered list for recording video IDR frames, sorted by originalDts
-export class IDRSampleList {
-    private _list: SampleInfo[] = [];
+export class IDRFrameList {
+    private _list: FrameInfo[] = [];
 
     clear() {
         this._list = [];
     }
 
-    appendArray(syncPoints: SampleInfo[]) {
+    appendArray(syncPoints: FrameInfo[]) {
         let list = this._list;
 
         if (syncPoints.length === 0) {
@@ -166,10 +154,10 @@ export class MediaSegmentInfoList {
         }
 
         while (lbound <= ubound) {
-            const sample = list[mid].lastSample;
+            const frame = list[mid].lastFrame;
             mid = lbound + Math.floor((ubound - lbound) / 2);
 
-            if (mid === last || (sample && originalBeginDts > sample.originalDts) && 
+            if (mid === last || (frame && originalBeginDts > frame.originalDts) && 
                 (originalBeginDts < list[mid + 1].originalBeginDts)) {
                 idx = mid;
                 break;
@@ -194,7 +182,7 @@ export class MediaSegmentInfoList {
 
         if (lastAppendIdx !== -1 && 
             lastAppendIdx < list.length &&
-            (list[lastAppendIdx].lastSample && msi.originalBeginDts >= list[lastAppendIdx].lastSample.originalDts) &&
+            (list[lastAppendIdx].lastFrame && msi.originalBeginDts >= list[lastAppendIdx].lastFrame.originalDts) &&
             ((lastAppendIdx === list.length - 1) || (lastAppendIdx < list.length - 1 &&
             msi.originalBeginDts < list[lastAppendIdx + 1].originalBeginDts))) {
             insertIdx = lastAppendIdx + 1;  // use cached location idx
@@ -217,16 +205,16 @@ export class MediaSegmentInfoList {
         }
     }
 
-    getLastSampleBefore(originalBeginDts: number): SampleInfo | null {
+    getLastFrameBefore(originalBeginDts: number): FrameInfo | null {
         let segment = this.getLastSegmentBefore(originalBeginDts);
         if (segment != null) {
-            return segment.lastSample;
+            return segment.lastFrame;
         } else {
             return null;
         }
     }
 
-    getLastSyncPointBefore(originalBeginDts: number): SampleInfo | null {
+    getLastSyncPointBefore(originalBeginDts: number): FrameInfo | null {
         let segmentIdx = this._searchNearestSegmentBefore(originalBeginDts);
         let syncPoints = this._list[segmentIdx].syncPoints;
         while (syncPoints.length === 0 && segmentIdx > 0) {

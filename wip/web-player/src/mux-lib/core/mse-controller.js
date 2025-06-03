@@ -220,7 +220,7 @@ class MSEController {
             if (is.codec === 'opus' && Browser.safari) {
                 is.codec = 'Opus';
             }
-            mimeType += `;codecs=${is.codec}`;
+            mimeType += `; codecs="${is.codec}"`;
         }
 
         let firstInitSegment = false;

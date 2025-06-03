@@ -103,11 +103,18 @@ export enum VP9FrameType {
     SWITCH_FRAME        = 3
 }
 
-export interface AudioTrackInfo {
+export interface AudioFrame {
+    unit: Uint8Array,    // The actual audio data
+    length: number,      // Size of the frame in bytes
+    dts: number,         // Decoding timestamp
+    pts: number,         // Presentation timestamp
+}
+
+export interface AudioTrack {
     type: TrackType.Audio;
     id: number;
     sequenceNumber: number;
-    samples: AudioSample[];
+    frames: AudioFrame[];
     length: number;
 }
 
@@ -121,9 +128,9 @@ export interface AudioMetadata {
     config: Uint8Array;
     codec: string;
     originalCodec: string;
-    sampleSize: number;
+    bitsPerSample: number;
     littleEndian: boolean;
-    refSampleDuration: number;
+    refFrameDuration: number;
 }
 
 const AudioMetadataDefault: AudioMetadata = {
@@ -136,9 +143,9 @@ const AudioMetadataDefault: AudioMetadata = {
     config: new Uint8Array(0),
     codec: '',
     originalCodec: '',
-    sampleSize: NaN,
+    bitsPerSample: NaN,
     littleEndian: false,
-    refSampleDuration: NaN,
+    refFrameDuration: NaN,
 }
 
 export interface VideoMetadata {
@@ -156,7 +163,7 @@ export interface VideoMetadata {
     chromaFormat: number;
     sarRatio: { width: number, height: number };
     frameRate: { fixed: boolean, fps: number, fps_num: number, fps_den: number };
-    refSampleDuration: number;
+    refFrameDuration: number;
     codec: string;
     av1Extra?: AV1Metadata;
     
@@ -182,32 +189,32 @@ const VideoMetadataDefault: VideoMetadata = {
     chromaFormat: NaN,
     sarRatio: { width: NaN, height: NaN },
     frameRate: { fixed: false, fps: NaN, fps_num: NaN, fps_den: NaN },
-    refSampleDuration: NaN,
+    refFrameDuration: NaN,
     codec: '',
 }
 
-export interface VideoTrackInfo {
+export interface VideoFrame {
+    units: VideoUnit[],                 // The actual video data units (e.g., NAL units for H.264)
+    length: number,                     // Size of the frame in bytes
+    isKeyframe: boolean,                // Whether this is a keyframe (I-frame)
+    filePosition: number | undefined,   // Position in the file
+    dts: number,                        // Decoding timestamp (DTS)
+    cts: number,                        // Composition timestamp (CTS)
+    pts: number,                        // Presentation timestamp (PTS)
+}
+
+export interface VideoTrack {
     type: TrackType.Video;
     id: number;
     sequenceNumber: number;
-    samples: VideoSample[];
+    frames: VideoFrame[];
     length: number;
-    rawData: Uint8Array;    // !!@ to optimize, how can we avoid creating and copying into this? 
+    rawData?: Uint8Array;    // !!@ to optimize, how can we avoid creating and copying into this? used only in webm remuxer
 }
 
 export interface VideoUnit {
     unitType: AV1OBUType,
     data: Uint8Array,
-}
-
-export interface VideoSample {
-    units: VideoUnit[],
-    length: number,
-    isKeyframe: boolean,
-    filePosition: number | undefined,
-    dts: number,
-    cts: number,
-    pts: number,
 }
 
 export interface AudioSample {
@@ -247,7 +254,7 @@ export class FLVDemuxer {
     private _onScriptMetadata: Callback;    // Called when FLV script data (metaData) is parsed and available.
     private _onScriptData: Callback;        // Called when any script data (not just metaData) is parsed.
     private _onTrackMetadata: Callback;     // Called when track metadata (like codecs, duration, resolution) is available.
-    private _onTrackData: Callback;         // Called when parsed audio and video samples are ready to be consumed (e.g., by a remuxer or player).
+    private _onTrackData: Callback;         // Called when parsed audio and video frames are ready to be consumed (e.g., by a remuxer or player).
 
     private _dataOffset: number;
     private _firstParse: boolean;
@@ -295,8 +302,8 @@ export class FLVDemuxer {
     private static readonly _mpegAudioL3BitRateTable = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, -1] as const;
 
     // TODO: define video and audio track types
-    private _videoTrack: VideoTrackInfo;
-    private _audioTrack: AudioTrackInfo;
+    private _videoTrack: VideoTrack;
+    private _audioTrack: AudioTrack;
     private _littleEndian: boolean; 
 
     //!!@ retype any to something more specific
@@ -337,8 +344,8 @@ export class FLVDemuxer {
             fps_den: 1000
         };
 
-        this._videoTrack = {type: TrackType.Video, id: 1, sequenceNumber: 0, samples: [], length: 0, rawData: new Uint8Array()};
-        this._audioTrack = {type: TrackType.Audio, id: 2, sequenceNumber: 0, samples: [], length: 0};
+        this._videoTrack = {type: TrackType.Video, id: 1, sequenceNumber: 0, frames: [], length: 0, rawData: new Uint8Array()};
+        this._audioTrack = {type: TrackType.Audio, id: 2, sequenceNumber: 0, frames: [], length: 0};
 
         this._littleEndian = (function () {
             let buf = new ArrayBuffer(2);
@@ -443,7 +450,7 @@ export class FLVDemuxer {
         this._onTrackData = callback;
     }
 
-    // timestamp base for output samples, must be in milliseconds
+    // timestamp base for output frames, must be in milliseconds
     get timestampBase() {
         return this._timestampBase;
     }
@@ -809,7 +816,7 @@ export class FLVDemuxer {
                 meta.originalCodec = misc.originalCodec;
                 meta.config = misc.config;
                 // The decode result of an aac sample is 1024 PCM samples
-                meta.refSampleDuration = 1024 / meta.audioSampleRate * meta.timescale;
+                meta.refFrameDuration = 1024 / meta.audioSampleRate * meta.timescale;
                 Log.v(FLVDemuxer.TAG, 'Parsed AudioSpecificConfig');
 
                 if (this._isInitialMetadataDispatched()) {
@@ -840,7 +847,7 @@ export class FLVDemuxer {
             } else if (aacData.packetType === 1) {  // AAC raw frame data
                 let dts = this._timestampBase + tagTimestamp;
                 let aacSample = {unit: aacData.data, length: aacData.data.byteLength, dts: dts, pts: dts};
-                track.samples.push(aacSample);
+                track.frames.push(aacSample);
                 track.length += aacData.data.length;
             } else {
                 Log.e(FLVDemuxer.TAG, `Flv: Unsupported AAC data type ${aacData.packetType}`);
@@ -857,7 +864,7 @@ export class FLVDemuxer {
                 meta.codec = misc.codec;
                 meta.originalCodec = misc.originalCodec;
                 // The decode result of an mp3 sample is 1152 PCM samples
-                meta.refSampleDuration = 1152 / meta.audioSampleRate * meta.timescale;
+                meta.refFrameDuration = 1152 / meta.audioSampleRate * meta.timescale;
                 Log.v(FLVDemuxer.TAG, 'Parsed MPEG Audio Frame Header');
 
                 this._onTrackMetadata(meta);
@@ -886,12 +893,12 @@ export class FLVDemuxer {
             }
             let dts = this._timestampBase + tagTimestamp;
             let mp3Sample = {unit: data, length: data.byteLength, dts: dts, pts: dts};
-            track.samples.push(mp3Sample);
+            track.frames.push(mp3Sample);
             track.length += data.length;
         } else if (soundFormat === FlvSoundFormat.LPcmLittleEndian) {
             if (!meta.codec) {
                 meta.audioSampleRate = soundRate;
-                meta.sampleSize = (soundSize + 1) * 8;
+                meta.bitsPerSample = (soundSize + 1) * 8;
                 meta.littleEndian = true;
                 meta.codec = 'ipcm';
                 meta.originalCodec = 'ipcm';
@@ -902,7 +909,7 @@ export class FLVDemuxer {
                 mi.audioCodec = meta.codec;
                 mi.audioSampleRate = meta.audioSampleRate;
                 mi.audioChannelCount = meta.channelCount;
-                mi.audioDataRate = meta.sampleSize * meta.audioSampleRate;
+                mi.audioDataRate = meta.bitsPerSample * meta.audioSampleRate;
                 if (mi.hasVideo) {
                     if (mi.videoCodec != null) {
                         mi.mimeType = 'video/x-flv; codecs="' + mi.videoCodec + ',' + mi.audioCodec + '"';
@@ -918,7 +925,7 @@ export class FLVDemuxer {
             let data = new Uint8Array(arrayBuffer, dataOffset + 1, dataSize - 1);
             let dts = this._timestampBase + tagTimestamp;
             let pcmSample = {unit: data, length: data.byteLength, dts: dts, pts: dts};
-            track.samples.push(pcmSample);
+            track.frames.push(pcmSample);
             track.length += data.length;
         }
     }
@@ -1191,7 +1198,7 @@ export class FLVDemuxer {
         meta.originalCodec = misc.originalCodec;
         meta.config = misc.config;
         // The decode result of an opus sample is 20ms
-        meta.refSampleDuration = 20;
+        meta.refFrameDuration = 20;
         Log.v(FLVDemuxer.TAG, 'Parsed OpusSequenceHeader');
 
         if (this._isInitialMetadataDispatched()) {
@@ -1225,9 +1232,9 @@ export class FLVDemuxer {
 
         let data = new Uint8Array(arrayBuffer, dataOffset, dataSize);
         let dts = this._timestampBase + tagTimestamp;
-        let opusSample = {unit: data, length: data.byteLength, dts: dts, pts: dts} as AudioSample;
+        let opusSample: AudioFrame = {unit: data, length: data.byteLength, dts: dts, pts: dts};
 
-        track.samples.push(opusSample);
+        track.frames.push(opusSample);
         track.length += data.length;
     }
 
@@ -1274,7 +1281,7 @@ export class FLVDemuxer {
         gb.readBits(24); // maximum_frame_size
         let samplingFrequence = gb.readBits(20);
         let channelCount = gb.readBits(3) + 1;
-        let sampleSize = gb.readBits(5) + 1;
+        let bitsPerSample = gb.readBits(5) + 1;
         gb.destroy();
 
         let config = new Uint8Array(header.byteLength + 4);
@@ -1288,7 +1295,7 @@ export class FLVDemuxer {
             config,
             channelCount,
             samplingFrequence,
-            sampleSize,
+            bitsPerSample: bitsPerSample,
             codec: 'flac',
             originalCodec: 'flac',
         };
@@ -1302,11 +1309,11 @@ export class FLVDemuxer {
         }
         meta.audioSampleRate = misc.samplingFrequence;
         meta.channelCount = misc.channelCount;
-        meta.sampleSize = misc.sampleSize;
+        meta.bitsPerSample = misc.bitsPerSample;
         meta.codec = misc.codec;
         meta.originalCodec = misc.originalCodec;
         meta.config = misc.config;
-        meta.refSampleDuration = block_size * 1000 / misc.samplingFrequence; // practical encoder sends 4608 blobksize (lower bound limitation)
+        meta.refFrameDuration = block_size * 1000 / misc.samplingFrequence; // practical encoder sends 4608 blobksize (lower bound limitation)
 
         Log.v(FLVDemuxer.TAG, 'Parsed FlacSequenceHeader');
 
@@ -1343,7 +1350,7 @@ export class FLVDemuxer {
         let dts = this._timestampBase + tagTimestamp;
         let flacSample = {unit: data, length: data.byteLength, dts: dts, pts: dts};
 
-        track.samples.push(flacSample);
+        track.frames.push(flacSample);
         track.length += data.length;
     }
 
@@ -1586,7 +1593,7 @@ export class FLVDemuxer {
 
             let fps_den = meta.frameRate.fps_den;
             let fps_num = meta.frameRate.fps_num;
-            meta.refSampleDuration = meta.timescale * (fps_den / fps_num);
+            meta.refFrameDuration = meta.timescale * (fps_den / fps_num);
 
             let codecArray = sps.subarray(1, 4);
             let codecString = 'avc1.';
@@ -1748,7 +1755,7 @@ export class FLVDemuxer {
 
                     let fps_den = meta.frameRate.fps_den;
                     let fps_num = meta.frameRate.fps_num;
-                    meta.refSampleDuration = meta.timescale * (fps_den / fps_num);
+                    meta.refFrameDuration = meta.timescale * (fps_den / fps_num);
                     meta.codec = config.codec_mimetype;
 
                     let mi = this._mediaInfo;
@@ -1857,7 +1864,7 @@ export class FLVDemuxer {
         }
         let fps_den = meta.frameRate.fps_den;
         let fps_num = meta.frameRate.fps_num;
-        meta.refSampleDuration = meta.timescale * (fps_den / fps_num);
+        meta.refFrameDuration = meta.timescale * (fps_den / fps_num);
         meta.codec = config.codec_mimetype;
         meta.av1Extra = config;
 
@@ -1940,7 +1947,7 @@ export class FLVDemuxer {
             if (keyframe) {
                 avcSample.fileposition = tagPosition;
             }
-            track.samples.push(avcSample);
+            track.frames.push(avcSample);
             track.length += length;
         }
     }
@@ -1998,7 +2005,7 @@ export class FLVDemuxer {
             if (keyframe) {
                 hevcSample.fileposition = tagPosition;
             }
-            track.samples.push(hevcSample);
+            track.frames.push(hevcSample);
             track.length += length;
         }
     }
@@ -2053,7 +2060,7 @@ export class FLVDemuxer {
 
         if (units.length > 0) {
             let track = this._videoTrack;
-            let av1Sample: VideoSample = {
+            let av1Sample: VideoFrame = {
                 units: units,
                 length: length,
                 isKeyframe: keyframe,
@@ -2063,7 +2070,7 @@ export class FLVDemuxer {
                 pts: (dts + cts)
             };
           
-            track.samples.push(av1Sample);
+            track.frames.push(av1Sample);
             track.length += length;
         }
     }
@@ -2152,7 +2159,7 @@ export class FLVDemuxer {
         }
         let fps_den = meta.frameRate.fps_den;
         let fps_num = meta.frameRate.fps_num;
-        meta.refSampleDuration = meta.timescale * (fps_den / fps_num);
+        meta.refFrameDuration = meta.timescale * (fps_den / fps_num);
         meta.codec = config.codec_mimetype;
         //!!@FIXME: meta.extra = config;
 
@@ -2223,7 +2230,7 @@ export class FLVDemuxer {
             if (keyframe) {
                 vp9Sample.fileposition = tagPosition;
             }
-            track.samples.push(vp9Sample);
+            track.frames.push(vp9Sample);
             track.length += length;
         }
     }

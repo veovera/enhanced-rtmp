@@ -31,6 +31,8 @@ import { KLVData, klv_parse } from './klv';
 import AV1OBUInMpegTsParser from './av1';
 import AV1OBUParser from './av1-parser';
 import { PGSData } from './pgs-data';
+import { VideoTrack } from './flv-demuxer';
+import { AudioTrack } from './flv-demuxer';
 
 type AdaptationFieldInfo = {
     discontinuity_indicator?: number;
@@ -149,8 +151,8 @@ class TSDemuxer extends BaseDemuxer {
     private audio_metadata_changed_ = false;
     private loas_previous_frame: LOASAACFrame | null = null;
 
-    private video_track_ = {type: 'video', id: 1, sequenceNumber: 0, samples: [], length: 0};
-    private audio_track_ = {type: 'audio', id: 2, sequenceNumber: 0, samples: [], length: 0};
+    private video_track_ = {type: 'video', id: 1, sequenceNumber: 0, frames: [], length: 0} as VideoTrack;
+    private audio_track_ = {type: 'audio', id: 2, sequenceNumber: 0, frames: [], length: 0} as AudioTrack;
 
     public constructor(probe_data: any, config: any) {
         super();
@@ -998,7 +1000,7 @@ class TSDemuxer extends BaseDemuxer {
                 cts: pts_ms - dts_ms,
                 file_position
             };
-            track.samples.push(av1_sample);
+            track.frames.push(av1_sample);
             track.length += length;
         }
     }
@@ -1043,7 +1045,7 @@ class TSDemuxer extends BaseDemuxer {
                 keyframe = true;
             }
 
-            // Push samples to remuxer only if initialization metadata has been dispatched
+            // Push frames to remuxer only if initialization metadata has been dispatched
             if (this.video_init_segment_dispatched_) {
                 units.push(nalu_avc1);
                 length += nalu_avc1.data.byteLength;
@@ -1064,7 +1066,7 @@ class TSDemuxer extends BaseDemuxer {
                 cts: pts_ms - dts_ms,
                 file_position
             };
-            track.samples.push(avc_sample);
+            track.frames.push(avc_sample);
             track.length += length;
         }
     }
@@ -1123,7 +1125,7 @@ class TSDemuxer extends BaseDemuxer {
                 keyframe = true;
             }
 
-            // Push samples to remuxer only if initialization metadata has been dispatched
+            // Push frames to remuxer only if initialization metadata has been dispatched
             if (this.video_init_segment_dispatched_) {
                 units.push(nalu_hvc1);
                 length += nalu_hvc1.data.byteLength;
@@ -1144,7 +1146,7 @@ class TSDemuxer extends BaseDemuxer {
                 cts: pts_ms - dts_ms,
                 file_position
             };
-            track.samples.push(hvc_sample);
+            track.frames.push(hvc_sample);
             track.length += length;
         }
     }
@@ -1210,7 +1212,7 @@ class TSDemuxer extends BaseDemuxer {
 
         let fps_den = meta.frameRate.fps_den;
         let fps_num = meta.frameRate.fps_num;
-        meta.refSampleDuration = 1000 * (fps_den / fps_num);
+        meta.refFrameDuration = 1000 * (fps_den / fps_num);
 
         meta.codec = details.codec_mimetype;
 
@@ -1370,7 +1372,7 @@ class TSDemuxer extends BaseDemuxer {
                 pts: sample_pts_ms_int,
                 dts: sample_pts_ms_int
             };
-            this.audio_track_.samples.push(aac_sample);
+            this.audio_track_.frames.push(aac_sample);
             this.audio_track_.length += aac_frame.data.byteLength;
 
             sample_pts_ms += ref_sample_duration;
@@ -1464,7 +1466,7 @@ class TSDemuxer extends BaseDemuxer {
                 pts: sample_pts_ms_int,
                 dts: sample_pts_ms_int
             };
-            this.audio_track_.samples.push(aac_sample);
+            this.audio_track_.frames.push(aac_sample);
             this.audio_track_.length += aac_frame.data.byteLength;
 
             sample_pts_ms += ref_sample_duration;
@@ -1542,7 +1544,7 @@ class TSDemuxer extends BaseDemuxer {
                 dts: sample_pts_ms_int
             };
 
-            this.audio_track_.samples.push(ac3_sample);
+            this.audio_track_.frames.push(ac3_sample);
             this.audio_track_.length += ac3_frame.data.byteLength;
 
             sample_pts_ms += ref_sample_duration;
@@ -1616,7 +1618,7 @@ class TSDemuxer extends BaseDemuxer {
                 dts: sample_pts_ms_int
             };
 
-            this.audio_track_.samples.push(ac3_sample);
+            this.audio_track_.frames.push(ac3_sample);
             this.audio_track_.length += eac3_frame.data.byteLength;
 
             sample_pts_ms += ref_sample_duration;
@@ -1680,7 +1682,7 @@ class TSDemuxer extends BaseDemuxer {
                 pts: sample_pts_ms_int,
                 dts: sample_pts_ms_int
             };
-            this.audio_track_.samples.push(opus_sample);
+            this.audio_track_.frames.push(opus_frame);
             this.audio_track_.length += sample.byteLength;
 
             sample_pts_ms += ref_sample_duration;
@@ -1777,13 +1779,13 @@ class TSDemuxer extends BaseDemuxer {
             this.dispatchAudioInitSegment(audio_sample);
         }
 
-        let mp3_sample = {
+        let mp3_frame = {
             unit: data,
             length: data.byteLength,
             pts: pts / this.timescale_,
             dts: pts / this.timescale_
         };
-        this.audio_track_.samples.push(mp3_sample);
+        this.audio_track_.frames.push(mp3_frame);
         this.audio_track_.length += data.byteLength;
     }
 
@@ -1898,7 +1900,7 @@ class TSDemuxer extends BaseDemuxer {
             meta.codec = audio_specific_config.codec_mimetype;
             meta.originalCodec = audio_specific_config.original_codec_mimetype;
             meta.config = audio_specific_config.config;
-            meta.refSampleDuration = 1024 / meta.audioSampleRate * meta.timescale;
+            meta.refFrameDuration = 1024 / meta.audioSampleRate * meta.timescale;
         } else if (this.audio_metadata_.codec === 'ac-3') {
             let ac3_frame = sample.codec === 'ac-3' ? sample.data : null;
             let ac3_config = new AC3Config(ac3_frame);
@@ -1907,7 +1909,7 @@ class TSDemuxer extends BaseDemuxer {
             meta.codec = ac3_config.codec_mimetype;
             meta.originalCodec = ac3_config.original_codec_mimetype;
             meta.config = ac3_config.config;
-            meta.refSampleDuration = 1536 / meta.audioSampleRate * meta.timescale;
+            meta.refFrameDuration = 1536 / meta.audioSampleRate * meta.timescale;
         } else if (this.audio_metadata_.codec === 'ec-3') {
             let ec3_frame = sample.codec === 'ec-3' ? sample.data : null;
             let ec3_config = new EAC3Config(ec3_frame);
@@ -1916,7 +1918,7 @@ class TSDemuxer extends BaseDemuxer {
             meta.codec = ec3_config.codec_mimetype;
             meta.originalCodec = ec3_config.original_codec_mimetype;
             meta.config = ec3_config.config;
-            meta.refSampleDuration = (256 * ec3_config.num_blks) / meta.audioSampleRate * meta.timescale; // TODO: blk size
+            meta.refFrameDuration = (256 * ec3_config.num_blks) / meta.audioSampleRate * meta.timescale; // TODO: blk size
         } else if (this.audio_metadata_.codec === 'opus') {
             meta.audioSampleRate = this.audio_metadata_.sample_rate;
             meta.channelCount = this.audio_metadata_.channel_count;
@@ -1924,7 +1926,7 @@ class TSDemuxer extends BaseDemuxer {
             meta.codec = 'opus';
             meta.originalCodec = 'opus';
             meta.config = undefined;
-            meta.refSampleDuration = 20;
+            meta.refFrameDuration = 20;
         } else if (this.audio_metadata_.codec === 'mp3') {
             meta.audioSampleRate = this.audio_metadata_.sample_rate;
             meta.channelCount = this.audio_metadata_.channel_count;

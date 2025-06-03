@@ -100,16 +100,39 @@ function writeUInt(value: number, size: number): Uint8Array {
 }
 
 /**
- * Writes a simple EBML variable-length integer (VINT).
+ * Writes an EBML variable-length integer (VINT), supporting values up to 8 bytes.
  */
 function writeVint(value: number): Uint8Array {
   if (value < 0x80) {
     return new Uint8Array([0x80 | value]);
+  } else if (value < 0x4000) {
+    return new Uint8Array([
+      0x40 | (value >> 8),
+      value & 0xff
+    ]);
+  } else if (value < 0x200000) {
+    return new Uint8Array([
+      0x20 | (value >> 16),
+      (value >> 8) & 0xff,
+      value & 0xff
+    ]);
+  } else if (value < 0x10000000) {
+    return new Uint8Array([
+      0x10 | (value >> 24),
+      (value >> 16) & 0xff,
+      (value >> 8) & 0xff,
+      value & 0xff
+    ]);
+  } else {
+    // Supports up to 56-bit values
+    const bytes = new Uint8Array(8);
+    bytes[0] = 0x01;
+    for (let i = 7; i > 0; i--) {
+      bytes[i] = value & 0xff;
+      value >>= 8;
+    }
+    return bytes;
   }
-  if (value < 0x4000) {
-    return new Uint8Array([0x40 | (value >> 8), value & 0xff]);
-  }
-  throw new Error('VINT too large for this implementation.');
 }
 
 /**
@@ -183,25 +206,26 @@ export class WebMGenerator {
     return new Uint8Array();
   }
 
-  static generateVideoSegment(rawData: Uint8Array): Uint8Array {
-    // Minimal WebM Cluster with a single SimpleBlock
-    const timecode = 0;     // In ms, relative to cluster
-    const trackNumber = 1;  // Matches TrackNumber in init segment
-    const keyframe = true;
+  static generateVideoSegment(rawData: Uint8Array, dts: number, isKeyframe: boolean): Uint8Array {
+    // Use DTS as the absolute timestamp for the cluster
+    const clusterTimecodeValue = Math.floor(dts / 1000) * 1000; // cluster starts at nearest 1s
+    const blockTimecode = dts - clusterTimecodeValue;
+
+    const trackNumber = 1; // Matches TrackNumber in init segment
 
     // Write SimpleBlock
     const simpleBlockHeader = new Uint8Array(4);
-    simpleBlockHeader[0] = 0x80 | trackNumber;      // Track Number (VINT with 1-byte)
-    simpleBlockHeader[1] = (timecode >> 8) & 0xff;  // Timecode high byte
-    simpleBlockHeader[2] = timecode & 0xff;         // Timecode low byte
-    simpleBlockHeader[3] = keyframe ? 0x80 : 0x00;  // Flags: keyframe
+    simpleBlockHeader[0] = 0x80 | trackNumber; // Track Number (VINT with 1-byte)
+    const view = new DataView(simpleBlockHeader.buffer);
+    view.setInt16(1, blockTimecode); // Signed 16-bit relative timecode
+    simpleBlockHeader[3] = isKeyframe ? 0x80 : 0x00; // Flags: keyframe
 
     const simpleBlock = concatUint8Arrays([simpleBlockHeader, rawData]);
-    const blockElement = encodeElement(EbmlId.SimpleBlock, simpleBlock); // 0xA3 = SimpleBlock
+    const blockElement = encodeElement(EbmlId.SimpleBlock, simpleBlock);
 
     // Write Cluster
-    const clusterTimecode = encodeElement(EbmlId.Timecode, writeUInt(timecode, 2)); // 0xE7 = Timecode
-    const cluster = encodeElement(EbmlId.Cluster, concatUint8Arrays([clusterTimecode, blockElement])); // Cluster
+    const clusterTimecode = encodeElement(EbmlId.Timecode, writeUInt(clusterTimecodeValue, 2));
+    const cluster = encodeElement(EbmlId.Cluster, concatUint8Arrays([clusterTimecode, blockElement]));
 
     return cluster;
   }

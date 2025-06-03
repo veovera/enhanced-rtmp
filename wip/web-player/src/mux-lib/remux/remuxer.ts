@@ -6,7 +6,7 @@
  */
 
 import { Callback } from '../utils/common.js';
-import { AudioMetadata, AudioTrackInfo, FLVDemuxer, VideoMetadata, VideoTrackInfo } from '../demux/flv-demuxer.js';
+import { AudioMetadata, AudioTrack, FLVDemuxer, VideoMetadata, VideoTrack } from '../demux/flv-demuxer.js';
 import { TrackType } from '../core/media-segment-info.js';
 import { ConfigOptions } from '../config.js';
 
@@ -25,7 +25,7 @@ export abstract class Remuxer {
   abstract bindDataSource(producer: FLVDemuxer): this;
   abstract insertDiscontinuity(): void;
   abstract seek(originalDts: number): void;
-  abstract flushStashedSamples(): void;
+  abstract flushStashedFrames(): void;
 
   abstract get timestampBase(): number | undefined;
 
@@ -35,7 +35,7 @@ export abstract class Remuxer {
   abstract get onMediaSegment(): Callback;
   abstract set onMediaSegment(callback: Callback);
 
-  protected abstract _onTrackData(audioTrack: AudioTrackInfo, videoTrack: VideoTrackInfo): void;
+  protected abstract _onTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack): void;
   protected abstract _onTrackMetadata(metadata: AudioMetadata | VideoMetadata): void;
 
   protected _config: ConfigOptions;

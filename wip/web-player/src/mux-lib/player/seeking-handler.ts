@@ -1,36 +1,33 @@
 /*
- * Copyright (C) 2023 zheng qian. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
  *
+ * Copyright (C) 2023 Bilibili.
  * @author zheng qian <xqq@xqq.im>
+ * 
+ * Modified by Slavik Lozben.
+ * Additional changes Copyright (C) 2025 Veovera Software Organization.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * See Git history for full details.
  */
+ 
 
-import Browser from '../utils/browser';
-import { IDRSampleList } from '../core/media-segment-info';
+import _Browser from '../utils/browser';
+import { IDRFrameList } from '../core/media-segment-info';
+
+const Browser: any = _Browser;  // !!@ make it more type safe
 
 class SeekingHandler {
 
     private readonly TAG: string = 'SeekingHandler';
 
-    private _config: any = null;
-    private _media_element: HTMLMediaElement = null;
+    private _config: any;   // !!@ move away from any
+    private _media_element: HTMLMediaElement;
     private _always_seek_keyframe: boolean = false;
-    private _on_unbuffered_seek: (milliseconds: number) => void = null;
+    private _on_unbuffered_seek: (milliseconds: number) => void;
 
     private _request_set_current_time: boolean = false;
-    private _seek_request_record_clocktime?: number = null;
-    private _idr_sample_list: IDRSampleList = new IDRSampleList();
+    private _seek_request_record_clocktime: number | null = null;
+    private _idr_sample_list: IDRFrameList = new IDRFrameList();
 
     private e?: any = null;
 
@@ -60,10 +57,7 @@ class SeekingHandler {
 
     public destroy(): void {
         this._idr_sample_list.clear();
-        this._idr_sample_list = null;
         this._media_element.removeEventListener('seeking', this.e.onMediaSeeking);
-        this._media_element = null;
-        this._on_unbuffered_seek = null;
     }
 
     public seek(seconds: number): void {
