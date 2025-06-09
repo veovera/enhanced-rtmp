@@ -12,7 +12,8 @@
 
 //  MP4 boxes generator for ISO BMFF (ISO Base Media File Format, defined in ISO/IEC 14496-12)
 class MP4 {
-
+    static types;
+    
     static init() {
         MP4.types = {
             avc1: [], avcC: [], btrt: [], dinf: [],
