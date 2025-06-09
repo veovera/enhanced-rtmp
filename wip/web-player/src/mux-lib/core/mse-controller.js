@@ -1,10 +1,13 @@
 /*
  * SPDX-License-Identifier: Apache-2.0
  *
- * Copyright (C) 2016 Bilibili
+ * Copyright (C) 2016 Bilibili.
  * @author zheng qian <xqq@xqq.im>
  * 
- * This file has been modified. See Git history for details.
+ * Modified by Slavik Lozben.
+ * Additional changes Copyright (C) 2025 Veovera Software Organization.
+ *
+ * See Git history for full details.
  */
 
 import EventEmitter from 'eventemitter3';
@@ -477,6 +480,7 @@ class MSEController {
                 }
 
                 try {
+                    //Log.v(this.TAG, `Appending segment to ${type} SourceBuffer, length: ${segment.data.byteLength} \n${Log.dumpArrayBuffer(segment.data, 100)}`);
                     this._sourceBuffers[type].appendBuffer(segment.data);
                     this._isBufferFull = false;
                 } catch (error) {
