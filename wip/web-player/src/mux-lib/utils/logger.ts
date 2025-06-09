@@ -113,6 +113,47 @@ class Log {
         }
     }
 
+    static dumpArrayBuffer(
+       input: ArrayBuffer | ArrayBufferView,
+       length: number,
+       bytesPerLine = 16
+    ): string {
+       let bytes: Uint8Array;
+
+       if (input instanceof ArrayBuffer) {
+           bytes = new Uint8Array(input);
+       } else if (ArrayBuffer.isView(input)) {
+           bytes = new Uint8Array(input.buffer, input.byteOffset, input.byteLength);
+       } else {
+           throw new TypeError("Expected ArrayBuffer, TypedArray, or DataView");
+       }
+
+       const actualLength = Math.min(bytes.byteLength, length);
+       const result: string[] = [];
+
+       for (let i = 0; i < actualLength; i += bytesPerLine) {
+           const rowBytes = [];
+           const ascii = [];
+
+           const rowLength = Math.min(bytesPerLine, actualLength - i);
+           for (let j = 0; j < rowLength; j++) {
+               const b = bytes[i + j];
+               rowBytes.push(b.toString(16).padStart(2, '0'));
+               ascii.push(b >= 0x20 && b <= 0x7e ? String.fromCharCode(b) : '.');
+           }
+
+           // Pad the rest of the line if needed (cosmetic only)
+           while (rowBytes.length < bytesPerLine) rowBytes.push('  ');
+           while (ascii.length < bytesPerLine) ascii.push(' ');
+
+           result.push(
+               `${i.toString(16).padStart(4, '0')}: ${rowBytes.join(' ')}  |${ascii.join('')}|`
+           );
+       }
+
+       return result.join('\n');
+    }
+
     static v(tag: string, msg: string) {
         if (!Log.ENABLE_VERBOSE) {
             return;
