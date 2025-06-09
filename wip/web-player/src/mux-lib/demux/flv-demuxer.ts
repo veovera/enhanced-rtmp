@@ -197,7 +197,7 @@ export interface VideoFrame {
     units: VideoUnit[],                 // The actual video data units (e.g., NAL units for H.264)
     length: number,                     // Size of the frame in bytes
     isKeyframe: boolean,                // Whether this is a keyframe (I-frame)
-    filePosition: number | undefined,   // Position in the file
+    fileposition: number,               // Position in the file
     dts: number,                        // Decoding timestamp (DTS)
     cts: number,                        // Composition timestamp (CTS)
     pts: number,                        // Presentation timestamp (PTS)
@@ -329,8 +329,8 @@ export class FLVDemuxer {
         this._hasVideoFlagOverrided = false;
         
         this._mediaInfo = new MediaInfo();
-        this._mediaInfo.hasAudio = this._hasAudio;
-        this._mediaInfo.hasVideo = this._hasVideo;
+        this._mediaInfo.hasAudio = probeData.hasAudioTrack;
+        this._mediaInfo.hasVideo = probeData.hasVideoTrack;
 
         this._naluLengthSize = 4;
         this._timestampBase = 0;    // int32, in milliseconds
@@ -584,10 +584,14 @@ export class FLVDemuxer {
 
             switch (tagType) {
                 case 8:  // Audio
-                    this._parseAudioData(chunk, dataOffset, dataSize, timestamp);
+                    if (this._hasAudio) {
+                        this._parseAudioData(chunk, dataOffset, dataSize, timestamp);
+                    }
                     break;
                 case 9:  // Video
-                    this._parseVideoData(chunk, dataOffset, dataSize, timestamp, byteStart + offset);
+                    if (this._hasVideo) {
+                        this._parseVideoData(chunk, dataOffset, dataSize, timestamp, byteStart + offset);
+                    }
                     break;
                 case 18:  // ScriptDataObject
                     this._parseScriptData(chunk, dataOffset, dataSize);
@@ -1887,11 +1891,11 @@ export class FLVDemuxer {
             this._onMediaInfo(mi);
         }
         meta.av1c = new Uint8Array(arrayBuffer, dataOffset, dataSize).slice();  // !!@ do we need to slice? it causes an extra copy
-        Log.v(FLVDemuxer.TAG, 'Preparing AV1CodecConfigurationRecord');
 
         // notify new metadata
         this._dispatch = false;
         this._onTrackMetadata(meta);
+        Log.v(FLVDemuxer.TAG, `Parsed AV1 metadata: ${JSON.stringify(config)}`);
     }
 
     _parseAVCVideoData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: FlvVideoFrameType, cts: number) {
@@ -2029,7 +2033,6 @@ export class FLVDemuxer {
                 this._onError(DemuxErrors.FORMAT_ERROR, 'Flv: Invalid AV1 VideoData');
                 return;
             }
-            Log.v(FLVDemuxer.TAG, `Parsed AV1 metadata: ${JSON.stringify(config)}`);
             meta.codecWidth = config.codec_size.width;
             meta.codecHeight = config.codec_size.height;
             meta.presentWidth = config.present_size.width;
@@ -2041,8 +2044,6 @@ export class FLVDemuxer {
             mi.height = meta.codecHeight;
             mi.sarNum = meta.sarRatio.width;
             mi.sarDen = meta.sarRatio.height;
-
-            Log.v(FLVDemuxer.TAG, 'Parsed AV1DecoderConfigurationRecord');
 
             // flush parsed frames
             if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
@@ -2064,7 +2065,7 @@ export class FLVDemuxer {
                 units: units,
                 length: length,
                 isKeyframe: keyframe,
-                filePosition: keyframe ? tagPosition : undefined,
+                fileposition: tagPosition,
                 dts: dts,
                 cts: cts,
                 pts: (dts + cts)
