@@ -154,7 +154,7 @@ class Log {
        return result.join('\n');
     }
 
-    static v(tag: string, msg: string) {
+    static v(tag: string, ...args: any[]) {
         if (!Log.ENABLE_VERBOSE) {
             return;
         }
@@ -163,13 +163,13 @@ class Log {
             tag = Log.GLOBAL_TAG;
         }
 
-        let str = `[${tag}] > ${msg}`;
+        const str = `[${tag}] >`;
 
         if (Log.ENABLE_CALLBACK) {
-            Log.emitter.emit('log', 'verbose', str);
+            Log.emitter.emit('log', 'verbose', str, ...args);
         }
 
-        console.log(str);
+        console.log(str, ...args);
     }
 
     static a(tag: string, msg: string): never;
