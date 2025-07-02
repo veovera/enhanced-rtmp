@@ -22,7 +22,7 @@ export class FrameInfo {
     duration: number;
     originalDts: number;
     isSyncPoint: boolean;
-    fileposition: number | null;
+    fileposition: number | null = null;
 
     constructor(dts: number, pts: number, duration: number, originalDts: number, isSync: boolean) {
         this.dts = dts;
@@ -30,7 +30,6 @@ export class FrameInfo {
         this.duration = duration;
         this.originalDts = originalDts;
         this.isSyncPoint = isSync;
-        this.fileposition = null;
     }
 }
 
