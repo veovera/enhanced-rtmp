@@ -7,7 +7,7 @@
  */
 
 // web
-import { AudioMetadata, VideoMetadata } from "../demux/flv-demuxer";
+import { AudioMetadata, VideoFrame, VideoMetadata } from "../demux/flv-demuxer";
 import Log from "../utils/logger";
 
 /**
@@ -204,7 +204,7 @@ function concatUint8Arrays(buffers: Uint8Array[]): Uint8Array {
 export class WebMGenerator {
   static readonly TAG = "WebMGenerator";
 
-  static generateVideoInitSegment(codecPrivate: Uint8Array): Uint8Array {
+  static generateVideoInitSegment(codecPrivate: Uint8Array, width: number, height: number): Uint8Array {
     const ebmlHeader = encodeElement(
       EbmlId.Ebml,
       concatUint8Arrays([
@@ -235,12 +235,11 @@ export class WebMGenerator {
         encodeElement(EbmlId.TrackType, writeUInt(TrackType.Video, 1)),
         encodeElement(EbmlId.CodecId, writeString("V_AV1")),
         encodeElement(EbmlId.CodecPrivate, codecPrivate),
-        encodeElement(EbmlId.DefaultDuration, writeUInt(33366666, 4)), // ~30 fps
         encodeElement(
           EbmlId.Video,
           concatUint8Arrays([
-            encodeElement(EbmlId.PixelWidth, writeUInt(1280, 2)),
-            encodeElement(EbmlId.PixelHeight, writeUInt(720, 2)),
+            encodeElement(EbmlId.PixelWidth, writeUInt(width, 2)),
+            encodeElement(EbmlId.PixelHeight, writeUInt(height, 2)),
           ]),
         ),
       ]),
@@ -312,6 +311,43 @@ export class WebMGenerator {
     );
 
     return cluster;
+  }
+
+  static generateVideoCluster(frames: VideoFrame[]): Uint8Array {
+    const clusterTimecodeValue = Math.floor(frames[0].dts / 1000) * 1000;
+
+    const clusterTimecode = encodeElement(
+      EbmlId.Timecode,
+      writeUInt(clusterTimecodeValue, 4),
+    );
+
+    Log.v(WebMGenerator.TAG, `generateVideoCluster() ClusterTimeCodeValue: ${clusterTimecodeValue} ClusterFrames.length: ${frames.length} ++++++++++++++++++++++++++++++++++++++++++++++++++++++`);
+    if (!frames[0].isKeyframe) {
+      Log.e(WebMGenerator.TAG, 'cluster must start with a keyframe');
+      //Log.a(WebMGenerator.TAG, 'cluster must start with a keyframe', frames[0].isKeyframe);
+    }
+
+    const blocks = frames.map(({ rawData, dts, isKeyframe, fileposition }, index) => {
+      const blockTimecode = dts - clusterTimecodeValue;
+      const header = new Uint8Array(4);
+      header[0] = 0x80 | TrackNumber.Video;
+      header[1] = (blockTimecode >> 8) & 0xff;
+      header[2] = blockTimecode & 0xff;
+      header[3] = isKeyframe ? 0x80 : 0x00;
+
+      Log.v(WebMGenerator.TAG, `  Frame: key=${isKeyframe}, dts=${dts}, blockTimecode=${blockTimecode}, rawData.length=${rawData?.length}, fileposition=${fileposition}`);
+      //Log.a(WebMGenerator.TAG, 'cluster can only have one key frame', index === 0 ? true : !isKeyframe);
+
+      return encodeElement(
+        EbmlId.SimpleBlock,
+        concatUint8Arrays([header, rawData!])
+      );
+    });
+
+    return encodeElement(
+      EbmlId.Cluster,
+      concatUint8Arrays([clusterTimecode, ...blocks]),
+    );
   }
 
   static generateAudioSegment(rawData: Uint8Array): Uint8Array {

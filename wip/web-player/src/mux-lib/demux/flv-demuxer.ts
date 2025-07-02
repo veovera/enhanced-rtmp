@@ -201,6 +201,7 @@ export interface VideoFrame {
     dts: number,                        // Decoding timestamp (DTS)
     cts: number,                        // Composition timestamp (CTS)
     pts: number,                        // Presentation timestamp (PTS)
+    rawData?: Uint8Array;
 }
 
 export interface VideoTrack {
@@ -209,7 +210,6 @@ export interface VideoTrack {
     sequenceNumber: number;
     frames: VideoFrame[];
     length: number;
-    rawData?: Uint8Array;    // !!@ to optimize, how can we avoid creating and copying into this? used only in webm remuxer
 }
 
 export interface VideoUnit {
@@ -344,7 +344,7 @@ export class FLVDemuxer {
             fps_den: 1000
         };
 
-        this._videoTrack = {type: TrackType.Video, id: 1, sequenceNumber: 0, frames: [], length: 0, rawData: new Uint8Array()};
+        this._videoTrack = {type: TrackType.Video, id: 1, sequenceNumber: 0, frames: [], length: 0};
         this._audioTrack = {type: TrackType.Audio, id: 2, sequenceNumber: 0, frames: [], length: 0};
 
         this._littleEndian = (function () {
@@ -1488,7 +1488,7 @@ export class FLVDemuxer {
                 // empty, AV1 end of sequence
                 break;
             case FlvVideoPacketType.Metadata:
-                this._onError(DemuxErrors.FORMAT_ERROR, `Flv: unsupported AV1 video packet type ${packetType} (FlvVideoPacketType.Metadata)`);
+                Log.e(DemuxErrors.FORMAT_ERROR, `Flv: unsupported AV1 video packet type ${packetType} (FlvVideoPacketType.Metadata)`);
                 break;
 
             default:
@@ -1880,6 +1880,9 @@ export class FLVDemuxer {
         mi.chromaFormat = config.chroma_format_string;
         mi.videoCodec = config.codec_mimetype;
 
+        meta.codecWidth = mi.width;
+        meta.codecHeight = mi.height;
+
         if (mi.hasAudio) {
             if (mi.audioCodec != null) {
                 mi.mimeType = 'video/x-flv; codecs="' + mi.videoCodec + ',' + mi.audioCodec + '"';
@@ -2020,8 +2023,6 @@ export class FLVDemuxer {
 
         let units: VideoUnit[] = [];
         let length = 0;
-
-        let offset = 0;
         let dts = this._timestampBase + tagTimestamp;
         let keyframe = (frameType === FlvVideoFrameType.KeyFrame);
 
@@ -2047,33 +2048,32 @@ export class FLVDemuxer {
 
             // flush parsed frames
             if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
-                this._videoTrack.rawData = new Uint8Array(arrayBuffer, dataOffset, dataSize);
                 this._onTrackData(this._audioTrack, this._videoTrack);
             }
         }
 
-        /* !!@FIXME: NEEDS Inspect Per OBUs */
+        // !!@FIXME: NEEDS Inspect Per OBUs
+        // !!@ why are we pushing frame raw data into units? 
         length = dataSize;
         units.push({
             unitType: AV1OBUType.OBU_RESERVED_0,
-            data: new Uint8Array(arrayBuffer, dataOffset + offset, dataSize)
+            data: new Uint8Array(arrayBuffer, dataOffset, dataSize)
         });
 
-        if (units.length > 0) {
-            let track = this._videoTrack;
-            let av1Sample: VideoFrame = {
-                units: units,
-                length: length,
-                isKeyframe: keyframe,
-                fileposition: tagPosition,
-                dts: dts,
-                cts: cts,
-                pts: (dts + cts)
-            };
+        const track = this._videoTrack;
+        const av1Frame: VideoFrame = {
+            units: units,
+            length: length,
+            isKeyframe: keyframe,
+            fileposition: tagPosition,
+            dts: dts,
+            cts: cts,
+            pts: (dts + cts),
+            rawData: new Uint8Array(arrayBuffer, dataOffset, dataSize)
+        };
           
-            track.frames.push(av1Sample);
-            track.length += length;
-        }
+        track.frames.push(av1Frame);
+        track.length += length;
     }
 
     _parseEnhancedVP9VideoPacket(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: number, packetType: FlvVideoPacketType) {

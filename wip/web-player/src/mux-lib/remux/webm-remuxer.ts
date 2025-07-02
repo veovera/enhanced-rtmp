@@ -76,7 +76,7 @@ import { MediaSegmentInfo, FrameInfo } from '../core/media-segment-info.js';
 export class WebMRemuxer extends Remuxer {
   static readonly TAG = 'WebMRemuxer';
 
-  private _dtsBase = Infinity;
+  private _dtsBase = NaN;
   private _audioDtsBase = Infinity;
   private _videoDtsBase = Infinity;
   private _audioNextDts = NaN; // !!@ do we need this?
@@ -133,8 +133,9 @@ export class WebMRemuxer extends Remuxer {
     this._audioSegmentInfoList.clear();
   }
   
+  // !!@ TODO: try to move away from undefined when dealing with numbers?
   get timestampBase(): number | undefined {
-    return this._dtsBase < Infinity ? this._dtsBase : undefined;
+    return Number.isFinite(this._dtsBase) ? this._dtsBase : undefined;
   }
   
   flushStashedFrames(): void {
@@ -147,10 +148,9 @@ export class WebMRemuxer extends Remuxer {
       sequenceNumber: 0,
       frames: [],
       length: 0,
-      rawData: new Uint8Array()
     };
 
-    if (videoFrame) {
+    if (videoFrame != null) {
       videoTrack.frames.push(videoFrame);
       videoTrack.length = videoFrame.length;
     }
@@ -178,14 +178,14 @@ export class WebMRemuxer extends Remuxer {
   _onTrackData = (audioTrack: AudioTrack, videoTrack: VideoTrack): void => {
     Log.a(WebMRemuxer.TAG, 'onMediaSegment callback must be specificed!', this._onMediaSegment);
     
-    if (this._dtsBase === Infinity) {
+    if (Number.isNaN(this._dtsBase)) {
       this._calculateDtsBase(audioTrack, videoTrack);
     }
 
     if (videoTrack) {
       this._remuxVideo(videoTrack);
     }
-    if (audioTrack) {
+    if (audioTrack && false) {
       this._remuxAudio(audioTrack);
     }
   }
@@ -195,13 +195,13 @@ export class WebMRemuxer extends Remuxer {
 
     let segmentData: Uint8Array;
 
-    if (metadata.type === TrackType.Audio) {
+    if (metadata.type === TrackType.Audio && false) {
       const audioMetadata = metadata as AudioMetadata;
       segmentData = WebMGenerator.generateAudioInitSegment(new Uint8Array()); // !!@ fix this
       this._isAudioMetadataDisplatched = true;
     } else {
       const videoMetadata = metadata as VideoMetadata;
-      segmentData = WebMGenerator.generateVideoInitSegment(videoMetadata.av1c!);
+      segmentData = WebMGenerator.generateVideoInitSegment(videoMetadata.av1c!, videoMetadata.codecWidth, videoMetadata.codecHeight);
       this._isVideoMetadataDisplatched = true;
     }
 
@@ -217,7 +217,7 @@ export class WebMRemuxer extends Remuxer {
   }
 
   private _calculateDtsBase (audioTrack: AudioTrack, videoTrack: VideoTrack): void {
-    if (this._dtsBase < Infinity) {
+    if (!Number.isNaN(this._dtsBase)) {
       return;
     }
 
@@ -232,7 +232,14 @@ export class WebMRemuxer extends Remuxer {
   }
 
   private _remuxVideo(videoTrack: VideoTrack, force: boolean = false): void {
-    if (this._isVideoMetadataDisplatched != true || !videoTrack.rawData  || videoTrack.frames.length === 0) {
+    if (this._isVideoMetadataDisplatched != true || videoTrack.frames.length === 0) {
+      return;
+    }
+
+    // Ensure WebM clusters start with keyframes for proper MSE playback
+    // If first frame is not a keyframe and we're not forcing, wait for next keyframe
+    if (!force && videoTrack.frames.length > 0 && !videoTrack.frames[0].isKeyframe) {
+      // Keep frames in demuxer's queue until we get a keyframe
       return;
     }
 
@@ -282,21 +289,27 @@ export class WebMRemuxer extends Remuxer {
       lastFrame.isKeyframe
     );
 
-    const segment = WebMGenerator.generateVideoSegment(
-      videoTrack.rawData,
-      firstFrame.dts,
-      firstFrame.isKeyframe
-    );
+    //Log.v(WebMRemuxer.TAG, `_remuxVideo() - videoTrack.frames.length: ${videoTrack.frames.length} *************************************************`);
+    //for (const frame of videoTrack.frames) {
+    //  Log.v(WebMRemuxer.TAG, `    Input Frame: dts=${frame.dts}, pts=${frame.pts}, isKeyframe=${frame.isKeyframe}, dataSize=${frame.rawData?.length ?? 0} fileposition=${frame.fileposition}`);
+    //}
+
+    const segment = WebMGenerator.generateVideoCluster(videoTrack.frames);
+    // Log.v(WebMRemuxer.TAG, `Generated video segment, length: ${segment.byteLength} \n${Log.dumpArrayBuffer(segment, 100)}`);
+
     this._onMediaSegment(TrackType.Video, {
       type: TrackType.Video,
       data: segment.buffer,
       frameCount: videoTrack.frames.length,
       info: info
     });
+
+    videoTrack.frames = [];
+    videoTrack.length = 0;
   }
 
   private _remuxAudio(audioTrack: AudioTrack, force: boolean = false): void {
     Log.a(WebMRemuxer.TAG, '_remuxAudio method not implemented.');
     //!!@this.generator.remuxAudio(audioTrack);
   }
-} 
+}
