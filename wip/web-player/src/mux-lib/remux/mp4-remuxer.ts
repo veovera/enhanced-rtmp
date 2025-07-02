@@ -23,8 +23,7 @@ import { AudioMetadata, AudioTrack, AudioFrame, VideoMetadata, VideoTrack, Video
 export class MP4Remuxer extends Remuxer {
         static TAG = 'MP4Remuxer';
 
-        private _dtsBase = -1;
-        private _dtsBaseInited = false;
+        private _dtsBase = NaN;
         private _audioDtsBase = Infinity;
         private _videoDtsBase = Infinity;
         private _audioNextDts = NaN;
@@ -76,8 +75,7 @@ export class MP4Remuxer extends Remuxer {
     }
 
     destroy() {
-        this._dtsBase = -1;
-        this._dtsBaseInited = false;
+        this._dtsBase = NaN;
         this._audioMeta = null;
         this._videoMeta = null;
         this._audioSegmentInfoList.clear();
@@ -139,7 +137,7 @@ export class MP4Remuxer extends Remuxer {
         if (!this._onMediaSegment) {
             throw new IllegalStateException('MP4Remuxer: onMediaSegment callback must be specificed!');
         }
-        if (!this._dtsBaseInited) {
+        if (Number.isNaN(this._dtsBase)) {
             this._calculateDtsBase(audioTrack, videoTrack);
         }
         if (videoTrack) {
@@ -189,7 +187,7 @@ export class MP4Remuxer extends Remuxer {
     }
 
     _calculateDtsBase(audioTrack: AudioTrack, videoTrack: VideoTrack) {
-        if (this._dtsBaseInited) {
+        if (Number.isFinite(this._dtsBase)) {
             return;
         }
 
@@ -201,11 +199,10 @@ export class MP4Remuxer extends Remuxer {
         }
 
         this._dtsBase = Math.min(this._audioDtsBase, this._videoDtsBase);
-        this._dtsBaseInited = true;
     }
 
     get timestampBase() {
-        if (!this._dtsBaseInited) {
+        if (Number.isNaN(this._dtsBase)) {
             return undefined;
         }
         return this._dtsBase;
@@ -260,7 +257,7 @@ export class MP4Remuxer extends Remuxer {
         let refFrameDuration = this._audioMeta.refFrameDuration;
 
         let mpegRawTrack = this._audioMeta.codec === 'mp3' && this._mp3UseMpegAudio;
-        let firstSegmentAfterSeek = this._dtsBaseInited && Number.isNaN(this._audioNextDts);
+        let isFirstSegmentAfterSeek = Number.isFinite(this._dtsBase) && Number.isNaN(this._audioNextDts);
 
         let insertPrefixSilentFrame = false;
 
@@ -568,7 +565,7 @@ export class MP4Remuxer extends Remuxer {
             info: info
         };
 
-        if (mpegRawTrack && firstSegmentAfterSeek) {
+        if (mpegRawTrack && isFirstSegmentAfterSeek) {
             // For MPEG audio stream in MSE, if seeking occurred, before appending new buffer
             // We need explicitly set timestampOffset to the desired point in timeline for mpeg SourceBuffer.
             segment.timestampOffset = firstDts;
@@ -590,7 +587,7 @@ export class MP4Remuxer extends Remuxer {
 
         if (!frames || frames.length === 0) {
             return;
-        }
+        }                
         if (frames.length === 1 && !force) {
             // If [frame count in current batch] === 1 && (force != true)
             // Ignore and keep in demuxer's queue
@@ -760,6 +757,8 @@ export class MP4Remuxer extends Remuxer {
             flags.dependsOn = 2;
             flags.isNonSync = 0;
         }
+
+        //Log.v(MP4Remuxer.TAG, `_remuxVideo() - videoTrack.frames.length: ${videoTrack.frames.length} *************************************************`);
 
         let moofbox = MP4.moof(track, firstDts);
         track.frames = [];
