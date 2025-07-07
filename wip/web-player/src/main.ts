@@ -2,78 +2,112 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * Copyright (C) 2025 Veovera Software Organization
- *
  * @author Slavik Lozben
+ * 
  */
 
 import Mpegts from "@/mux-lib"
-//import Mpegts from "./mux-lib/";
+import NativePlayer from "./mux-lib/player/native-player";
+import MSEPplayer from "./mux-lib/player/mse-player";
 
-// main.ts
-console.log("Hello, world!");
+const hasAudioLabel: HTMLLabelElement = document.createElement('label');
+const hasAudioCheckbox: HTMLInputElement = document.createElement('input');
+const hasVideoLabel: HTMLLabelElement = document.createElement('label');
+const hasVideoCheckbox: HTMLInputElement = document.createElement('input');
+const useWebMLabel: HTMLLabelElement = document.createElement('label');
+const useWebMCheckbox: HTMLInputElement = document.createElement('input');
+let videoElement: HTMLVideoElement;
+let player: MSEPplayer | NativePlayer | null = null;
 
-function initializePlayer() {
+// Static list of files to choose from
+const fileList = [
+  { label: "AVC + AAC", value: "./assets/sample-avc-1920x1080-aac-2ch-48000.flv" },
+  { label: "AV1 + AAC", value: "./assets/output_allkey_av1_aac.flv" },
+  { label: "Test File", value: "./assets/test-output_allkey_av1_aac.flv" }
+];
+let selectedFile = fileList[0].value; // Default selection
+
+function initLayout() {
+  //!!@ remove mpegts mentiones since this is only for e-flv
   if (!Mpegts.isSupported()) {
     console.error("Your browser doesn't support mpegts.js");
     return;
   }
 
-  const videoElement = document.getElementById('videoElement') as HTMLVideoElement;
+  const style = document.createElement('style');
+  style.textContent = `
+  .controls-row {
+    display: flex;
+    align-items: center;
+    gap: 24px; /* horizontal space between all children */
+    margin-top: 10px;
+    margin-bottom: 10px;
+  }`;
+  document.head.appendChild(style);
+
+  videoElement = document.getElementById('videoElement') as HTMLVideoElement;
   if (!videoElement) {
     console.error('Video element not found!');
     return;
   }
 
-  // Simpler configuration focusing on essential parameters
-  const player = Mpegts.createPlayer({
-    type: 'flv',
-    url: './assets/sample-2ch.flv',
-    isLive: false,
-    hasAudio: true,
-    hasVideo: true,
-    enableStashBuffer: false,
-    stashInitialSize: 128,
-    cors: true,
-    withCredentials: false,
-    seekType: 'range',
-    fixAudioTimestampGap: false,
-    rangeLoadZeroStart: true
+  // Add dropdown for file selection
+  const fileSelect = document.createElement('select');
+  fileSelect.id = 'fileSelect';
+  fileList.forEach(file => {
+    const option = document.createElement('option');
+    option.value = file.value;
+    option.textContent = file.label;
+    fileSelect.appendChild(option);
   });
+  fileSelect.value = selectedFile;
+  fileSelect.onchange = () => {
+    selectedFile = fileSelect.value;
+  };
 
-  if (!player) {
-    console.error('Failed to create player!');
-    return;
-  }
+  // Add a manual play button for user interaction
+  const createPlayerButton = document.createElement('button');
+  createPlayerButton.textContent = 'Create Player';
+  createPlayerButton.onclick = () => {
+    player = createPlayer();
+  };
 
-  let mediaSourceOpened = false;
+  // Add checkboxes below the video element
+  const controlsDiv: HTMLDivElement = document.createElement('div');
+  controlsDiv.className = 'controls-row'; // Use the flex row class
 
-  player.on('error', (err: {
-    type: (typeof Mpegts.ErrorTypes)[keyof typeof Mpegts.ErrorTypes];
-    details?: (typeof Mpegts.ErrorDetails)[keyof typeof Mpegts.ErrorDetails];
-  }) => {
-    console.error('Player error:', err.type);
+  hasAudioCheckbox.type = 'checkbox';
+  hasAudioCheckbox.id = 'hasAudio';
+  hasAudioCheckbox.checked = true;
 
-    if (err.details) {
-      console.error('Error details:', err.details);
-    }
-  });
+  hasAudioLabel.textContent = '';
+  hasAudioLabel.appendChild(hasAudioCheckbox);
+  hasAudioLabel.append('hasAudio');
 
-  player.on('sourceopen', () => {
-    console.log('MediaSource opened');
-    mediaSourceOpened = true;
-    if (videoElement.paused) {
-      player.play().catch((e: Error) => console.error('Play failed:', e));
-    }
-  });
+  hasVideoCheckbox.type = 'checkbox';
+  hasVideoCheckbox.id = 'hasVideo';
+  hasVideoCheckbox.checked = true;
 
-  player.on('sourceended', () => {
-    console.log('MediaSource ended');
-  });
+  hasVideoLabel.textContent = '';
+  hasVideoLabel.appendChild(hasVideoCheckbox);
+  hasVideoLabel.append('hasVideo');
 
-  player.on('statistics_info', (stats) => {
-    console.log('Player statistics:', stats);
-  });
+  useWebMCheckbox.type = 'checkbox';
+  useWebMCheckbox.id = 'useWebM';
+  useWebMCheckbox.checked = true;
+  useWebMLabel.textContent = '';
+  useWebMLabel.appendChild(useWebMCheckbox);
+  useWebMLabel.append('Use WebM');
 
+  controlsDiv.appendChild(fileSelect);
+  controlsDiv.appendChild(createPlayerButton);
+  controlsDiv.appendChild(hasAudioLabel);
+  controlsDiv.appendChild(hasVideoLabel);
+  controlsDiv.appendChild(useWebMLabel);
+
+  document.body.appendChild(controlsDiv)
+
+  // Add event listeners for error handling
   videoElement.addEventListener('error', (event) => {
     const error = videoElement.error;
 
@@ -97,26 +131,63 @@ function initializePlayer() {
       }
     }
   });
+}
+
+function createPlayer(): MSEPplayer | NativePlayer | null {
+  // Simpler configuration focusing on essential parameters
+  // !!@TODO: add a config object
+  // !!@TODO: take a look at flags below, logic to handle them is scattered around the code
+  const player = Mpegts.createPlayer({
+    type: 'flv',
+    url: selectedFile,  // Use the selected file from the dropdown
+    isLive: false,
+    hasAudio: hasAudioCheckbox.checked,
+    hasVideo: hasVideoCheckbox.checked,
+    enableStashBuffer: false,
+    stashInitialSize: 128,
+    cors: true,
+    withCredentials: false,
+    seekType: 'range',
+    fixAudioTimestampGap: false,
+    rangeLoadZeroStart: true,
+    useWebM: useWebMCheckbox.checked
+  });
+
+  if (!player) {
+    console.error('Failed to create player!');
+    return null;
+  }
+
+  player.on('error', (...args) => {
+    console.error('Player error event args:', args);
+  });
+
+  player.on('sourceopen', () => {
+    console.log('MediaSource opened');
+    if (videoElement.paused) {
+      player.play().catch((e: Error) => console.error('Play failed:', e));
+    }
+  });
+
+  player.on('sourceended', () => {
+    console.log('MediaSource ended');
+  });
+
+  player.on('statistics_info', (stats) => {
+    console.log('Player statistics:', stats);
+  });
 
   // Simple initialization sequence
   try {
     player.attachMediaElement(videoElement);
     player.load();
-
-    // Add a manual play button for user interaction
-    const playButton = document.createElement('button');
-    playButton.textContent = 'Play Video';
-    playButton.style.cssText = 'position: absolute; top: 10px; left: 10px; z-index: 1000;';
-    playButton.onclick = () => {
-      if (videoElement.paused) {
-        player.play().catch((err: Error) => console.error('Play failed:', err));
-      }
-    };
-    document.body.appendChild(playButton);
-
   } catch (e) {
     console.error('Error during player initialization:', e);
   }
+
+  return player;
 }
 // Initialize only after window load
-window.addEventListener('load', initializePlayer);
+window.addEventListener('load', () => {
+  initLayout();
+});

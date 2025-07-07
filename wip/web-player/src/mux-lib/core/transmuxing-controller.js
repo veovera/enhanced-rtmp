@@ -23,9 +23,6 @@ import IOController from '../io/io-controller.js';
 import TransmuxingEvents from './transmuxing-events';
 import {LoaderStatus, LoaderErrors} from '../io/loader.js';
 
-//!!@TODO: make this configurable/dynamic
-const useWebM = false;
-
 // Transmuxing (IO, Demuxing, Remuxing) controller, with multipart support
 class TransmuxingController {
 
@@ -278,8 +275,9 @@ class TransmuxingController {
     }
 
     _setupFLVDemuxerRemuxer(probeData) {
+        // !!@ should useWebM be a config option? see this._config?
         if (!this._remuxer) {
-            if (useWebM) {
+            if (this._mediaDataSource.useWebM) {
                 this._remuxer = new WebMRemuxer(this._config);
             } else {
                 this._remuxer = new MP4Remuxer(this._config);

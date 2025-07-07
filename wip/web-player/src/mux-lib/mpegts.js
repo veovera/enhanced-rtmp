@@ -26,6 +26,7 @@ import {ErrorTypes, ErrorDetails} from './player/player-errors.js';
 import LoggingControl from './utils/logging-control.js';
 import {InvalidArgumentException} from './utils/exception.js';
 
+// !!@ make this a ts file, do we need Polyfill?
 // here are all the interfaces
 
 // install polyfills
@@ -50,7 +51,7 @@ function createPlayer(mediaDataSource, optionalConfig) {
         case 'flv':
             return new MSEPlayer(mds, optionalConfig);
         default:
-            return new NativePlayer(mds, optionalConfig);
+            return new NativePlayer(mds, optionalConfig);   // !!@ do we want to support this? The goal of for this project is to support flv which needs MSE
     }
 }
 
