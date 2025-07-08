@@ -9,6 +9,8 @@
 import Mpegts from "@/mux-lib"
 import NativePlayer from "./mux-lib/player/native-player";
 import MSEPplayer from "./mux-lib/player/mse-player";
+import TransmuxingEvents from './mux-lib/core/transmuxing-events';
+
 
 const hasAudioLabel: HTMLLabelElement = document.createElement('label');
 const hasAudioCheckbox: HTMLInputElement = document.createElement('input');
@@ -21,9 +23,9 @@ let player: MSEPplayer | NativePlayer | null = null;
 
 // Static list of files to choose from
 const fileList = [
-  { label: "AVC + AAC", value: "./assets/sample-avc-1920x1080-aac-2ch-48000.flv" },
-  { label: "AV1 + AAC", value: "./assets/output_allkey_av1_aac.flv" },
-  { label: "Test File", value: "./assets/test-output_allkey_av1_aac.flv" }
+  { label: "output-av1.flv", value: "./assets/output-av1.flv" },
+  { label: "output_allkey_av1_aac.flv", value: "./assets/output_allkey_av1_aac.flv" },
+  { label: "test-output_allkey_av1_aac", value: "./assets/test-output_allkey_av1_aac.flv" }
 ];
 let selectedFile = fileList[0].value; // Default selection
 
@@ -45,11 +47,54 @@ function initLayout() {
   }`;
   document.head.appendChild(style);
 
+  // Create a flex container for video and trace output
+  const mainRow = document.createElement('div');
+  mainRow.style.display = 'flex';
+  mainRow.style.alignItems = 'flex-start';
+  mainRow.style.gap = '32px';
+
   videoElement = document.getElementById('videoElement') as HTMLVideoElement;
   if (!videoElement) {
     console.error('Video element not found!');
     return;
   }
+  mainRow.appendChild(videoElement);
+
+  // After mainRow.appendChild(videoElement);
+  const traceBox = document.createElement('textarea');
+  traceBox.id = 'traceBox';
+  traceBox.readOnly = true;
+  traceBox.style.width = '640px';
+  traceBox.style.height = '480px';
+  traceBox.style.fontFamily = 'monospace';
+  traceBox.style.fontSize = '12px';
+  traceBox.style.background = '#f8f8f8';
+  traceBox.style.border = '1px solid #ccc';
+  traceBox.style.padding = '8px';
+  traceBox.style.resize = 'vertical';
+  mainRow.appendChild(traceBox);
+
+  // Create and insert the title and horizontal rule
+  const titleDiv = document.createElement('div');
+  titleDiv.style.fontWeight = 'bold';
+  titleDiv.style.fontSize = '1.3em';
+  titleDiv.style.marginBottom = '8px';
+  titleDiv.textContent = 'E-FLV Web Player';
+
+  const hr = document.createElement('hr');
+
+  // Insert at the top of the body
+  document.body.insertBefore(titleDiv, document.body.firstChild);
+  document.body.insertBefore(hr, titleDiv.nextSibling);
+
+  // Insert at the top of the body
+  document.body.insertBefore(titleDiv, document.body.firstChild);
+  document.body.insertBefore(hr, titleDiv.nextSibling);
+
+  // Now insert mainRow after the title and hr
+  document.body.insertBefore(mainRow, hr.nextSibling);
+
+  document.body.appendChild(document.createElement('hr'));
 
   // Add dropdown for file selection
   const fileSelect = document.createElement('select');
@@ -176,6 +221,76 @@ function createPlayer(): MSEPplayer | NativePlayer | null {
   player.on('statistics_info', (stats) => {
     console.log('Player statistics:', stats);
   });
+
+  const traceBox = document.getElementById('traceBox') as HTMLTextAreaElement;
+
+  player.on(TransmuxingEvents.SCRIPTDATA_ARRIVED, (scriptData) => {
+    traceBox.value += '[METADATA_ARRIVED]\n' + JSON.stringify(scriptData, null, 2) + '\n\n';
+    traceBox.value += '\nnote:\n';
+    if (scriptData?.onMetaData.videocodecid) {
+      const code = scriptData.onMetaData.videocodecid;
+      let fourcc: string;
+      if (code < 16) {
+        // Legacy FLV codec IDs (not fourcc)
+        switch (code) {
+          case 2: fourcc = 'Sorenson H.263'; break;
+          case 3: fourcc = 'Screen video'; break;
+          case 4: fourcc = 'On2 VP6'; break;
+          case 5: fourcc = 'On2 VP6 Alpha'; break;
+          case 6: fourcc = 'Screen video v2'; break;
+          case 7: fourcc = 'AVC (H.264)'; break;
+          case 12: fourcc = 'HEVC (H.265)'; break;
+          default: fourcc = 'Unknown legacy FLV codec'; break;
+        }
+      } else {
+        // Standard fourcc for codecs
+        fourcc = String.fromCharCode(
+          (code >> 24) & 0xFF,
+          (code >> 16) & 0xFF,
+          (code >> 8) & 0xFF,
+          code & 0xFF
+        );
+      }
+      traceBox.value += `Video codec: ${fourcc} (${code})\n`;
+    }
+
+    if (scriptData?.onMetaData.audiocodecid) {
+      const code = scriptData.onMetaData.audiocodecid;
+      let fourcc: string;
+      if (code < 16) {
+        // Legacy FLV codec IDs (not fourcc)
+        switch (code) {
+          case 0: fourcc = 'Linear PCM, platform endian'; break;
+          case 1: fourcc = 'ADPCM'; break;
+          case 2: fourcc = 'MP3'; break;
+          case 3: fourcc = 'Linear PCM, little endian'; break;
+          case 4: fourcc = 'Nellymoser 16 kHz mono'; break;
+          case 5: fourcc = 'Nellymoser 8 kHz mono'; break;
+          case 6: fourcc = 'Nellymoser'; break;
+          case 7: fourcc = 'G.711 A-law logarithmic PCM'; break;
+          case 8: fourcc = 'G.711 mu-law logarithmic PCM'; break;
+          case 9: fourcc = 'reserved'; break;
+          case 10: fourcc = 'AAC'; break;
+          case 11: fourcc = 'Speex'; break;
+          case 14: fourcc = 'MP3 8 kHz'; break;
+          case 15: fourcc = 'Device-specific sound'; break;
+          default: fourcc = 'Unknown legacy FLV audio codec'; break;
+        }
+      } else {
+        // Standard fourcc for codecs
+        fourcc = String.fromCharCode(
+          (code >> 24) & 0xFF,
+          (code >> 16) & 0xFF,
+          (code >> 8) & 0xFF,
+          code & 0xFF
+        );
+      }
+      traceBox.value += `Audio codec: ${fourcc} (${code})\n`;
+    }
+  
+    traceBox.scrollTop = 0;  
+  });
+
 
   // Simple initialization sequence
   try {
