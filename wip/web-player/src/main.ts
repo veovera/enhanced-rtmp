@@ -61,18 +61,18 @@ function initLayout() {
   mainRow.appendChild(videoElement);
 
   // After mainRow.appendChild(videoElement);
-  const traceBox = document.createElement('textarea');
-  traceBox.id = 'traceBox';
-  traceBox.readOnly = true;
-  traceBox.style.width = '640px';
-  traceBox.style.height = '480px';
-  traceBox.style.fontFamily = 'monospace';
-  traceBox.style.fontSize = '12px';
-  traceBox.style.background = '#f8f8f8';
-  traceBox.style.border = '1px solid #ccc';
-  traceBox.style.padding = '8px';
-  traceBox.style.resize = 'vertical';
-  mainRow.appendChild(traceBox);
+  const infoTraceBox = document.createElement('textarea');
+  infoTraceBox.id = 'infoTraceBox';
+  infoTraceBox.readOnly = true;
+  infoTraceBox.style.width = '640px';
+  infoTraceBox.style.height = '480px';
+  infoTraceBox.style.fontFamily = 'monospace';
+  infoTraceBox.style.fontSize = '12px';
+  infoTraceBox.style.background = '#f8f8f8';
+  infoTraceBox.style.border = '1px solid #ccc';
+  infoTraceBox.style.padding = '8px';
+  infoTraceBox.style.resize = 'vertical';
+  mainRow.appendChild(infoTraceBox);
 
   // Create and insert the title and horizontal rule
   const titleDiv = document.createElement('div');
@@ -152,6 +152,45 @@ function initLayout() {
 
   document.body.appendChild(controlsDiv)
 
+  // Add a second trace box at the bottom of the page
+  const dbgTraceBox = document.createElement('textarea');
+  dbgTraceBox.id = 'dbgTraceBox';
+  dbgTraceBox.readOnly = true;
+  dbgTraceBox.style.width = '640px';
+  dbgTraceBox.style.height = '240px';
+  dbgTraceBox.style.fontFamily = 'monospace';
+  dbgTraceBox.style.fontSize = '12px';
+  dbgTraceBox.style.background = '#f8f8f8';
+  dbgTraceBox.style.border = '1px solid #ccc';
+  dbgTraceBox.style.padding = '8px';
+  dbgTraceBox.style.resize = 'vertical';
+  dbgTraceBox.style.marginTop = '32px';
+  document.body.appendChild(dbgTraceBox);
+
+  setInterval(() => {
+    const traceBox = document.getElementById('dbgTraceBox') as HTMLTextAreaElement;
+
+    traceBox.value = "*** Video Element State ***\n";
+    traceBox.value += "===========================\n";
+    traceBox.value += `Ended: ${videoElement.ended}\n`;
+    traceBox.value += `Volume: ${videoElement.volume}\n`;
+    traceBox.value += `Muted: ${videoElement.muted}\n`;
+    traceBox.value += `Playback Rate: ${videoElement.playbackRate}\n`;
+    traceBox.value += `Ready State: ${videoElement.readyState}\n`;
+    traceBox.value += `Network State: ${videoElement.networkState}\n`;
+    traceBox.value += `Video Width: ${videoElement.videoWidth}\n`;
+    traceBox.value += `Video Height: ${videoElement.videoHeight}\n\n`;
+
+    traceBox.value += `Paused: ${videoElement.paused}\n`;
+    traceBox.value += `Duration: ${videoElement.duration}\n`;
+    traceBox.value += `Current Time: ${videoElement.currentTime}\n`;
+    const buffered = videoElement.buffered;
+    traceBox.value += "Buffered ranges:\n";
+    for (let i = 0; i < buffered.length; i++) {
+      traceBox.value += `${buffered.start(i)} - ${buffered.end(i)}\n`;
+    }
+  }, 1000);
+
   // Add event listeners for error handling
   videoElement.addEventListener('error', (event) => {
     const error = videoElement.error;
@@ -222,10 +261,11 @@ function createPlayer(): MSEPplayer | NativePlayer | null {
     console.log('Player statistics:', stats);
   });
 
-  const traceBox = document.getElementById('traceBox') as HTMLTextAreaElement;
 
   player.on(TransmuxingEvents.SCRIPTDATA_ARRIVED, (scriptData) => {
-    traceBox.value += '[METADATA_ARRIVED]\n' + JSON.stringify(scriptData, null, 2) + '\n\n';
+    const traceBox = document.getElementById('infoTraceBox') as HTMLTextAreaElement;
+
+    traceBox.value = '[METADATA_ARRIVED]\n' + JSON.stringify(scriptData, null, 2) + '\n\n';
     traceBox.value += '\nnote:\n';
     if (scriptData?.onMetaData.videocodecid) {
       const code = scriptData.onMetaData.videocodecid;
