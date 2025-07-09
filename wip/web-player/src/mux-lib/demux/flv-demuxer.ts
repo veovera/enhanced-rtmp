@@ -320,7 +320,7 @@ export class FLVDemuxer {
 
         this._dataOffset = probeData.dataOffset;
         this._firstParse = true;
-        this._dispatch = false;
+        this._dispatch = false; // whether to dispatch parsed frames to consumer (remuxer) !!@ do we need this flag?
 
         this._hasAudio = probeData.hasAudioTrack;
         this._hasVideo = probeData.hasVideoTrack;
@@ -489,7 +489,7 @@ export class FLVDemuxer {
     }
 
     //!!@ we need to seperate audio and video metadata dispatched?
-    _isInitialMetadataDispatched() {
+    private get _isMetadataDispatched(): boolean {
         if (this._hasAudio && this._hasVideo) {
             return this._remuxer.isAudioMetadataDispatched && this._remuxer.isVideoMetadataDispatched;
         } 
@@ -607,7 +607,7 @@ export class FLVDemuxer {
         }
 
         // dispatch parsed frames to consumer (typically, the remuxer)
-        if (this._isInitialMetadataDispatched()) {
+        if (this._isMetadataDispatched) {
             if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
                 this._onTrackData(this._audioTrack, this._videoTrack);
             }
@@ -823,7 +823,7 @@ export class FLVDemuxer {
                 meta.refFrameDuration = 1024 / meta.audioSampleRate * meta.timescale;
                 Log.v(FLVDemuxer.TAG, 'Parsed AudioSpecificConfig');
 
-                if (this._isInitialMetadataDispatched()) {
+                if (this._isMetadataDispatched) {
                     // Non-initial metadata, force dispatch (or flush) parsed frames to remuxer
                     if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
                         this._onTrackData(this._audioTrack, this._videoTrack);
@@ -1205,7 +1205,7 @@ export class FLVDemuxer {
         meta.refFrameDuration = 20;
         Log.v(FLVDemuxer.TAG, 'Parsed OpusSequenceHeader');
 
-        if (this._isInitialMetadataDispatched()) {
+        if (this._isMetadataDispatched) {
             // Non-initial metadata, force dispatch (or flush) parsed frames to remuxer
             if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
                 this._onTrackData(this._audioTrack, this._videoTrack);
@@ -1321,7 +1321,7 @@ export class FLVDemuxer {
 
         Log.v(FLVDemuxer.TAG, 'Parsed FlacSequenceHeader');
 
-        if (this._isInitialMetadataDispatched()) {
+        if (this._isMetadataDispatched) {
             // Non-initial metadata, force dispatch (or flush) parsed frames to remuxer
             if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
                 this._onTrackData(this._audioTrack, this._videoTrack);
@@ -1660,7 +1660,7 @@ export class FLVDemuxer {
         meta.avcc.set(new Uint8Array(arrayBuffer, dataOffset, dataSize), 0);
         Log.v(FLVDemuxer.TAG, 'Parsed AVCDecoderConfigurationRecord');
 
-        if (this._isInitialMetadataDispatched()) {
+        if (this._isMetadataDispatched) {
             // flush parsed frames
             if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
                 this._onTrackData(this._audioTrack, this._videoTrack);
@@ -1796,7 +1796,7 @@ export class FLVDemuxer {
         meta.hvcc.set(new Uint8Array(arrayBuffer, dataOffset, dataSize), 0);
         Log.v(FLVDemuxer.TAG, 'Parsed HEVCDecoderConfigurationRecord');
 
-        if (this._isInitialMetadataDispatched()) {
+        if (this._isMetadataDispatched) {
             // flush parsed frames
             if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
                 this._onTrackData(this._audioTrack, this._videoTrack);
@@ -2018,6 +2018,11 @@ export class FLVDemuxer {
     }
 
     _parseAV1VideoData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: FlvVideoFrameType, cts: number) {
+        if (!this._remuxer.isVideoMetadataDispatched) {
+            Log.e(FLVDemuxer.TAG, 'Flv: AV1 VideoData received before AV1CodecConfigurationRecord!');
+            return;
+        }
+
         let le = this._littleEndian;
         let v = new DataView(arrayBuffer, dataOffset, dataSize);
 
