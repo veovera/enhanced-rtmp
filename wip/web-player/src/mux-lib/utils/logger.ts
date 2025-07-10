@@ -19,7 +19,7 @@ class Log {
     private static ENABLE_ERROR = true;
     private static ENABLE_INFO = true;
     private static ENABLE_WARN = true;
-    private static ENABLE_DEBUG = true;
+    private static ENABLE_DEBUG = __DEBUG__ === true;
     private static ENABLE_VERBOSE = true;
     private static emitter = new EventEmitter();
 

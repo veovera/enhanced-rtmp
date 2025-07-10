@@ -167,29 +167,31 @@ function initLayout() {
   dbgTraceBox.style.marginTop = '32px';
   document.body.appendChild(dbgTraceBox);
 
-  setInterval(() => {
-    const traceBox = document.getElementById('dbgTraceBox') as HTMLTextAreaElement;
+  if (__DEBUG__) {
+    setInterval(() => {
+      const traceBox = document.getElementById('dbgTraceBox') as HTMLTextAreaElement;
 
-    traceBox.value = "*** Video Element State ***\n";
-    traceBox.value += "===========================\n";
-    traceBox.value += `Ended: ${videoElement.ended}\n`;
-    traceBox.value += `Volume: ${videoElement.volume}\n`;
-    traceBox.value += `Muted: ${videoElement.muted}\n`;
-    traceBox.value += `Playback Rate: ${videoElement.playbackRate}\n`;
-    traceBox.value += `Ready State: ${videoElement.readyState}\n`;
-    traceBox.value += `Network State: ${videoElement.networkState}\n`;
-    traceBox.value += `Video Width: ${videoElement.videoWidth}\n`;
-    traceBox.value += `Video Height: ${videoElement.videoHeight}\n\n`;
+      traceBox.value = "*** Video Element State ***\n";
+      traceBox.value += "===========================\n";
+      traceBox.value += `Ended: ${videoElement.ended}\n`;
+      traceBox.value += `Volume: ${videoElement.volume}\n`;
+      traceBox.value += `Muted: ${videoElement.muted}\n`;
+      traceBox.value += `Playback Rate: ${videoElement.playbackRate}\n`;
+      traceBox.value += `Ready State: ${videoElement.readyState}\n`;
+      traceBox.value += `Network State: ${videoElement.networkState}\n`;
+      traceBox.value += `Video Width: ${videoElement.videoWidth}\n`;
+      traceBox.value += `Video Height: ${videoElement.videoHeight}\n\n`;
 
-    traceBox.value += `Paused: ${videoElement.paused}\n`;
-    traceBox.value += `Duration: ${videoElement.duration}\n`;
-    traceBox.value += `Current Time: ${videoElement.currentTime}\n`;
-    const buffered = videoElement.buffered;
-    traceBox.value += "Buffered ranges:\n";
-    for (let i = 0; i < buffered.length; i++) {
-      traceBox.value += `${buffered.start(i)} - ${buffered.end(i)}\n`;
-    }
-  }, 1000);
+      traceBox.value += `Paused: ${videoElement.paused}\n`;
+      traceBox.value += `Duration: ${videoElement.duration}\n`;
+      traceBox.value += `Current Time: ${videoElement.currentTime}\n`;
+      const buffered = videoElement.buffered;
+      traceBox.value += "Buffered ranges:\n";
+      for (let i = 0; i < buffered.length; i++) {
+        traceBox.value += `${buffered.start(i)} - ${buffered.end(i)}\n`;
+      }
+    }, 1000);
+  }
 
   // Add event listeners for error handling
   videoElement.addEventListener('error', (event) => {

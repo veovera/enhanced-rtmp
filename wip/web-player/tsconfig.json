@@ -117,6 +117,5 @@
   "exclude": [
     "node_modules",
     "build",
-    "src/mux-lib"
   ]
 }
