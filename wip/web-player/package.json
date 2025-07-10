@@ -5,8 +5,8 @@
   "main": "index.js",
   
   "scripts": {
-    "build": "node build.js",
-    "dev": "node build.js --watch",
+    "build": "node build.js --minify",
+    "dev": "node build.js --watch --debug",
     "serve": "http-server . -c-1",
     "start": "npm run build && npm run serve",
     "type-check": "tsc --noEmit",
