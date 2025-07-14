@@ -78,6 +78,14 @@ enum EbmlId {
   Cluster             = 0x1F43B675,
   Timecode            = 0xE7,
   SimpleBlock         = 0xA3,
+  BlockGroup          = 0xA0,
+  Block               = 0xA1,
+  BlockDuration       = 0x9B,
+  BlockAdditions      = 0x75A1,
+  BlockMore           = 0xA6,
+  BlockAddID          = 0xEE,
+  BlockAdditional     = 0xA5,
+  ReferenceBlock      = 0xFB,
 }
 
 enum TrackNumber {
@@ -313,7 +321,35 @@ export class WebMGenerator {
     return cluster;
   }
 
-  static generateVideoCluster(frames: VideoFrame[]): Uint8Array {
+  /**
+   * Generates a WebM video media segment (Cluster) from an array of video frames.
+   *
+   * Each frame is wrapped in a BlockGroup, which contains a Block and its duration.
+   * This is suitable for streaming to Media Source Extensions (MSE).
+   *
+   * Cluster Format:
+   *   - Timecode (absolute timestamp of the cluster)
+   *   - BlockGroup[] (one for each frame)
+   *
+   * BlockGroup Format:
+   *   - Block
+   *   - BlockDuration
+   *
+   * Block Format:
+   *   [Track Number (VINT)] [Timecode (int16)] [Frame Data...]
+   *
+   * - Track Number: 1 (as 1-byte VINT, 0x81)
+   * - Timecode: Signed 16-bit relative to the cluster's timecode (in ms).
+   * - Frame Data: The raw encoded video frame.
+   *
+   * Note: Unlike SimpleBlock, a Block element does not contain keyframe flags in its header.
+   * For MSE, it is crucial that the first frame of any appended cluster is a keyframe.
+   *
+   * @param frames - An array of VideoFrame objects to be included in the cluster. The first frame MUST be a keyframe.
+   * @param refFrameDuration - A reference duration to use for the last frame in the cluster.
+   * @returns A Uint8Array containing the complete WebM Cluster.
+   */
+  static generateVideoClusterBlock(frames: VideoFrame[], refFrameDuration: number): Uint8Array {
     const clusterTimecodeValue = Math.floor(frames[0].dts / 1000) * 1000;
 
     const clusterTimecode = encodeElement(
@@ -322,31 +358,118 @@ export class WebMGenerator {
     );
 
     Log.v(WebMGenerator.TAG, `generateVideoCluster() ClusterTimeCodeValue: ${clusterTimecodeValue} ClusterFrames.length: ${frames.length} ++++++++++++++++++++++++++++++++++++++++++++++++++++++`);
+    
     if (!frames[0].isKeyframe) {
-      Log.e(WebMGenerator.TAG, 'cluster must start with a keyframe');
-      //Log.a(WebMGenerator.TAG, 'cluster must start with a keyframe', frames[0].isKeyframe);
+      Log.e(WebMGenerator.TAG, 'Cluster must start with a keyframe');
     }
 
-    const blocks = frames.map(({ rawData, dts, isKeyframe, fileposition }, index) => {
+    const blocks: Uint8Array[] = [];
+    for (let index = 0; index < frames.length; index++) {
+      const { rawData, dts, isKeyframe } = frames[index];
       const blockTimecode = dts - clusterTimecodeValue;
-      const header = new Uint8Array(4);
-      header[0] = 0x80 | TrackNumber.Video;
-      header[1] = (blockTimecode >> 8) & 0xff;
-      header[2] = blockTimecode & 0xff;
-      header[3] = isKeyframe ? 0x80 : 0x00;
+      let duration = refFrameDuration;
+      
+      if (index < frames.length - 1) {
+        // Calculate duration based on the next frame's DTS
+        const nextDts = frames[index + 1].dts;
+        duration = nextDts - dts;
+      }
 
-      Log.v(WebMGenerator.TAG, `  Frame: key=${isKeyframe}, dts=${dts}, blockTimecode=${blockTimecode}, rawData.length=${rawData?.length}, fileposition=${fileposition}`);
-      //Log.a(WebMGenerator.TAG, 'cluster can only have one key frame', index === 0 ? true : !isKeyframe);
+      // Create the Block header
+      const header = new Uint8Array(3);
+      header[0] = 0x80 | TrackNumber.Video; // Track number (1 for video)
+      header[1] = (blockTimecode >> 8) & 0xff; // High byte of block timecode
+      header[2] = blockTimecode & 0xff; // Low byte of block timecode
 
-      return encodeElement(
-        EbmlId.SimpleBlock,
-        concatUint8Arrays([header, rawData!])
+      // Log frame details (optional)
+      // Log.v(WebMGenerator.TAG, `  Frame: key=${isKeyframe}, dts=${dts}, blockTimecode=${blockTimecode}, rawData.length=${rawData?.length}, fileposition=${fileposition}`);
+      
+      const block = encodeElement(EbmlId.Block, concatUint8Arrays([header, rawData!]));
+      const blockDuration = encodeElement(EbmlId.BlockDuration, writeUInt(duration, 4));
+      const blockGroupPayload: Uint8Array[] = [block, blockDuration];
+
+      // 2. Add ReferenceBlock for non-keyframes
+      if (!isKeyframe) {
+        // This frame depends on a previous frame. We'll reference the first frame in the cluster.
+        // The value is the timecode offset from this block to the referenced block.
+        const referenceTimecode = -blockTimecode;
+        const referenceBlock = encodeElement(EbmlId.ReferenceBlock, writeUInt(referenceTimecode, 2));
+        blockGroupPayload.push(referenceBlock);
+      }
+
+      const blockGroup = encodeElement(
+        EbmlId.BlockGroup,
+        concatUint8Arrays(blockGroupPayload)
       );
-    });
+      // Log.v(WebMGenerator.TAG, `  BlockGroup: blockTimecode=${blockTimecode}, duration=${duration}, rawData.length=${rawData?.length}`);
+    
+      blocks.push(blockGroup);
+    }
 
     return encodeElement(
       EbmlId.Cluster,
       concatUint8Arrays([clusterTimecode, ...blocks]),
+    );
+  }
+
+  /**
+   * Generates a WebM video media segment (Cluster) from an array of video frames.
+   *
+   * Each frame is wrapped in a SimpleBlock element. This is the most common and
+   * compatible method for streaming to Media Source Extensions (MSE).
+   *
+   * Cluster Format:
+   *   - Timecode (absolute timestamp of the cluster)
+   *   - SimpleBlock[] (one for each frame)
+   *
+   * SimpleBlock Format:
+   *   [Track Number (VINT)] [Timecode (int16)] [Flags] [Frame Data...]
+   *
+   * - Track Number: 1 (as 1-byte VINT, 0x81)
+   * - Timecode: Signed 16-bit relative to the cluster's timecode (in ms).
+   * - Flags: 0x80 for a keyframe, 0x00 for a non-keyframe. Lacing is NOT used.
+   * - Frame Data: The raw encoded video frame.
+   *
+   * @param frames - An array of VideoFrame objects to be included in the cluster. The first frame MUST be a keyframe.
+   * @param refFrameDuration - A reference duration (not used with SimpleBlock but kept for API consistency).
+   * @returns A Uint8Array containing the complete WebM Cluster.
+   */
+  static generateVideoClusterSimpleBlock(frames: VideoFrame[], refFrameDuration: number): Uint8Array {
+    const clusterTimecodeValue = Math.floor(frames[0].dts / 1000) * 1000;
+
+    const clusterTimecode = encodeElement(
+      EbmlId.Timecode,
+      writeUInt(clusterTimecodeValue, 4),
+    );
+
+    if (!frames[0].isKeyframe) {
+      Log.e(WebMGenerator.TAG, 'Cluster must start with a keyframe');
+    }
+
+    const simpleBlocks: Uint8Array[] = [];
+    for (let index = 0; index < frames.length; index++) {
+      const { rawData, dts, isKeyframe } = frames[index];
+      const blockTimecode = dts - clusterTimecodeValue;
+
+      // Create the SimpleBlock header (4 bytes)
+      const header = new Uint8Array(4);
+      header[0] = 0x80 | TrackNumber.Video;      // Track number (VINT, 1 byte)
+      header[1] = (blockTimecode >> 8) & 0xff;  // Timecode (signed int16)
+      header[2] = blockTimecode & 0xff;
+      header[3] = isKeyframe ? 0x80 : 0x00;      // Flags: bit 7 is keyframe, bits 1-2 are lacing (set to 0)
+
+      // Create the SimpleBlock element
+      const simpleBlock = encodeElement(
+        EbmlId.SimpleBlock,
+        concatUint8Arrays([header, rawData!])
+      );
+
+      simpleBlocks.push(simpleBlock);
+    }
+
+    return encodeElement(
+      EbmlId.Cluster,
+      concatUint8Arrays([clusterTimecode, ...simpleBlocks]),
     );
   }
 

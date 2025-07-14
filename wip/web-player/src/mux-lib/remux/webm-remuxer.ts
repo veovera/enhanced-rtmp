@@ -79,10 +79,11 @@ export class WebMRemuxer extends Remuxer {
   private _dtsBase = NaN;
   private _audioDtsBase = Infinity;
   private _videoDtsBase = Infinity;
-  private _audioNextDts = NaN; // !!@ do we need this?
-  private _videoNextDts = NaN; // !!@ do we need this?
+  private _audioNextDts = NaN;                                // !!@ do we need this?
+  private _videoNextDts = NaN;                                // !!@ do we need this?
   private _audioStashedLastFrame: AudioFrame | null = null;
   private _videoStashedLastFrame: VideoFrame | null = null;
+  private _refFrameDuration = 33.333333333333336;             // Default to 30fps
 
   private _audioSegmentInfoList = new MediaSegmentInfoList(TrackType.Audio);
   private _videoSegmentInfoList = new MediaSegmentInfoList(TrackType.Video);
@@ -195,14 +196,16 @@ export class WebMRemuxer extends Remuxer {
 
     let segmentData: Uint8Array;
 
-    if (metadata.type === TrackType.Audio && false) {
+    if (metadata.type === TrackType.Audio) {
+      return; // we will fix this later
       const audioMetadata = metadata as AudioMetadata;
       segmentData = WebMGenerator.generateAudioInitSegment(new Uint8Array()); // !!@ fix this
-      this._isAudioMetadataDisplatched = true;
+      this._isAudioMetadataDispatched = true;
     } else {
       const videoMetadata = metadata as VideoMetadata;
+      this._refFrameDuration = Number.isFinite(videoMetadata.refFrameDuration) ? videoMetadata.refFrameDuration : this._refFrameDuration;
       segmentData = WebMGenerator.generateVideoInitSegment(videoMetadata.av1c!, videoMetadata.codecWidth, videoMetadata.codecHeight);
-      this._isVideoMetadataDisplatched = true;
+      this._isVideoMetadataDispatched = true;
     }
 
     const initSegment: InitSegment = {
@@ -232,7 +235,7 @@ export class WebMRemuxer extends Remuxer {
   }
 
   private _remuxVideo(videoTrack: VideoTrack, force: boolean = false): void {
-    if (this._isVideoMetadataDisplatched != true || videoTrack.frames.length === 0) {
+    if (this._isVideoMetadataDispatched != true || videoTrack.frames.length === 0) {
       return;
     }
 
@@ -294,7 +297,7 @@ export class WebMRemuxer extends Remuxer {
     //  Log.v(WebMRemuxer.TAG, `    Input Frame: dts=${frame.dts}, pts=${frame.pts}, isKeyframe=${frame.isKeyframe}, dataSize=${frame.rawData?.length ?? 0} fileposition=${frame.fileposition}`);
     //}
 
-    const segment = WebMGenerator.generateVideoCluster(videoTrack.frames);
+    const segment = WebMGenerator.generateVideoClusterBlock(videoTrack.frames, this._refFrameDuration);
     // Log.v(WebMRemuxer.TAG, `Generated video segment, length: ${segment.byteLength} \n${Log.dumpArrayBuffer(segment, 100)}`);
 
     this._onMediaSegment(TrackType.Video, {
@@ -309,7 +312,7 @@ export class WebMRemuxer extends Remuxer {
   }
 
   private _remuxAudio(audioTrack: AudioTrack, force: boolean = false): void {
-    Log.a(WebMRemuxer.TAG, '_remuxAudio method not implemented.');
+    //Log.a(WebMRemuxer.TAG, '_remuxAudio method not implemented.');
     //!!@this.generator.remuxAudio(audioTrack);
   }
 }
