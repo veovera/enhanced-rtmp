@@ -19,13 +19,17 @@
 import Log from '../utils/logger';
 
 class LoadingController {
-
-    private readonly TAG: string = 'LoadingController';
+    /**
+     * LoadingController is used to control the loading process of media segments.
+     * It suspends and resumes the transmuxing task based on the buffered position
+     * and the current playback time of the media element.
+     */
+    static readonly TAG: string = 'LoadingController';
 
     private _config: any = null;
-    private _media_element: HTMLMediaElement = null;
-    private _on_pause_transmuxer: () => void = null;
-    private _on_resume_transmuxer: () => void = null;
+    private _media_element: HTMLMediaElement;
+    private _on_pause_transmuxer: () => void;
+    private _on_resume_transmuxer: () => void;
 
     private _paused: boolean = false;
 
@@ -50,10 +54,8 @@ class LoadingController {
     public destroy(): void {
         this._media_element.removeEventListener('timeupdate', this.e.onMediaTimeUpdate);
         this.e = null;
-        this._media_element = null;
         this._config = null;
-        this._on_pause_transmuxer = null;
-        this._on_resume_transmuxer = null;
+
     }
 
     // buffered_position: in seconds
@@ -94,9 +96,10 @@ class LoadingController {
     }
 
     private _suspendTransmuxerIfBufferedPositionExceeded(buffered_end: number): void {
+        //Log.v(LoadingController.TAG, `_suspendTransmuxerIfBufferedPositionExceeded(buffered_end: ${buffered_end})`);
         const current_time = this._media_element.currentTime;
         if (buffered_end >= current_time + this._config.lazyLoadMaxDuration && !this._paused) {
-            Log.v(this.TAG, 'Maximum buffering duration exceeded, suspend transmuxing task');
+            Log.v(LoadingController.TAG, '.   Maximum buffering duration exceeded, suspend transmuxing task');
             this.suspendTransmuxer();
             this._media_element.addEventListener('timeupdate', this.e.onMediaTimeUpdate);
         }
@@ -126,7 +129,7 @@ class LoadingController {
         }
 
         if (should_resume) {
-            Log.v(this.TAG,  'Continue loading from paused position');
+            Log.v(LoadingController.TAG,  'Continue loading from paused position');
             this.resumeTransmuxer();
             this._media_element.removeEventListener('timeupdate', this.e.onMediaTimeUpdate);
         }
