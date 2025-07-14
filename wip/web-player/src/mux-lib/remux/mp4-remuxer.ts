@@ -44,8 +44,6 @@ export class MP4Remuxer extends Remuxer {
         private _fillSilentAfterSeek: boolean;
         private _mp3UseMpegAudio: boolean;
         private _fillAudioTimestampGap: boolean;
-        private _isAudioMetadataDispatched = false;
-        private _isVideoMetadataDispatched = false;
 
     constructor(config: any) {
         super(config);
@@ -168,7 +166,7 @@ export class MP4Remuxer extends Remuxer {
                 metabox = MP4.generateInitSegment(metadata);
             }
         } else {
-            this._isVideoMetadataDisplatched = true;
+            this._isVideoMetadataDispatched = true;
             this._videoMeta = metadata;
             metabox = MP4.generateInitSegment(metadata);
         }
