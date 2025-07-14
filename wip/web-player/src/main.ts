@@ -23,9 +23,11 @@ let player: MSEPplayer | NativePlayer | null = null;
 
 // Static list of files to choose from
 const fileList = [
-  { label: "output-av1.flv", value: "./assets/output-av1.flv" },
-  { label: "output_allkey_av1_aac.flv", value: "./assets/output_allkey_av1_aac.flv" },
-  { label: "test-output_allkey_av1_aac", value: "./assets/test-output_allkey_av1_aac.flv" }
+  { label: "bbb-av1-aac.flv", value: "./assets/bbb-av1-aac.flv" },
+  { label: "bbb-av1-aac-allkey.flv", value: "./assets/bbb-av1-aac-allkey.flv" },
+  { label: "bbb-vp9-aac.flv", value: "./assets/bbb-vp9-aac.flv" },
+  { label: "bbb-avc-aac.flv", value: "./assets/bbb-avc-aac.flv" },
+  { label: "test-av1-aac.flv", value: "./assets/test-av1-aac.flv" },
 ];
 let selectedFile = fileList[0].value; // Default selection
 
@@ -117,6 +119,17 @@ function initLayout() {
     player = createPlayer();
   };
 
+  // Add a button to open chrome://media-internals
+  const mediaInternalsButton = document.createElement('button');
+  mediaInternalsButton.textContent = 'Open Media Internals';
+  mediaInternalsButton.onclick = () => {
+    navigator.clipboard.writeText('chrome://media-internals').then(() => {
+      alert('URL copied to clipboard! Please paste it into your browser\'s address bar.');
+    }).catch((err) => {
+      console.error('Failed to copy URL:', err);
+    });
+  };
+  
   // Add checkboxes below the video element
   const controlsDiv: HTMLDivElement = document.createElement('div');
   controlsDiv.className = 'controls-row'; // Use the flex row class
@@ -144,11 +157,13 @@ function initLayout() {
   useWebMLabel.appendChild(useWebMCheckbox);
   useWebMLabel.append('Use WebM');
 
+  // Append the button to the controlsDiv
   controlsDiv.appendChild(fileSelect);
   controlsDiv.appendChild(createPlayerButton);
   controlsDiv.appendChild(hasAudioLabel);
   controlsDiv.appendChild(hasVideoLabel);
   controlsDiv.appendChild(useWebMLabel);
+  controlsDiv.appendChild(mediaInternalsButton);
 
   document.body.appendChild(controlsDiv)
 
@@ -329,7 +344,6 @@ function createPlayer(): MSEPplayer | NativePlayer | null {
       }
       traceBox.value += `Audio codec: ${fourcc} (${code})\n`;
     }
-  
     traceBox.scrollTop = 0;  
   });
 
