@@ -359,7 +359,6 @@ export class FLVDemuxer {
     }
 
     static probe(buffer: ArrayBuffer): ProbeResult {
-        let foo: number;
         let data = new Uint8Array(buffer);
         if (data.byteLength < 9) {
             return {needMoreData: true};
@@ -609,7 +608,7 @@ export class FLVDemuxer {
         // dispatch parsed frames to consumer (typically, the remuxer)
         if (this._isMetadataDispatched) {
             if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
-                this._onTrackData(this._audioTrack, this._videoTrack);
+                //!!@this._onTrackData(this._audioTrack, this._videoTrack);
             }
         }
 
@@ -1851,7 +1850,7 @@ export class FLVDemuxer {
         }
 
         const config = AV1OBUParser.parseOBUs(new Uint8Array(arrayBuffer, dataOffset + 4, dataSize - 4));
-        if (config == null) {
+        if (!config) {
             this._onError(DemuxErrors.FORMAT_ERROR, 'Flv: Invalid AV1CodecConfigurationRecord');
             return;
         }
@@ -2035,7 +2034,7 @@ export class FLVDemuxer {
             let meta = this._videoMetadata;
 
             const config = AV1OBUParser.parseOBUs(new Uint8Array(arrayBuffer, dataOffset, dataSize), meta.av1Extra) as any; // !!@ fix any
-            if (config == null) {
+            if (!config) {
                 this._onError(DemuxErrors.FORMAT_ERROR, 'Flv: Invalid AV1 VideoData');
                 return;
             }
@@ -2052,7 +2051,7 @@ export class FLVDemuxer {
             mi.sarDen = meta.sarRatio.height;
 
             // flush parsed frames
-            if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
+            if (this._dispatch && this._videoTrack.length) {
                 this._onTrackData(this._audioTrack, this._videoTrack);
             }
         }
@@ -2148,7 +2147,7 @@ export class FLVDemuxer {
         }
 
         const config = AV1OBUParser.parseOBUs(new Uint8Array(arrayBuffer, dataOffset + 4, dataSize - 4));
-        if (config == null) {
+        if (!config) {
             this._onError(DemuxErrors.FORMAT_ERROR, 'Flv: Invalid VP9CodecConfigurationRecord');
             return;
         }
