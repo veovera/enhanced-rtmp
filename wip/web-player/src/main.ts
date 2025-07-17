@@ -11,20 +11,26 @@ import NativePlayer from "./mux-lib/player/native-player";
 import MSEPplayer from "./mux-lib/player/mse-player";
 import TransmuxingEvents from './mux-lib/core/transmuxing-events';
 
-
 const hasAudioLabel: HTMLLabelElement = document.createElement('label');
 const hasAudioCheckbox: HTMLInputElement = document.createElement('input');
 const hasVideoLabel: HTMLLabelElement = document.createElement('label');
 const hasVideoCheckbox: HTMLInputElement = document.createElement('input');
 const useWebMLabel: HTMLLabelElement = document.createElement('label');
 const useWebMCheckbox: HTMLInputElement = document.createElement('input');
+
 let videoElement: HTMLVideoElement;
 let player: MSEPplayer | NativePlayer | null = null;
 
 // Static list of files to choose from
 const fileList = [
+  { label: "chopped.flv", value: "./assets/chopped.flv" },
+  { label: "bbb-av1-aac-60thframe-iskey.flv", value: "./assets/bbb-av1-aac-60thframe-iskey.flv" },
+  { label: "bbb-av1-aac-10s-4thframe-iskey.flv", value: "./assets/bbb-av1-aac-10s-4thframe-iskey.flv" },
+  { label: "bbb-av1-aac-10s-4thframe-isnotkey.flv", value: "./assets/bbb-av1-aac-10s-4thframe-isnotkey.flv" },
+  { label: "bbb-av1-aac-10s-nokey.flv", value: "./assets/bbb-av1-aac-10s-nokey.flv" },
   { label: "bbb-av1-aac.flv", value: "./assets/bbb-av1-aac.flv" },
   { label: "bbb-av1-aac-allkey.flv", value: "./assets/bbb-av1-aac-allkey.flv" },
+  { label: "bbb-av1-aac-10s-4thframe-iskey.flv", value: "./assets/bbb-av1-aac-10s-4thframe-iskey.flv" },
   { label: "bbb-vp9-aac.flv", value: "./assets/bbb-vp9-aac.flv" },
   { label: "bbb-avc-aac.flv", value: "./assets/bbb-avc-aac.flv" },
   { label: "test-av1-aac.flv", value: "./assets/test-av1-aac.flv" },
@@ -129,7 +135,7 @@ function initLayout() {
       console.error('Failed to copy URL:', err);
     });
   };
-  
+
   // Add checkboxes below the video element
   const controlsDiv: HTMLDivElement = document.createElement('div');
   controlsDiv.className = 'controls-row'; // Use the flex row class
@@ -237,8 +243,20 @@ function initLayout() {
 function createPlayer(): MSEPplayer | NativePlayer | null {
   // Simpler configuration focusing on essential parameters
   // !!@TODO: add a config object
-  // !!@TODO: take a look at flags below, logic to handle them is scattered around the code
-  const player = Mpegts.createPlayer({
+  // !!@TODO: take a look at flags below, logic to handle them is scattered around the code    console.warn('Player already exists, detaching previous media element.');
+ 
+ if (player) {
+    player.detachMediaElement();
+    player.destroy();
+    player = null;
+  }
+  
+  if (!videoElement) {
+    console.error('Video element not found!');
+    return null;
+  }
+
+  const _player = Mpegts.createPlayer({
     type: 'flv',
     url: selectedFile,  // Use the selected file from the dropdown
     isLive: false,
@@ -254,32 +272,32 @@ function createPlayer(): MSEPplayer | NativePlayer | null {
     useWebM: useWebMCheckbox.checked
   });
 
-  if (!player) {
+  if (!_player) {
     console.error('Failed to create player!');
     return null;
   }
 
-  player.on('error', (...args) => {
+  _player.on('error', (...args) => {
     console.error('Player error event args:', args);
   });
 
-  player.on('sourceopen', () => {
+  _player.on('sourceopen', () => {
     console.log('MediaSource opened');
     if (videoElement.paused) {
-      player.play().catch((e: Error) => console.error('Play failed:', e));
+      _player.play().catch((e: Error) => console.error('Play failed:', e));
     }
   });
 
-  player.on('sourceended', () => {
+  _player.on('sourceended', () => {
     console.log('MediaSource ended');
   });
 
-  player.on('statistics_info', (stats) => {
+  _player.on('statistics_info', (stats) => {
     console.log('Player statistics:', stats);
   });
 
 
-  player.on(TransmuxingEvents.SCRIPTDATA_ARRIVED, (scriptData) => {
+  _player.on(TransmuxingEvents.SCRIPTDATA_ARRIVED, (scriptData) => {
     const traceBox = document.getElementById('infoTraceBox') as HTMLTextAreaElement;
 
     traceBox.value = '[METADATA_ARRIVED]\n' + JSON.stringify(scriptData, null, 2) + '\n\n';
@@ -350,13 +368,13 @@ function createPlayer(): MSEPplayer | NativePlayer | null {
 
   // Simple initialization sequence
   try {
-    player.attachMediaElement(videoElement);
-    player.load();
+    _player.attachMediaElement(videoElement);
+    _player.load();
   } catch (e) {
     console.error('Error during player initialization:', e);
   }
 
-  return player;
+  return _player;
 }
 // Initialize only after window load
 window.addEventListener('load', () => {
