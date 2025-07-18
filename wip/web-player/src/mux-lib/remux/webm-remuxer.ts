@@ -239,19 +239,6 @@ export class WebMRemuxer extends Remuxer {
       return;
     }
 
-    // Ensure WebM clusters start with keyframes for proper MSE playback
-    // If first frame is not a keyframe and we're not forcing, wait for next keyframe
-    if (!force && videoTrack.frames.length > 0 && !videoTrack.frames[0].isKeyframe) {
-      // Keep frames in demuxer's queue until we get a keyframe
-      return;
-    }
-
-    if (videoTrack.frames.length === 1 && !force) {
-      // !!@ is this a needed case? check audio track for this logic as well
-      // Ignore and keep in demuxer's queue
-      return;
-    }
-
     const info = new MediaSegmentInfo();
     const firstFrame = videoTrack.frames[0];
     const lastFrame = videoTrack.frames[videoTrack.frames.length - 1];
@@ -297,7 +284,7 @@ export class WebMRemuxer extends Remuxer {
     //  Log.v(WebMRemuxer.TAG, `    Input Frame: dts=${frame.dts}, pts=${frame.pts}, isKeyframe=${frame.isKeyframe}, dataSize=${frame.rawData?.length ?? 0} fileposition=${frame.fileposition}`);
     //}
 
-    const segment = WebMGenerator.generateVideoClusterSimpleBlock(videoTrack.frames, this._refFrameDuration);
+    const segment = WebMGenerator.generateVideoCluster(videoTrack.frames, this._refFrameDuration);
     // Log.v(WebMRemuxer.TAG, `Generated video segment, length: ${segment.byteLength} \n${Log.dumpArrayBuffer(segment, 100)}`);
 
     this._onMediaSegment(TrackType.Video, {
