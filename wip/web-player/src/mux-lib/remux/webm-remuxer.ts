@@ -297,7 +297,7 @@ export class WebMRemuxer extends Remuxer {
     //  Log.v(WebMRemuxer.TAG, `    Input Frame: dts=${frame.dts}, pts=${frame.pts}, isKeyframe=${frame.isKeyframe}, dataSize=${frame.rawData?.length ?? 0} fileposition=${frame.fileposition}`);
     //}
 
-    const segment = WebMGenerator.generateVideoClusterBlock(videoTrack.frames, this._refFrameDuration);
+    const segment = WebMGenerator.generateVideoClusterSimpleBlock(videoTrack.frames, this._refFrameDuration);
     // Log.v(WebMRemuxer.TAG, `Generated video segment, length: ${segment.byteLength} \n${Log.dumpArrayBuffer(segment, 100)}`);
 
     this._onMediaSegment(TrackType.Video, {
@@ -309,6 +309,7 @@ export class WebMRemuxer extends Remuxer {
 
     videoTrack.frames = [];
     videoTrack.length = 0;
+    videoTrack.sequenceNumber++;
   }
 
   private _remuxAudio(audioTrack: AudioTrack, force: boolean = false): void {
