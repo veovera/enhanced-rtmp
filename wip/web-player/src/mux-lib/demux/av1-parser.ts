@@ -166,44 +166,75 @@ class AV1OBUParser {
      * @returns OBU payload without headers
      */
     static extractOBUPayload(obuData: Uint8Array): Uint8Array {
-        let i = 0;
-        let obu_forbidden_bit = ((obuData[i] & 0x80) >> 7) !== 0;
-        let obu_type = (obuData[i] & 0x78) >> 3 as AV1OBUType;
-        let extension_flag = (obuData[i] & 0x04) !== 0;
-        let has_size_field = (obuData[i] & 0x02) !== 0;
-        let reserved_bit = (obuData[i] & 0x01) !== 0;
-        i += 1; // Move past the first byte of the OBU header
+        function skipFrameBoundaryMarkers(obuData: Uint8Array): Uint8Array {
+            let i = 0;
+            let obu_forbidden_bit = ((obuData[i] & 0x80) >> 7) !== 0;
+            let obu_type = (obuData[i] & 0x78) >> 3 as AV1OBUType;
+            let extension_flag = (obuData[i] & 0x04) !== 0;
+            let has_size_field = (obuData[i] & 0x02) !== 0;
+            let reserved_bit = (obuData[i] & 0x01) !== 0;
+            i += 1; // Move past the first byte of the OBU header
 
-        if (obu_forbidden_bit) {
-            Log.e(TAG, 'Invalid OBU header: forbidden bit is set');
-        }
-
-        // Skip extension header if present (1 byte)
-        if (extension_flag) {
-            i += 1;
-            // Optionally skip reserved bits here
-        }
-
-        if (has_size_field && obuData[i] !== 0) {
-            // Parse LEB128 size
-            let size = 0;
-            for (let j = 0; ; j++) {
-                if (i >= obuData.length) return new Uint8Array(0); // Prevent overflow
-                let value = obuData[i++];
-                size |= (value & 0x7F) << (j * 7);
-                if ((value & 0x80) === 0) { break; }
+            if (obu_forbidden_bit) {
+                Log.e(TAG, 'Invalid OBU header: forbidden bit is set');
             }
-            // Validate bounds
-            //Log.v(TAG, `extractOBUPayload() - OBU Type: ${obu_type}; extension_flag: ${extension_flag}; has_size_field: ${has_size_field}; reserved_bit: ${reserved_bit}; headerSize: ${i + size}; obuData.length: ${obuData.length}`);
-            if (i + size > obuData.length) {
-                Log.e(TAG, 'extractOBUPayload() - Invalid OBU size: exceeds buffer length');
-                return new Uint8Array(0);
+
+            // Skip extension header if present (1 byte)
+            if (extension_flag) {
+                i += 1;
+                // Optionally skip reserved bits here
             }
-            return obuData.subarray(i, i + size);
-        } else {
-            //Log.v(TAG, `extractOBUPayload() - OBU Type: ${obu_type}; extension_flag: ${extension_flag}; has_size_field: ${has_size_field}; reserved_bit: ${reserved_bit}; headerSize: ${i + 1}; obuData.length: ${obuData.length}`);
-            return obuData.subarray(i + 1);
+
+            if (has_size_field && obuData[i] !== 0) {
+                // Parse LEB128 size
+                let size = 0;
+                for (let j = 0; ; j++) {
+                    if (i >= obuData.length) return new Uint8Array(0); // Prevent overflow
+                    let value = obuData[i++];
+                    size |= (value & 0x7F) << (j * 7);
+                    if ((value & 0x80) === 0) { break; }
+                }
+                // Validate bounds
+                Log.v(TAG, `extractOBUPayload() - OBU Type: ${obu_type}; extension_flag: ${extension_flag}; has_size_field: ${has_size_field}; reserved_bit: ${reserved_bit}; headerSize: ${i + size}; obuData.length: ${obuData.length}`);
+                if (i + size > obuData.length) {
+                    Log.e(TAG, 'extractOBUPayload() - Invalid OBU size: exceeds buffer length');
+                    return new Uint8Array(0);
+                }
+                return obuData.subarray(i, i + size);
+            } else {
+                //Log.v(TAG, `extractOBUPayload() - OBU Type: ${obu_type}; extension_flag: ${extension_flag}; has_size_field: ${has_size_field}; reserved_bit: ${reserved_bit}; headerSize: ${i + 1}; obuData.length: ${obuData.length}`);
+                return obuData.subarray(i + 1);
+            }
         }
+
+        function skipDuplicateOBUHeaders() {
+           
+        }
+
+        function skipPadding() {
+
+        }
+
+        let obu_type = (obuData[0] & 0x78) >> 3 as AV1OBUType;
+        let result = obuData
+        switch (obu_type) {
+            case AV1OBUType.OBU_TEMPORAL_DELIMITER:
+                result = skipFrameBoundaryMarkers(obuData);
+                break;
+            case AV1OBUType.OBU_REDUNDANT_FRAME_HEADER:
+                Log.e(TAG, 'OBU_REDUNDANT_FRAME_HEADER is not supported');
+                break;
+            case AV1OBUType.OBU_TILE_LIST:
+                Log.e(TAG, 'OBU_TILE_LIST is not supported');
+                break;
+            case AV1OBUType.OBU_PADDING:
+                Log.e(TAG, 'OBU_PADDING is not supported');
+                break;
+            default:
+                break;
+        }
+
+        return result;
     }
   
     static parseSeuqneceHeader(uint8array: Uint8Array): Omit<AV1Metadata, 'sequence_header_data'> {
