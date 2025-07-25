@@ -75,6 +75,7 @@ import { MediaSegmentInfo, FrameInfo } from '../core/media-segment-info.js';
 
 export class WebMRemuxer extends Remuxer {
   static readonly TAG = 'WebMRemuxer';
+  static readonly DEBUG_BUFFER = false;                       // Set to true to enable downloading of remuxed video data segment buffers for debugging
 
   private _dtsBase = NaN;
   private _audioDtsBase = Infinity;
@@ -194,23 +195,27 @@ export class WebMRemuxer extends Remuxer {
   _onTrackMetadata = (metadata: AudioMetadata | VideoMetadata): void => {
     Log.a(WebMRemuxer.TAG, 'onTrackMetadata: onInitSegment callback must be specified!', this._onInitSegment);
 
-    let segmentData: Uint8Array;
+    let segmentRawData: Uint8Array;
 
     if (metadata.type === TrackType.Audio) {
       return; // we will fix this later
       const audioMetadata = metadata as AudioMetadata;
-      segmentData = WebMGenerator.generateAudioInitSegment(new Uint8Array()); // !!@ fix this
+      segmentRawData = WebMGenerator.generateAudioInitSegment(new Uint8Array()); // !!@ fix this
       this._isAudioMetadataDispatched = true;
     } else {
       const videoMetadata = metadata as VideoMetadata;
       this._refFrameDuration = Number.isFinite(videoMetadata.refFrameDuration) ? videoMetadata.refFrameDuration : this._refFrameDuration;
-      segmentData = WebMGenerator.generateVideoInitSegment(videoMetadata.av1c!, videoMetadata.codecWidth, videoMetadata.codecHeight);
+      segmentRawData = WebMGenerator.generateVideoInitSegment(videoMetadata.av1c!, videoMetadata.codecWidth, videoMetadata.codecHeight);
       this._isVideoMetadataDispatched = true;
+    }
+
+    if (__DEBUG__ && WebMRemuxer.DEBUG_BUFFER) {
+      Remuxer.dbgVideoBuffer = segmentRawData.slice();
     }
 
     const initSegment: InitSegment = {
       type: metadata.type,
-      data: segmentData.buffer,
+      data: segmentRawData,
       codec: `${metadata.codec}`,
       container: 'video/webm',
       mediaDuration: metadata.duration
@@ -284,12 +289,22 @@ export class WebMRemuxer extends Remuxer {
     //  Log.v(WebMRemuxer.TAG, `    Input Frame: dts=${frame.dts}, pts=${frame.pts}, isKeyframe=${frame.isKeyframe}, dataSize=${frame.rawData?.length ?? 0} fileposition=${frame.fileposition}`);
     //}
 
-    const segment = WebMGenerator.generateVideoCluster(videoTrack.frames, this._refFrameDuration);
+    const segmentRawData = WebMGenerator.generateVideoCluster(videoTrack.frames, this._refFrameDuration);
     // Log.v(WebMRemuxer.TAG, `Generated video segment, length: ${segment.byteLength} \n${Log.dumpArrayBuffer(segment, 100)}`);
+
+    if (__DEBUG__ && Remuxer.dbgVideoBuffer) {
+      //Log.d(WebMRemuxer.TAG, `Generating segment - frameCount: ${videoTrack.frames.length} beginDts: ${info.beginDts} dstEnd: ${info.endDts} size: ${segmentRawData.length} `);
+      //Log.d(WebMRemuxer.TAG, `\n${Log.dumpArrayBuffer(segmentRawData, 512)}`);
+
+      const combined = new Uint8Array(Remuxer.dbgVideoBuffer.length + segmentRawData.length);
+      combined.set(Remuxer.dbgVideoBuffer, 0);
+      combined.set(segmentRawData, Remuxer.dbgVideoBuffer.length);
+      Remuxer.dbgVideoBuffer = combined;
+    }
 
     this._onMediaSegment(TrackType.Video, {
       type: TrackType.Video,
-      data: segment.buffer,
+      data: segmentRawData,
       frameCount: videoTrack.frames.length,
       info: info
     });

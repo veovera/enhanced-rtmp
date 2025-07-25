@@ -10,6 +10,7 @@ import Mpegts from "@/mux-lib"
 import NativePlayer from "./mux-lib/player/native-player";
 import MSEPplayer from "./mux-lib/player/mse-player";
 import TransmuxingEvents from './mux-lib/core/transmuxing-events';
+import { Remuxer } from "./mux-lib/remux/remuxer";
 
 const hasAudioLabel: HTMLLabelElement = document.createElement('label');
 const hasAudioCheckbox: HTMLInputElement = document.createElement('input');
@@ -23,16 +24,15 @@ let player: MSEPplayer | NativePlayer | null = null;
 
 // Static list of files to choose from
 const fileList = [
-  { label: "chopped.flv", value: "./assets/chopped.flv" },
+  { label: "bbb-av1-60thframe-iskey-chopped.flv", value: "./assets/bbb-av1-60thframe-iskey-chopped.flv" },
+  { label: "bbb-av1-aac-10s-4thframe-iskey.flv", value: "./assets/bbb-av1-aac-10s-4thframe-iskey.flv" },
+  { label: "bbb-av1-10s-4thframe-iskey-chopped.flv", value: "./assets/bbb-av1-10s-4thframe-iskey-chopped.flv" },
   { label: "bbb-av1-aac-60thframe-iskey.flv", value: "./assets/bbb-av1-aac-60thframe-iskey.flv" },
-  { label: "bbb-av1-aac-10s-4thframe-iskey.flv", value: "./assets/bbb-av1-aac-10s-4thframe-iskey.flv" },
-  { label: "bbb-av1-aac-10s-4thframe-isnotkey.flv", value: "./assets/bbb-av1-aac-10s-4thframe-isnotkey.flv" },
-  { label: "bbb-av1-aac-10s-nokey.flv", value: "./assets/bbb-av1-aac-10s-nokey.flv" },
-  { label: "bbb-av1-aac.flv", value: "./assets/bbb-av1-aac.flv" },
   { label: "bbb-av1-aac-allkey.flv", value: "./assets/bbb-av1-aac-allkey.flv" },
-  { label: "bbb-av1-aac-10s-4thframe-iskey.flv", value: "./assets/bbb-av1-aac-10s-4thframe-iskey.flv" },
-  { label: "bbb-vp9-aac.flv", value: "./assets/bbb-vp9-aac.flv" },
+  { label: "bbb-av1-aac-chopped.flv", value: "./assets/bbb-av1-aac-chopped.flv" },
+  { label: "bbb-av1-aac.flv", value: "./assets/bbb-av1-aac.flv" },
   { label: "bbb-avc-aac.flv", value: "./assets/bbb-avc-aac.flv" },
+  { label: "bbb-vp9-aac.flv", value: "./assets/bbb-vp9-aac.flv" },
   { label: "test-av1-aac.flv", value: "./assets/test-av1-aac.flv" },
 ];
 let selectedFile = fileList[0].value; // Default selection
@@ -60,12 +60,7 @@ function initLayout() {
   mainRow.style.display = 'flex';
   mainRow.style.alignItems = 'flex-start';
   mainRow.style.gap = '32px';
-
-  videoElement = document.getElementById('videoElement') as HTMLVideoElement;
-  if (!videoElement) {
-    console.error('Video element not found!');
-    return;
-  }
+  
   mainRow.appendChild(videoElement);
 
   // After mainRow.appendChild(videoElement);
@@ -118,7 +113,7 @@ function initLayout() {
     selectedFile = fileSelect.value;
   };
 
-  // Add a manual play button for user interaction
+  // Add a manual create player button
   const createPlayerButton = document.createElement('button');
   createPlayerButton.textContent = 'Create Player';
   createPlayerButton.onclick = () => {
@@ -126,14 +121,25 @@ function initLayout() {
   };
 
   // Add a button to open chrome://media-internals
-  const mediaInternalsButton = document.createElement('button');
-  mediaInternalsButton.textContent = 'Open Media Internals';
-  mediaInternalsButton.onclick = () => {
-    navigator.clipboard.writeText('chrome://media-internals').then(() => {
-      alert('URL copied to clipboard! Please paste it into your browser\'s address bar.');
-    }).catch((err) => {
-      console.error('Failed to copy URL:', err);
-    });
+
+  const mseBuffersButton = document.createElement('button');
+  mseBuffersButton.textContent = 'Download Appended MSE Buffers';
+  mseBuffersButton.disabled = true; // Initially disabled
+  mseBuffersButton.onclick = () => {
+    if (!Remuxer.dbgVideoBuffer) {
+      console.error('No appended MSE buffers available for download.');
+      return;
+    }
+
+    const blob = new Blob([Remuxer.dbgVideoBuffer], { type: "application/octet-stream" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = 'dbgBuffer.bin'; // Name of the downloaded file  
+    a.click();  
+    
+    URL.revokeObjectURL(url);
   };
 
   // Add checkboxes below the video element
@@ -169,7 +175,7 @@ function initLayout() {
   controlsDiv.appendChild(hasAudioLabel);
   controlsDiv.appendChild(hasVideoLabel);
   controlsDiv.appendChild(useWebMLabel);
-  controlsDiv.appendChild(mediaInternalsButton);
+  controlsDiv.appendChild(mseBuffersButton);
 
   document.body.appendChild(controlsDiv)
 
@@ -188,9 +194,21 @@ function initLayout() {
   dbgTraceBox.style.marginTop = '32px';
   document.body.appendChild(dbgTraceBox);
 
+  // Create the tip paragraph
+  const tip = document.createElement('p');
+  tip.innerHTML = `<strong>Tip:</strong> To debug media playback, open <code>chrome://media-internals</code> in a new Chrome tab.`;
+  document.body.appendChild(tip);
+
   if (__DEBUG__) {
     setInterval(() => {
       const traceBox = document.getElementById('dbgTraceBox') as HTMLTextAreaElement;
+      videoElement.controls = true; // Ensure controls are enabled for the video element
+
+      if (Remuxer.dbgVideoBuffer) {
+        mseBuffersButton.disabled = false;
+      } else {
+        mseBuffersButton.disabled = true;
+      }
 
       traceBox.value = "*** Video Element State ***\n";
       traceBox.value += "===========================\n";
@@ -378,5 +396,13 @@ function createPlayer(): MSEPplayer | NativePlayer | null {
 }
 // Initialize only after window load
 window.addEventListener('load', () => {
+  videoElement = document.getElementById('videoElement') as HTMLVideoElement;
+  if (!videoElement) {
+    console.error('Video element not found!');
+    return;
+  }
+  videoElement.controls = true;
+  videoElement.src = "./assets/bbb-av1-10s-4thframe-iskey-chopped.webm"; // Default video source
   initLayout();
 });
+

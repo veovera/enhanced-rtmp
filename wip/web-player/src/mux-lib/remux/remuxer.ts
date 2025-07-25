@@ -21,6 +21,9 @@ export interface InitSegment {
 }
 
 export abstract class Remuxer {
+  static dbgVideoBuffer: Uint8Array | null = null;  // used when we are debugging remuxing issues
+  static dbgAudioBuffer: Uint8Array | null = null;  // used when we are debugging remuxing issues
+
   abstract destroy(): void;
   abstract bindDataSource(producer: FLVDemuxer): this;
   abstract insertDiscontinuity(): void;
