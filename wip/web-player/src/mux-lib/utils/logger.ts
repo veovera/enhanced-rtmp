@@ -116,11 +116,14 @@ class Log {
     static dumpArrayBuffer(
        input: ArrayBuffer | ArrayBufferView,
        length: number,
-       bytesPerLine = 16
+       bytesPerLine = 32
     ): string {
        let bytes: Uint8Array;
 
-       if (input instanceof ArrayBuffer) {
+      if (input instanceof Uint8Array) {
+        // Direct use for Uint8Array - most efficient
+        bytes = input;
+      } else if (input instanceof ArrayBuffer) {
            bytes = new Uint8Array(input);
        } else if (ArrayBuffer.isView(input)) {
            bytes = new Uint8Array(input.buffer, input.byteOffset, input.byteLength);
