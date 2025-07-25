@@ -9,6 +9,7 @@
 // web
 import { AudioMetadata, VideoFrame, VideoMetadata } from "../demux/flv-demuxer";
 import Log from "../utils/logger";
+import AV1OBUParser from "../demux/av1-parser";
 
 /**
  * WebM MSE Bitstream Format Overview
@@ -54,7 +55,7 @@ enum ClusterBlockMode {
   BlockGroupAll,      // Use BlockGroup for all frames
   BlockGroupLast,     // Use SimpleBlock for all except last frame, which is BlockGroup
 }
-const clusterBlockMode: ClusterBlockMode = ClusterBlockMode.BlockGroupAll;
+const clusterBlockMode: ClusterBlockMode = ClusterBlockMode.SimpleBlock;
 
 type WebMCodec = 'VP8' | 'VP9' | 'AV1' | 'Opus' | 'Vorbis';
 enum EbmlId {
@@ -139,45 +140,30 @@ function writeUInt(value: number, size: number): Uint8Array {
 }
 
 /**
- * Encodes an unsigned integer into EBML Variable-Length Integer (VINT) format.
+ * Writes a variable-length integer (VINT) in EBML format.
+ * The value must be between 0 and 0xFFFFFFFF (inclusive) because of JS limitations.
  *
- * EBML VINTs are used to encode both value and length in a self-delimiting form,
- * where the position of the first set bit in the first byte indicates how many bytes
- * are used in total. This implementation supports values up to Number.MAX_SAFE_INTEGER
- * and produces outputs between 1 and 8 bytes long.
- *
- * VINT format:
- * - The number of leading zero bits in the first byte indicates the total length (1–8 bytes).
- * - The first '1' bit is a marker; the remaining bits represent the payload.
- * - The value is encoded in big-endian order.
- *
- * Examples:
- * - 0x01 to 0x7F → 1 byte: [1vvvvvvv]
- * - 0x80 to 0x3FFF → 2 bytes: [01vvvvvv, vvvvvvvv]
- *
- * @param value - A positive integer ≤ Number.MAX_SAFE_INTEGER to encode.
- * @returns A Uint8Array containing the EBML VINT encoding of the input value.
+ * Note: A VINT with all bits set to 1 (e.g. 0xFF, 0x7FFF) is RESERVED in EBML and NOT valid for values or sizes,
+ * except when used to indicate "unknown size" in element size fields. Never emit 0xFF as a value.
  */
 function writeVint(value: number): Uint8Array {
-  Log.a(WebMGenerator.TAG, "writeVint assert failed: value > Number.MAX_SAFE_INTEGER", Number.isSafeInteger(value) && value >= 0);
+  Log.a(WebMGenerator.TAG, `writeVint assert failed: value of ${value} > 0xFFFFFFF`, value >= 0 && value <= 0xFFFFFFFF);
 
-  // Determine required width (1 to 8 bytes)
-  for (let width = 1; width <= 8; width++) {
-    const maxValue = (1 << (7 * width)) - 1;
-    if (value <= maxValue) {
-      const buffer = new Uint8Array(width);
-      let marker = 1 << (8 - width);
-      let encodedValue = value | marker << ((width - 1) * 8);
+  // Calculate how many bytes are needed to represent a number as EBML variable length integer.
+  let bytes = 0;
+  let tmpValue = value + 1;
+  do {
+    bytes++;
+  } while ((tmpValue >>>= 7) > 0 && bytes < 8);
+  const result = new Uint8Array(bytes);
 
-      for (let i = width - 1; i >= 0; i--) {
-        buffer[i] = encodedValue & 0xff;
-        encodedValue >>= 8;
-      }
-      return buffer;
-    }
+  // Set the first byte with the leading bits indicating the length
+  tmpValue = value | (1 << (bytes * 7)); // ensure the first byte has a leading 1 bit
+  for (let i = bytes - 1, index = 0; i >= 0; i--, index++) {
+    result[index] = (tmpValue >> (i * 8)) & 0xFF;
   }
 
-  Log.a(WebMGenerator.TAG, "writeVint assert failed: value is too large", false);
+  return result;
 }
 
 /**
@@ -289,9 +275,11 @@ export class WebMGenerator {
 
     // Combine Segment header and content
     const segment = concatUint8Arrays([segmentHeader, segmentContent]);
+    const result = concatUint8Arrays([ebmlHeader, segment]);
 
+    Log.d(WebMGenerator.TAG, `generateVideoInitSegment() width=${width}, height=${height}, codecPrivate.length=${codecPrivate.length}\n${Log.dumpArrayBuffer(result, 512)}`);
     // Final init segment = EBML header + Segment
-    return concatUint8Arrays([ebmlHeader, segment]);
+    return result
   }
 
   static generateAudioInitSegment(codecPrivate: Uint8Array): Uint8Array {
@@ -332,14 +320,14 @@ export class WebMGenerator {
    */
   static generateVideoCluster(frames: VideoFrame[], refFrameDuration: number): Uint8Array {
     const clusterTimecodeValue = frames[0].dts;
-    const clusterTimecode = encodeElement(EbmlId.Timecode, writeUInt(clusterTimecodeValue, 4));
+    const clusterTimecode = encodeElement(EbmlId.Timecode, writeUIntAuto(clusterTimecodeValue));
 
     const dtsDelta = frames[frames.length - 1].dts - frames[0].dts;
     if (dtsDelta < 0 || dtsDelta > 32767) {
       Log.e(WebMGenerator.TAG, `generateVideoCluster() dtsDelta is out of range: ${dtsDelta}`);
     }
     
-    //Log.v(WebMGenerator.TAG, `generateVideoClusterSimpleBlock() ClusterTimeCodeValue: ${clusterTimecodeValue} ClusterFrames.length: ${frames.length} dtsDelta: ${frames[frames.length - 1].dts - frames[0].dts} ++++++++++++++++++++++++++++++++++++++++++++++++++++++`);
+    Log.d(WebMGenerator.TAG, `generateVideoClusterSimpleBlock() ClusterTimeCodeValue: ${clusterTimecodeValue} ClusterFrames.length: ${frames.length} dtsDelta: ${frames[frames.length - 1].dts - frames[0].dts} ++++++++++++++++++++++++++++++++++++++++++++++++++++++`);
     if (!frames[0].isKeyframe) {
       Log.e(WebMGenerator.TAG, 'Cluster must start with a keyframe');
     }
@@ -354,32 +342,41 @@ export class WebMGenerator {
       }
 
       if (index > 0 && isKeyframe) {
-        Log.e(WebMGenerator.TAG, `generateVideoClusterSimpleBlock() Frame at index ${index} is a keyframe but not the first frame in the cluster.`);
+        Log.e(WebMGenerator.TAG, `generateVideoCluster() - Frame at index ${index} is a keyframe but not the first frame in the cluster.`);
       }
 
       const isSimpleBlock = (clusterBlockMode === ClusterBlockMode.SimpleBlock) || (clusterBlockMode === ClusterBlockMode.BlockGroupLast && index < frames.length - 1);
+      //Log.d(WebMGenerator.TAG, `generateVideoCluster() - Frame at index ${index}, blockTimecode=${blockTimecode}, clusterTimeCode=${clusterTimecodeValue}, isKeyframe=${isKeyframe}, rawData.length=${rawData?.length}`);
       if (isSimpleBlock) {
         const header = new Uint8Array(4);
         header[0] = 0x80 | TrackNumber.Video;      // Track number (VINT, 1 byte)
         header[1] = (blockTimecode >> 8) & 0xff;   // Timecode (signed int16)
         header[2] = blockTimecode & 0xff;
         header[3] = isKeyframe ? 0x80 : 0x00;      // Flags: bit 7 is keyframe, bits 1-2 are lacing (set to 0 
-        // Create the SimpleBlock element
-        const simpleBlock = encodeElement(EbmlId.SimpleBlock, concatUint8Arrays([header, rawData!]));
+        
+        const framePayload = AV1OBUParser.extractOBUPayload(rawData!);
+        const simpleBlock = encodeElement(EbmlId.SimpleBlock, concatUint8Arrays([header, framePayload]));
         elements.push(simpleBlock);
-        // Log.v(WebMGenerator.TAG, `  SimpleBlock: key=${isKeyframe}, dts=${dts}, blockTimecode=${blockTimecode}, rawData.length=${rawData?.length}`);
+        //Log.d(WebMGenerator.TAG, `generateVideoCluster() - simpleBlock: key=${isKeyframe}, dts=${dts}, blockTimecode=${blockTimecode}, framePayload.length=${framePayload.length}, simpleBlock.length=${simpleBlock.length}`);
+        //Log.d(WebMGenerator.TAG, `generateVideoCluster() - simpleBlock hex dump\n${Log.dumpArrayBuffer(simpleBlock, 512)}`);
       } else {
         const header = new Uint8Array(3);
         header[0] = 0x80 | TrackNumber.Video;
         header[1] = (blockTimecode >> 8) & 0xff;
         header[2] = blockTimecode & 0xff;
-        const block = encodeElement(EbmlId.Block, concatUint8Arrays([header, rawData!]));
+
+        const framePayload = AV1OBUParser.extractOBUPayload(rawData!);
+        const block = encodeElement(EbmlId.Block, concatUint8Arrays([header, framePayload]));
         const blockDuration = encodeElement(EbmlId.BlockDuration, writeUInt(refFrameDuration, 4));
         const blockGroup = encodeElement(EbmlId.BlockGroup, concatUint8Arrays([block, blockDuration]));
         elements.push(blockGroup);
       }
     }
-    return encodeElement(EbmlId.Cluster, concatUint8Arrays([clusterTimecode, ...elements]));
+    const result = encodeElement(EbmlId.Cluster, concatUint8Arrays([clusterTimecode, ...elements]));
+
+    //Log.d(WebMGenerator.TAG, `generateVideoCluster() clusterTimecodeValue=${clusterTimecodeValue} clusterSize=${result.byteLength}\n${Log.dumpArrayBuffer(result, 512)}`);
+
+    return result;
   }
 
   static generateAudioSegment(rawData: Uint8Array): Uint8Array {
