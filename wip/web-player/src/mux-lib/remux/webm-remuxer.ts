@@ -289,7 +289,7 @@ export class WebMRemuxer extends Remuxer {
     //  Log.v(WebMRemuxer.TAG, `    Input Frame: dts=${frame.dts}, pts=${frame.pts}, isKeyframe=${frame.isKeyframe}, dataSize=${frame.rawData?.length ?? 0} fileposition=${frame.fileposition}`);
     //}
 
-    const segmentRawData = WebMGenerator.generateVideoCluster(videoTrack.frames, this._refFrameDuration);
+    const segmentRawData = WebMGenerator.generateVideoCluster(videoTrack.frames, 0, this._refFrameDuration);
     // Log.v(WebMRemuxer.TAG, `Generated video segment, length: ${segment.byteLength} \n${Log.dumpArrayBuffer(segment, 100)}`);
 
     if (__DEBUG__ && Remuxer.dbgVideoBuffer) {

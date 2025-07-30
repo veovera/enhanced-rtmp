@@ -277,8 +277,7 @@ export class WebMGenerator {
     const segment = concatUint8Arrays([segmentHeader, segmentContent]);
     const result = concatUint8Arrays([ebmlHeader, segment]);
 
-    Log.d(WebMGenerator.TAG, `generateVideoInitSegment() width=${width}, height=${height}, codecPrivate.length=${codecPrivate.length}\n${Log.dumpArrayBuffer(result, 512)}`);
-    // Final init segment = EBML header + Segment
+    //Log.d(WebMGenerator.TAG, `generateVideoInitSegment() width=${width}, height=${height}, codecPrivate.length=${codecPrivate.length}\n${Log.dumpArrayBuffer(result, 512)}`);
     return result
   }
 
@@ -318,30 +317,34 @@ export class WebMGenerator {
    * @param refFrameDuration - Reference duration for BlockDuration (used with BlockGroup).
    * @returns A Uint8Array containing the complete WebM Cluster.
    */
-  static generateVideoCluster(frames: VideoFrame[], refFrameDuration: number): Uint8Array {
-    const clusterTimecodeValue = frames[0].dts;
+  static generateVideoCluster(frames: VideoFrame[], clusterFrameIndex: number, refFrameDuration: number): Uint8Array {
+    const clusterTimecodeValue = frames[clusterFrameIndex].dts;
     const clusterTimecode = encodeElement(EbmlId.Timecode, writeUIntAuto(clusterTimecodeValue));
+    let nextClusterFrameIndex = 0;
+    let result: Uint8Array;
 
-    const dtsDelta = frames[frames.length - 1].dts - frames[0].dts;
+    const dtsDelta = frames[frames.length - 1].dts - frames[clusterFrameIndex].dts;
     if (dtsDelta < 0 || dtsDelta > 32767) {
-      Log.e(WebMGenerator.TAG, `generateVideoCluster() dtsDelta is out of range: ${dtsDelta}`);
+      Log.w(WebMGenerator.TAG, `generateVideoCluster() - cluster contains blockTimecode(s) out of range; clusterDTS: ${clusterTimecodeValue} dtsDelta: ${dtsDelta} framesToProcess: ${frames.length - clusterFrameIndex}`);
     }
     
-    Log.d(WebMGenerator.TAG, `generateVideoClusterSimpleBlock() ClusterTimeCodeValue: ${clusterTimecodeValue} ClusterFrames.length: ${frames.length} dtsDelta: ${frames[frames.length - 1].dts - frames[0].dts} ++++++++++++++++++++++++++++++++++++++++++++++++++++++`);
+    //Log.d(WebMGenerator.TAG, `generateVideoClusterSimpleBlock() ClusterTimeCodeValue: ${clusterTimecodeValue} ClusterFrames.length: ${frames.length} dtsDelta: ${frames[frames.length - 1].dts - frames[0].dts} ++++++++++++++++++++++++++++++++++++++++++++++++++++++`);
     if (!frames[0].isKeyframe) {
       Log.e(WebMGenerator.TAG, 'Cluster must start with a keyframe');
     }
 
     const elements: Uint8Array[] = [];
-    for (let index = 0; index < frames.length; index++) {
+    for (let index = clusterFrameIndex; index < frames.length; index++) {
       const { rawData, dts, isKeyframe } = frames[index];
       const blockTimecode = dts - clusterTimecodeValue;
 
       if (blockTimecode < 0 || blockTimecode > 32767) {
-        Log.e(WebMGenerator.TAG, `blockTimecode out of range: ${blockTimecode} for frame at index ${index}`);
+        //Log.e(WebMGenerator.TAG, `blockTimecode out of range: ${blockTimecode} for frame at index ${index} with dts ${dts} and clusterTimecodeValue ${clusterTimecodeValue}`);
+        nextClusterFrameIndex = index;
+        break; // Stop processing frames if we hit an out-of-range timecode
       }
 
-      if (index > 0 && isKeyframe) {
+      if (index > clusterFrameIndex && isKeyframe) {
         Log.e(WebMGenerator.TAG, `generateVideoCluster() - Frame at index ${index} is a keyframe but not the first frame in the cluster.`);
       }
 
@@ -372,7 +375,14 @@ export class WebMGenerator {
         elements.push(blockGroup);
       }
     }
-    const result = encodeElement(EbmlId.Cluster, concatUint8Arrays([clusterTimecode, ...elements]));
+
+    if (nextClusterFrameIndex > 0) {
+      const currentCluster = encodeElement(EbmlId.Cluster, concatUint8Arrays([clusterTimecode, ...elements]));
+      const nextCluster = WebMGenerator.generateVideoCluster(frames, nextClusterFrameIndex, refFrameDuration);
+      result = concatUint8Arrays([currentCluster, nextCluster]);
+    } else {
+      result = encodeElement(EbmlId.Cluster, concatUint8Arrays([clusterTimecode, ...elements]));
+    }
 
     //Log.d(WebMGenerator.TAG, `generateVideoCluster() clusterTimecodeValue=${clusterTimecodeValue} clusterSize=${result.byteLength}\n${Log.dumpArrayBuffer(result, 512)}`);
 
