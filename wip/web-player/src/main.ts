@@ -24,6 +24,7 @@ let player: MSEPplayer | NativePlayer | null = null;
 
 // Static list of files to choose from
 const fileList = [
+  { label: "bbb-av1-many-frames-in-cluster.flv", value: "./assets/bbb-av1-many-frames-in-cluster.flv" },
   { label: "bbb-av1-60thframe-iskey-chopped.flv", value: "./assets/bbb-av1-60thframe-iskey-chopped.flv" },
   { label: "bbb-av1-aac-10s-4thframe-iskey.flv", value: "./assets/bbb-av1-aac-10s-4thframe-iskey.flv" },
   { label: "bbb-av1-10s-4thframe-iskey-chopped.flv", value: "./assets/bbb-av1-10s-4thframe-iskey-chopped.flv" },
@@ -38,7 +39,7 @@ const fileList = [
 let selectedFile = fileList[0].value; // Default selection
 
 function initLayout() {
-  //!!@ remove mpegts mentiones since this is only for e-flv
+  //!!@ remove mpegts mentions since this is only for e-flv
   if (!Mpegts.isSupported()) {
     console.error("Your browser doesn't support mpegts.js");
     return;
@@ -52,7 +53,19 @@ function initLayout() {
     gap: 24px; /* horizontal space between all children */
     margin-top: 10px;
     margin-bottom: 10px;
+  }
+  .trace-textarea {
+    width: 640px;
+    height: 320px;
+    font-family: monospace;
+    font-size: 12px;
+    background: #f8f8f8;
+    border: 1px solid #ccc;
+    padding: 8px;
+    resize: vertical;
+    margin-top: 32px;
   }`;
+
   document.head.appendChild(style);
 
   // Create a flex container for video and trace output
@@ -61,21 +74,18 @@ function initLayout() {
   mainRow.style.alignItems = 'flex-start';
   mainRow.style.gap = '32px';
   
+  videoElement.style.marginTop = '0px';
   mainRow.appendChild(videoElement);
 
   // After mainRow.appendChild(videoElement);
-  const infoTraceBox = document.createElement('textarea');
-  infoTraceBox.id = 'infoTraceBox';
-  infoTraceBox.readOnly = true;
-  infoTraceBox.style.width = '640px';
-  infoTraceBox.style.height = '480px';
-  infoTraceBox.style.fontFamily = 'monospace';
-  infoTraceBox.style.fontSize = '12px';
-  infoTraceBox.style.background = '#f8f8f8';
-  infoTraceBox.style.border = '1px solid #ccc';
-  infoTraceBox.style.padding = '8px';
-  infoTraceBox.style.resize = 'vertical';
-  mainRow.appendChild(infoTraceBox);
+  const videoMetadataBox = document.createElement('textarea');
+  videoMetadataBox.id = 'videoMetadataBox';
+  videoMetadataBox.readOnly = true;
+  videoMetadataBox.style.height = '400px';
+  videoMetadataBox.style.marginTop = '0px';
+  videoMetadataBox.className = 'trace-textarea';
+
+  mainRow.appendChild(videoMetadataBox);
 
   // Create and insert the title and horizontal rule
   const titleDiv = document.createElement('div');
@@ -179,20 +189,30 @@ function initLayout() {
 
   document.body.appendChild(controlsDiv)
 
-  // Add a second trace box at the bottom of the page
-  const dbgTraceBox = document.createElement('textarea');
-  dbgTraceBox.id = 'dbgTraceBox';
-  dbgTraceBox.readOnly = true;
-  dbgTraceBox.style.width = '640px';
-  dbgTraceBox.style.height = '240px';
-  dbgTraceBox.style.fontFamily = 'monospace';
-  dbgTraceBox.style.fontSize = '12px';
-  dbgTraceBox.style.background = '#f8f8f8';
-  dbgTraceBox.style.border = '1px solid #ccc';
-  dbgTraceBox.style.padding = '8px';
-  dbgTraceBox.style.resize = 'vertical';
-  dbgTraceBox.style.marginTop = '32px';
-  document.body.appendChild(dbgTraceBox);
+  // Create a flex container for the debug trace boxes
+  const dbgRow = document.createElement('div');
+  dbgRow.style.display = 'flex';
+  dbgRow.style.alignItems = 'flex-start';
+  dbgRow.style.gap = '32px';
+
+  // Create the first debug trace box
+  const videoInfoBox = document.createElement('textarea');
+  videoInfoBox.id = 'videoInfoBox';
+  videoInfoBox.readOnly = true;
+  videoInfoBox.className = 'trace-textarea';
+
+  // Create the second debug trace box
+  const videoFrameInfoBox = document.createElement('textarea');
+  videoFrameInfoBox.id = 'videoFrameInfoBox';
+  videoFrameInfoBox.readOnly = true;
+  videoFrameInfoBox.className = 'trace-textarea';
+
+  // Add both boxes to the flex row
+  dbgRow.appendChild(videoInfoBox);
+  dbgRow.appendChild(videoFrameInfoBox);
+
+  // Append the flex row to the document body
+  document.body.appendChild(dbgRow);
 
   // Create the tip paragraph
   const tip = document.createElement('p');
@@ -200,8 +220,27 @@ function initLayout() {
   document.body.appendChild(tip);
 
   if (__DEBUG__) {
-    setInterval(() => {
-      const traceBox = document.getElementById('dbgTraceBox') as HTMLTextAreaElement;
+    const videoInfoCallback = () => {
+      function getReadyStateString(readyState: number): string {
+        switch (readyState) {
+          case 0: return "HAVE_NOTHING";
+          case 1: return "HAVE_METADATA";
+          case 2: return "HAVE_CURRENT_DATA";
+          case 3: return "HAVE_FUTURE_DATA";
+          case 4: return "HAVE_ENOUGH_DATA";
+          default: return "UNKNOWN";
+        }
+      }
+      function getNetworkStateString(networkState: number): string {
+        switch (networkState) {
+          case 0: return "NETWORK_EMPTY";
+          case 1: return "NETWORK_IDLE";
+          case 2: return "NETWORK_LOADING";
+          case 3: return "NETWORK_NO_SOURCE";
+          default: return "UNKNOWN";
+        }
+      }
+      const traceBox = document.getElementById('videoInfoBox') as HTMLTextAreaElement;
       videoElement.controls = true; // Ensure controls are enabled for the video element
 
       if (Remuxer.dbgVideoBuffer) {
@@ -210,26 +249,48 @@ function initLayout() {
         mseBuffersButton.disabled = true;
       }
 
-      traceBox.value = "*** Video Element State ***\n";
-      traceBox.value += "===========================\n";
+      traceBox.value = "*** Video Element Properties ***\n";
+      traceBox.value += "================================\n";
       traceBox.value += `Ended: ${videoElement.ended}\n`;
       traceBox.value += `Volume: ${videoElement.volume}\n`;
       traceBox.value += `Muted: ${videoElement.muted}\n`;
       traceBox.value += `Playback Rate: ${videoElement.playbackRate}\n`;
-      traceBox.value += `Ready State: ${videoElement.readyState}\n`;
-      traceBox.value += `Network State: ${videoElement.networkState}\n`;
-      traceBox.value += `Video Width: ${videoElement.videoWidth}\n`;
-      traceBox.value += `Video Height: ${videoElement.videoHeight}\n\n`;
+      traceBox.value += `Ready State: ${videoElement.readyState} (${getReadyStateString(videoElement.readyState)})\n`;
+      traceBox.value += `Network State: ${videoElement.networkState} (${getNetworkStateString(videoElement.networkState)})\n`;
+      traceBox.value += `Width: ${videoElement.videoWidth}\n`;
+      traceBox.value += `Height: ${videoElement.videoHeight}\n`;
 
       traceBox.value += `Paused: ${videoElement.paused}\n`;
       traceBox.value += `Duration: ${videoElement.duration}\n`;
-      traceBox.value += `Current Time: ${videoElement.currentTime}\n`;
-      const buffered = videoElement.buffered;
+      traceBox.value += `Current Playback Time: ${videoElement.currentTime}\n`;
       traceBox.value += "Buffered ranges:\n";
+      const buffered = videoElement.buffered;
       for (let i = 0; i < buffered.length; i++) {
         traceBox.value += `${buffered.start(i)} - ${buffered.end(i)}\n`;
       }
-    }, 1000);
+    }
+
+    const videoFrameCallback = (now: DOMHighResTimeStamp, frame: VideoFrameCallbackMetadata) => {
+      const traceBox = document.getElementById('videoFrameInfoBox') as HTMLTextAreaElement;
+      const playbackQuality = videoElement.getVideoPlaybackQuality();
+
+      traceBox.value =  `***     Video Frame Info     ***\n`;
+      traceBox.value += "================================\n\n";
+
+      traceBox.value += `High res time since page load: ${now}\n\n`;
+
+      traceBox.value += `QOS\n---\n`;
+      traceBox.value += `Dropped Frames: ${playbackQuality.droppedVideoFrames}\n`;
+      traceBox.value += `Total Frames: ${playbackQuality.totalVideoFrames}\n`;
+      traceBox.value += `Corrupted Frames: ${playbackQuality?.corruptedVideoFrames}\n\n`;
+
+      traceBox.value += `Video Frame Metadata\n---------------------\n`;
+      traceBox.value += `${JSON.stringify(frame, null, 2)}\n\n`;
+      videoInfoCallback();
+      videoElement.requestVideoFrameCallback(videoFrameCallback);
+    }
+    setInterval(videoInfoCallback, 1000);
+    videoElement.requestVideoFrameCallback(videoFrameCallback);
   }
 
   // Add event listeners for error handling
@@ -316,9 +377,12 @@ function createPlayer(): MSEPplayer | NativePlayer | null {
 
 
   _player.on(TransmuxingEvents.SCRIPTDATA_ARRIVED, (scriptData) => {
-    const traceBox = document.getElementById('infoTraceBox') as HTMLTextAreaElement;
+    const traceBox = document.getElementById('videoMetadataBox') as HTMLTextAreaElement;
 
-    traceBox.value = '[METADATA_ARRIVED]\n' + JSON.stringify(scriptData, null, 2) + '\n\n';
+    traceBox.value  = "*** Metadata (onMetaData) arrived ***\n";
+    traceBox.value += "=====================================\n\n";
+
+    traceBox.value += `${JSON.stringify(scriptData, null, 2)}\n\n`;
     traceBox.value += '\nnote:\n';
     if (scriptData?.onMetaData.videocodecid) {
       const code = scriptData.onMetaData.videocodecid;
@@ -402,7 +466,7 @@ window.addEventListener('load', () => {
     return;
   }
   videoElement.controls = true;
-  videoElement.src = "./assets/bbb-av1-10s-4thframe-iskey-chopped.webm"; // Default video source
+  videoElement.src = "./assets/bbb-av1.webm"; // Default video source
   initLayout();
 });
 
