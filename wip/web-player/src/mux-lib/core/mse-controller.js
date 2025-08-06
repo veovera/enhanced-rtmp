@@ -15,6 +15,8 @@ import Log from '../utils/logger.js';
 import Browser from '../utils/browser.js';
 import MSEEvents from './mse-events';
 import {IllegalStateException} from '../utils/exception.js';
+import { MediaErrorName } from '../utils/exception';
+
 
 // Media Source Extensions controller
 class MSEController {
@@ -236,6 +238,8 @@ class MSEController {
                 firstInitSegment = true;
                 try {
                     let sb = this._sourceBuffers[is.type] = this._mediaSource.addSourceBuffer(mimeType);
+                    Log.v(this.TAG, `Created SourceBuffer for ${is.type} track, mimeType: ${mimeType}`);
+                    this._mediaSource.duration = is.mediaDuration / 1000;  // in seconds
                     sb.addEventListener('error', this.e.onSourceBufferError);
                     sb.addEventListener('updateend', this.e.onSourceBufferUpdateEnd);
                 } catch (error) {
@@ -258,7 +262,7 @@ class MSEController {
                 this._doAppendSegments();
             }
         }
-        if (Browser.safari && is.container === 'audio/mpeg' && is.mediaDuration > 0) {
+        if (((Browser.safari && is.container === 'audio/mpeg') || (is.container === "video/webm")) && is.mediaDuration > 0) {
             // 'audio/mpeg' track under Safari may cause MediaElement's duration to be NaN
             // Manually correct MediaSource.duration to make progress bar seekable, and report right duration
             this._requireSetMediaDuration = true;
@@ -458,7 +462,9 @@ class MSEController {
             }
 
             if (pendingSegments[type].length > 0) {
-                let segment = pendingSegments[type].shift();
+                const info = pendingSegments[type][0].info;
+                const frameCount = pendingSegments[type][0].frameCount;
+                const segment = pendingSegments[type].shift();
 
                 if (typeof segment.timestampOffset === 'number' && isFinite(segment.timestampOffset)) {
                     // For MPEG audio stream in MSE, if unbuffered-seeking occurred
@@ -480,12 +486,18 @@ class MSEController {
                 }
 
                 try {
-                    //Log.v(this.TAG, `Appending segment to ${type} SourceBuffer, length: ${segment.data.byteLength} \n${Log.dumpArrayBuffer(segment.data, 100)}`);
+                    if (info) {
+                      //Log.v(this.TAG, `Appending segment to ${type} SourceBuffer - frameCount: ${frameCount} beginDts: ${info.beginDts} dstEnd: ${info.endDts}} size: ${segment.data.byteLength} `);
+                      //Log.v(this.TAG, `\n${Log.dumpArrayBuffer(segment.data, 512)}`);
+                    }
                     this._sourceBuffers[type].appendBuffer(segment.data);
                     this._isBufferFull = false;
                 } catch (error) {
                     this._pendingSegments[type].unshift(segment);
-                    if (error.code === 22) {  // QuotaExceededError
+                    Log.e(this.TAG, `error.message = ${error.message}; error.name = ${error.name}; error.code = ${error.code}; pendingData.length = ${segment.data.length}; type = ${type}; beginDts = ${info ? info.beginDts : 'N/A'}; endDts = ${info ? info.endDts : 'N/A'}`);
+                    //Log.e(this.TAG, `\n${Log.dumpArrayBuffer(segment.data, 512)}`);
+
+                    if (error.name === MediaErrorName.QuotaExceededError) {
                         /* Notice that FireFox may not throw QuotaExceededError if SourceBuffer is full
                          * Currently we can only do lazy-load to avoid SourceBuffer become scattered.
                          * SourceBuffer eviction policy may be changed in future version of FireFox.
@@ -574,7 +586,8 @@ class MSEController {
     _onSourceBufferUpdateEnd() {
         if (this._requireSetMediaDuration) {
             this._updateMediaSourceDuration();
-        } else if (this._hasPendingRemoveRanges()) {
+        } 
+        if (this._hasPendingRemoveRanges()) {
             this._doRemoveRanges();
         } else if (this._hasPendingSegments()) {
             this._doAppendSegments();
