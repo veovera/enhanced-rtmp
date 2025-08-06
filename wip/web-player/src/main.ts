@@ -11,6 +11,7 @@ import NativePlayer from "./mux-lib/player/native-player";
 import MSEPplayer from "./mux-lib/player/mse-player";
 import TransmuxingEvents from './mux-lib/core/transmuxing-events';
 import { Remuxer } from "./mux-lib/remux/remuxer";
+import { defaultConfig } from "./mux-lib/config";
 
 const hasAudioLabel: HTMLLabelElement = document.createElement('label');
 const hasAudioCheckbox: HTMLInputElement = document.createElement('input');
@@ -56,9 +57,9 @@ function initLayout() {
   }
   .trace-textarea {
     width: 640px;
-    height: 320px;
+    height: 520px;
     font-family: monospace;
-    font-size: 12px;
+    font-size: 11px;
     background: #f8f8f8;
     border: 1px solid #ccc;
     padding: 8px;
@@ -129,8 +130,6 @@ function initLayout() {
   createPlayerButton.onclick = () => {
     player = createPlayer();
   };
-
-  // Add a button to open chrome://media-internals
 
   const mseBuffersButton = document.createElement('button');
   mseBuffersButton.textContent = 'Download Appended MSE Buffers';
@@ -207,9 +206,16 @@ function initLayout() {
   videoFrameInfoBox.readOnly = true;
   videoFrameInfoBox.className = 'trace-textarea';
 
+  // Create the config info box (to the right of videoFrameInfoBox)
+  const configInfoBox = document.createElement('textarea');
+  configInfoBox.id = 'configInfoBox';
+  configInfoBox.readOnly = true;
+  configInfoBox.className = 'trace-textarea';
+
   // Add both boxes to the flex row
   dbgRow.appendChild(videoInfoBox);
   dbgRow.appendChild(videoFrameInfoBox);
+  dbgRow.appendChild(configInfoBox);
 
   // Append the flex row to the document body
   document.body.appendChild(dbgRow);
@@ -275,7 +281,7 @@ function initLayout() {
       const playbackQuality = videoElement.getVideoPlaybackQuality();
 
       traceBox.value =  `***     Video Frame Info     ***\n`;
-      traceBox.value += "================================\n\n";
+      traceBox.value += "================================\n";
 
       traceBox.value += `High res time since page load: ${now}\n\n`;
 
@@ -285,7 +291,7 @@ function initLayout() {
       traceBox.value += `Corrupted Frames: ${playbackQuality?.corruptedVideoFrames}\n\n`;
 
       traceBox.value += `Video Frame Metadata\n---------------------\n`;
-      traceBox.value += `${JSON.stringify(frame, null, 2)}\n\n`;
+      traceBox.value += `json: ${JSON.stringify(frame, null, 2)}\n`;
       videoInfoCallback();
       videoElement.requestVideoFrameCallback(videoFrameCallback);
     }
@@ -319,6 +325,14 @@ function initLayout() {
   });
 }
 
+function updateConfigInfoBox(options: {}) {
+  const mergedOptions = { ...defaultConfig, ...options };
+  const traceBox = document.getElementById('configInfoBox') as HTMLTextAreaElement;
+  traceBox.value = "*** Player Configuration ***\n";
+  traceBox.value += "================================\n";
+  traceBox.value += `json: ${JSON.stringify({configOptions: mergedOptions}, null, 2)}\n\n`;
+};
+
 function createPlayer(): MSEPplayer | NativePlayer | null {
   // Simpler configuration focusing on essential parameters
   // !!@TODO: add a config object
@@ -335,7 +349,8 @@ function createPlayer(): MSEPplayer | NativePlayer | null {
     return null;
   }
 
-  const _player = Mpegts.createPlayer({
+
+  const options = {
     type: 'flv',
     url: selectedFile,  // Use the selected file from the dropdown
     isLive: false,
@@ -349,7 +364,10 @@ function createPlayer(): MSEPplayer | NativePlayer | null {
     fixAudioTimestampGap: false,
     rangeLoadZeroStart: true,
     useWebM: useWebMCheckbox.checked
-  });
+  };
+
+  const _player = Mpegts.createPlayer(options);
+  updateConfigInfoBox(options);
 
   if (!_player) {
     console.error('Failed to create player!');
@@ -380,9 +398,9 @@ function createPlayer(): MSEPplayer | NativePlayer | null {
     const traceBox = document.getElementById('videoMetadataBox') as HTMLTextAreaElement;
 
     traceBox.value  = "*** Metadata (onMetaData) arrived ***\n";
-    traceBox.value += "=====================================\n\n";
+    traceBox.value += "=====================================\n";
 
-    traceBox.value += `${JSON.stringify(scriptData, null, 2)}\n\n`;
+    traceBox.value += `json: ${JSON.stringify(scriptData, null, 2)}\n`;
     traceBox.value += '\nnote:\n';
     if (scriptData?.onMetaData.videocodecid) {
       const code = scriptData.onMetaData.videocodecid;
