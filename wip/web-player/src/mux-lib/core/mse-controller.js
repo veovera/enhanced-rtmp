@@ -11,10 +11,10 @@
  */
 
 import EventEmitter from 'eventemitter3';
-import Log from '../utils/logger.js';
-import Browser from '../utils/browser.js';
+import Log from '../utils/logger';
+import Browser from '../utils/browser';
 import MSEEvents from './mse-events';
-import {IllegalStateException} from '../utils/exception.js';
+import {IllegalStateException} from '../utils/exception';
 import { MediaErrorName } from '../utils/exception';
 
 
@@ -498,20 +498,15 @@ class MSEController {
                     //Log.e(this.TAG, `\n${Log.dumpArrayBuffer(segment.data, 512)}`);
 
                     if (error.name === MediaErrorName.QuotaExceededError) {
-                        /* Notice that FireFox may not throw QuotaExceededError if SourceBuffer is full
-                         * Currently we can only do lazy-load to avoid SourceBuffer become scattered.
-                         * SourceBuffer eviction policy may be changed in future version of FireFox.
-                         *
-                         * Related issues:
-                         * https://bugzilla.mozilla.org/show_bug.cgi?id=1279885
-                         * https://bugzilla.mozilla.org/show_bug.cgi?id=1280023
-                         */
-
-                        // report buffer full, abort network IO
-                        if (!this._isBufferFull) {
+                        // If we have a pending end-of-stream, we must clear buffer space to append the final segment and finish the stream.
+                        if (this._hasPendingEos && this._config.autoCleanupSourceBuffer) {
+                            Log.v(this.TAG, 'QuotaExceededError with pending EOS, forcing cleanup to append final segment.');
+                            this._doCleanupSourceBuffer();
+                        } else if (!this._isBufferFull) {
+                            // If we are not at the end of the stream, emit BUFFER_FULL event.                            
+                            this._isBufferFull = true;
                             this._emitter.emit(MSEEvents.BUFFER_FULL);
                         }
-                        this._isBufferFull = true;
                     } else {
                         Log.e(this.TAG, error.message);
                         this._emitter.emit(MSEEvents.ERROR, {code: error.code, msg: error.message});
