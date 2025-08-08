@@ -14,15 +14,18 @@ export type RemuxerType = 'mp4' | 'webm';
 
 export interface InitSegment {
   type: TrackType;
-  data: ArrayBuffer;
+  data: Uint8Array;
   codec: string;
   container: string;
   mediaDuration: number;
 }
 
 export abstract class Remuxer {
-  static dbgVideoBuffer: Uint8Array | null = null;  // used when we are debugging remuxing issues
-  static dbgAudioBuffer: Uint8Array | null = null;  // used when we are debugging remuxing issues
+  // Set to true to enable downloading of remuxed video data segment buffers for debugging
+  static readonly DEBUG_BUFFER = false; 
+
+  static dbgVideoBuffer = new Uint8Array();
+  static dbgAudioBuffer = new Uint8Array();
 
   abstract destroy(): void;
   abstract bindDataSource(producer: FLVDemuxer): this;

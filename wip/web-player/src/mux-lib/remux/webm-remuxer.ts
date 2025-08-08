@@ -75,7 +75,6 @@ import { MediaSegmentInfo, FrameInfo } from '../core/media-segment-info.js';
 
 export class WebMRemuxer extends Remuxer {
   static readonly TAG = 'WebMRemuxer';
-  static readonly DEBUG_BUFFER = false;                       // Set to true to enable downloading of remuxed video data segment buffers for debugging
 
   private _dtsBase = NaN;
   private _audioDtsBase = Infinity;
@@ -292,7 +291,7 @@ export class WebMRemuxer extends Remuxer {
     const segmentRawData = WebMGenerator.generateVideoCluster(videoTrack.frames, 0, this._refFrameDuration);
     // Log.v(WebMRemuxer.TAG, `Generated video segment, length: ${segment.byteLength} \n${Log.dumpArrayBuffer(segment, 100)}`);
 
-    if (__DEBUG__ && Remuxer.dbgVideoBuffer) {
+    if (__DEBUG__ && Remuxer.DEBUG_BUFFER) {
       //Log.d(WebMRemuxer.TAG, `Generating segment - frameCount: ${videoTrack.frames.length} beginDts: ${info.beginDts} dstEnd: ${info.endDts} size: ${segmentRawData.length} `);
       //Log.d(WebMRemuxer.TAG, `\n${Log.dumpArrayBuffer(segmentRawData, 512)}`);
 

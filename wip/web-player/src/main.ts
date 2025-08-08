@@ -135,12 +135,12 @@ function initLayout() {
   mseBuffersButton.textContent = 'Download Appended MSE Buffers';
   mseBuffersButton.disabled = true; // Initially disabled
   mseBuffersButton.onclick = () => {
-    if (!Remuxer.dbgVideoBuffer) {
+    if (Remuxer.dbgVideoBuffer.length === 0) {
       console.error('No appended MSE buffers available for download.');
       return;
     }
 
-    const blob = new Blob([Remuxer.dbgVideoBuffer], { type: "application/octet-stream" });
+    const blob = new Blob([Remuxer.dbgVideoBuffer as BlobPart], { type: "application/octet-stream" });
     const url = URL.createObjectURL(blob);
 
     const a = document.createElement("a");
@@ -249,7 +249,7 @@ function initLayout() {
       const traceBox = document.getElementById('videoInfoBox') as HTMLTextAreaElement;
       videoElement.controls = true; // Ensure controls are enabled for the video element
 
-      if (Remuxer.dbgVideoBuffer) {
+      if (Remuxer.dbgVideoBuffer.length > 0) {
         mseBuffersButton.disabled = false;
       } else {
         mseBuffersButton.disabled = true;
