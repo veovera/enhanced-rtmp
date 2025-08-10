@@ -68,6 +68,9 @@ export const defaultConfig = {
     // Minimum backward buffer duration (seconds) to keep before cleanup
     autoCleanupMinBackwardDuration: 2 * 60,
 
+    // Enable automatic cleanup of SourceBuffer to free up memory and avoid QuotaExceededError.
+    autoCleanupSourceBuffer: true,
+
     // Interval (ms) for reporting playback statistics
     statisticsInfoReportInterval: 600,
 
