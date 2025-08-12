@@ -27,6 +27,7 @@ import LoadingController from './loading-controller';
 import StartupStallJumper from './startup-stall-jumper';
 import LiveLatencyChaser from './live-latency-chaser';
 import LiveLatencySynchronizer from './live-latency-synchronizer';
+import { MediaElementProxy } from '../core/mse-controller';
 
 class PlayerEngineMainThread implements PlayerEngine {
 
@@ -114,19 +115,18 @@ class PlayerEngineMainThread implements PlayerEngine {
         mediaElement.load();
 
         mediaElement.addEventListener('loadedmetadata', this.e.onMediaLoadedMetadata);
+        const mediaElementProxy: MediaElementProxy = {
+            getCurrentTime: () => mediaElement.currentTime,
+            getReadyState: () => mediaElement.readyState,
+        };
 
-        this._mse_controller = new MSEController(this._config);
+        this._mse_controller = new MSEController(this._config, mediaElementProxy);
         this._mse_controller.on(MSEEvents.UPDATE_END, this._onMSEUpdateEnd.bind(this));
         this._mse_controller.on(MSEEvents.BUFFER_FULL, this._onMSEBufferFull.bind(this));
         this._mse_controller.on(MSEEvents.SOURCE_OPEN, this._onMSESourceOpen.bind(this));
         this._mse_controller.on(MSEEvents.ERROR, this._onMSEError.bind(this));
         this._mse_controller.on(MSEEvents.START_STREAMING, this._onMSEStartStreaming.bind(this));
         this._mse_controller.on(MSEEvents.END_STREAMING, this._onMSEEndStreaming.bind(this));
-
-        this._mse_controller.initialize({
-            getCurrentTime: () => this._media_element?.currentTime,
-            getReadyState: () => this._media_element?.readyState,
-        });
 
         // Attach media source into media element
         if (this._mse_controller.isManagedMediaSource()) {

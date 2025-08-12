@@ -1,19 +1,13 @@
 /*
- * Copyright (C) 2023 zheng qian. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
  *
+ * Copyright (C) 2023 Bilibili
  * @author zheng qian <xqq@xqq.im>
+ * 
+ * Modified by Slavik Lozben.
+ * Additional changes Copyright (C) 2025 Veovera Software Organization.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * See Git history for full details.
  */
 
 import Log from '../utils/logger';
@@ -21,11 +15,11 @@ import LoggingControl from '../utils/logging-control';
 import { IllegalStateException } from '../utils/exception';
 import MediaInfo from '../core/media-info';
 import MSEEvents from '../core/mse-events';
-import MSEController from '../core/mse-controller';
+import MSEController, { MediaElementProxy } from '../core/mse-controller';
 import Transmuxer from "../core/transmuxer";
 import TransmuxingEvents from '../core/transmuxing-events';
 import PlayerEvents from './player-events';
-import { ErrorTypes } from './player-errors';
+import { ErrorTypes, ErrorDetails } from './player-errors';
 import {
     WorkerCommandPacket,
     WorkerCommandPacketInit,
@@ -55,8 +49,8 @@ const PlayerEngineWorker = (self: DedicatedWorkerGlobalScope) => {
     let media_data_source: any = null;
     let config: any = null;
 
-    let mse_controller: MSEController = null;
-    let transmuxer: Transmuxer = null;
+    let mse_controller: MSEController | null = null;
+    let transmuxer: Transmuxer | null = null;
 
     let mse_source_opened: boolean = false;
     let has_pending_load: boolean = false;
@@ -109,8 +103,8 @@ const PlayerEngineWorker = (self: DedicatedWorkerGlobalScope) => {
                 break;
             case 'unbuffered_seek': {
                 const packet = command_packet as WorkerCommandPacketUnbufferedSeek;
-                mse_controller.flush();
-                transmuxer.seek(packet.milliseconds);
+                mse_controller!.flush();
+                transmuxer!.seek(packet.milliseconds);
                 break;
             }
             case 'timeupdate': {
@@ -124,10 +118,10 @@ const PlayerEngineWorker = (self: DedicatedWorkerGlobalScope) => {
                 break;
             }
             case 'pause_transmuxer':
-                transmuxer.pause();
+                transmuxer!.pause();
                 break;
             case 'resume_transmuxer':
-                transmuxer.resume();
+                transmuxer!.resume();
                 break;
         }
     });
@@ -148,21 +142,22 @@ const PlayerEngineWorker = (self: DedicatedWorkerGlobalScope) => {
 
     function initializeMSE(): void {
         Log.v(TAG, 'Initializing MediaSource in DedicatedWorker');
-        mse_controller = new MSEController(config);
-        mse_controller.on(MSEEvents.SOURCE_OPEN, onMSESourceOpen.bind(this));
-        mse_controller.on(MSEEvents.UPDATE_END, onMSEUpdateEnd.bind(this));
-        mse_controller.on(MSEEvents.BUFFER_FULL, onMSEBufferFull.bind(this));
-        mse_controller.on(MSEEvents.ERROR, onMSEError.bind(this));
-        mse_controller.initialize({
+        const mediaElementProxy: MediaElementProxy = {
             getCurrentTime: () => media_element_current_time,
             getReadyState: () => media_element_ready_state,
-        });
+        };
+        mse_controller = new MSEController(config, mediaElementProxy);
+        mse_controller.on(MSEEvents.SOURCE_OPEN, onMSESourceOpen);
+        mse_controller.on(MSEEvents.UPDATE_END, onMSEUpdateEnd);
+        mse_controller.on(MSEEvents.BUFFER_FULL, onMSEBufferFull);
+        mse_controller.on(MSEEvents.ERROR, onMSEError);
 
         let handle = mse_controller.getHandle();
+        const transferList = handle ? [handle] : [];
         self.postMessage({
             msg: 'mse_init',
             handle: handle,
-        } as WorkerMessagePacketMSEInit, [handle]);
+        } as WorkerMessagePacketMSEInit, transferList);
     }
 
     function shutdownMSE(): void {
@@ -191,17 +186,17 @@ const PlayerEngineWorker = (self: DedicatedWorkerGlobalScope) => {
         transmuxer = new Transmuxer(media_data_source, config);
 
         transmuxer.on(TransmuxingEvents.INIT_SEGMENT, (type: string, is: any) => {
-            mse_controller.appendInitSegment(is);
+            mse_controller!.appendInitSegment(is);
         });
         transmuxer.on(TransmuxingEvents.MEDIA_SEGMENT, (type: string, ms: any) => {
-            mse_controller.appendMediaSegment(ms);
+            mse_controller!.appendMediaSegment(ms);
             self.postMessage({
                 msg: 'buffered_position_changed',
                 buffered_position_milliseconds: ms.info.endDts,
             } as WorkerMessagePacketBufferedPositionChanged);
         });
         transmuxer.on(TransmuxingEvents.LOADING_COMPLETE, () => {
-            mse_controller.endOfStream();
+            mse_controller!.endOfStream();
             self.postMessage({
                 msg: 'player_event',
                 event: PlayerEvents.LOADING_COMPLETE,
@@ -316,7 +311,7 @@ const PlayerEngineWorker = (self: DedicatedWorkerGlobalScope) => {
             msg: 'player_event',
             event: PlayerEvents.ERROR,
             error_type: ErrorTypes.MEDIA_ERROR,
-            error_detail: ErrorTypes.MEDIA_MSE_ERROR,
+            error_detail: ErrorDetails.MEDIA_MSE_ERROR,
             info: info,
         } as WorkerMessagePacketPlayerEventError);
     }

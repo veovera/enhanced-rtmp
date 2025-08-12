@@ -12,7 +12,14 @@
 
 export enum TrackType {
     Audio = 'audio',
-    Video = 'video',
+    Video = 'video'
+};
+
+export interface MediaSegment {
+    type: TrackType;
+    data: Uint8Array;
+    framecount: number;
+    info: MediaSegment
 }
 
 // Represents an media frame (audio / video)
