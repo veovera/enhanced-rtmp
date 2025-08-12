@@ -5,7 +5,7 @@
  * @author zheng qian <xqq@xqq.im>
  *
  * Modified and migrated to TypeScript by Slavik Lozben.
- * Additional changes Copyright (C) Veovera Software Organization.
+ * Additional changes Copyright (C) 2025 Veovera Software Organization.
  *
  * See Git history for full details.
  */
@@ -396,8 +396,8 @@ export class MP4Remuxer extends Remuxer {
                     dts = Math.floor(curRefDts);
                     frameDuration = Math.floor(curRefDts + refFrameDuration) - dts;
 
-                    let silentUnit = AAC.getSilentFrame(this._audioMeta.originalCodec, this._audioMeta.channelCount);
-                    if (silentUnit == null) {
+                    let silentUnit = AAC.getSilentFrame(this._audioMeta.originalCodec, this._audioMeta.channelCount) as Uint8Array | null;
+                    if (silentUnit === null) {
                         Log.w(MP4Remuxer.TAG, 'Unable to generate silent frame for ' +
                             `${this._audioMeta.originalCodec} with ${this._audioMeta.channelCount} channels, repeat last frame`);
                         // Repeat last frame
