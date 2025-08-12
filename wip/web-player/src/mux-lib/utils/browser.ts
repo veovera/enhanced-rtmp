@@ -5,7 +5,7 @@
  * @author zheng qian <xqq@xqq.im>
  *
  * Modified and migrated to TypeScript by Slavik Lozben.
- * Additional changes Copyright (C) Veovera Software Organization.
+ * Additional changes Copyright (C) 2025 Veovera Software Organization.
  *
  * See Git history for full details.
  */
