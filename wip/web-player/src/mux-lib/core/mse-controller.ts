@@ -16,8 +16,7 @@ import Browser from '../utils/browser';
 import MSEEvents from './mse-events';
 import {IllegalStateException} from '../utils/exception';
 import { MediaErrorName } from '../utils/exception';
-import { InitSegment } from '../remux/remuxer';
-import { MediaSegment, TrackType } from './media-segment-info';
+import { InitSegment, MediaSegment, TrackType } from '../remux/remuxer';
 import { ConfigOptions } from '../config';
 
 export interface MediaElementProxy {
@@ -163,13 +162,13 @@ class MSEController {
     shutdown() {
         if (this._mediaSource) {
             let ms = this._mediaSource;
-            for (const type of ['video', 'audio'] as const) {
-                // pending segments should be discard
-                let ps = this._pendingSegments[type];
-                ps.splice(0, ps.length);
-                this._pendingSegments[type] = [];
-                this._pendingRemoveRanges[type] = [];
-                this._lastInitSegments[type] = [];
+
+            // Remove and clean up all sourcebuffers
+            for (const type of TRACK_TYPES) {
+                // Clear pending arrays in-place (safe for references)
+                this._pendingSegments[type].splice(0);
+                this._pendingRemoveRanges[type].splice(0);
+                this._lastInitSegments[type] = null;
 
                 // remove all sourcebuffers
                 let sb = this._sourceBuffers[type];
@@ -188,6 +187,8 @@ class MSEController {
                     this._sourceBuffers[type] = null;
                 }
             }
+
+            // End stream if open
             if (ms.readyState === 'open') {
                 try {
                     ms.endOfStream();
@@ -195,6 +196,8 @@ class MSEController {
                     Log.e(this.TAG, error.message);
                 }
             }
+
+            // Remove event listeners
             ms.removeEventListener('sourceopen', this.e.onSourceOpen);
             ms.removeEventListener('sourceended', this.e.onSourceEnded);
             ms.removeEventListener('sourceclose', this.e.onSourceClose);
@@ -203,9 +206,13 @@ class MSEController {
                 ms.removeEventListener('endstreaming', this.e.onEndStreaming);
                 ms.removeEventListener('qualitychange', this.e.onQualityChange);
             }
-            this._pendingSourceBufferInit = [];
-            this._isBufferFull = false;
         }
+
+        // Reset other state
+        this._mediaSource = null;
+        this._pendingSourceBufferInit = [];
+        this._isBufferFull = false;
+        this._hasPendingEos = false;
     }
 
     isManagedMediaSource() {

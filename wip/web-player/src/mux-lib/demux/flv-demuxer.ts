@@ -24,8 +24,7 @@ import AV1OBUParser from './av1-parser.js';
 import ExpGolomb from './exp-golomb.js';
 import { Callback, assertCallback } from '../utils/common';
 import { AV1OBUType, AV1Metadata } from './av1-parser.js';
-import { TrackType } from '../core/media-segment-info.js';
-import { Remuxer } from '../remux/remuxer.js';
+import { Remuxer, TrackType } from '../remux/remuxer.js';
 
 //
 // you can find enhanced flv specification here: https://veovera.org/docs/enhanced/enhanced-rtmp-v2

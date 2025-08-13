@@ -7,17 +7,29 @@
 
 import { Callback } from '../utils/common.js';
 import { AudioMetadata, AudioTrack, FLVDemuxer, VideoMetadata, VideoTrack } from '../demux/flv-demuxer.js';
-import { TrackType } from '../core/media-segment-info.js';
 import { ConfigOptions } from '../config.js';
+import { MediaSegmentInfo } from '../core/media-segment-info.js';
 
 export type RemuxerType = 'mp4' | 'webm';
 
+export enum TrackType {
+  Audio = 'audio',
+  Video = 'video'
+};
 export interface InitSegment {
   type: TrackType;
   data: Uint8Array;
   codec: string;
   container: string;
   mediaDuration: number;
+}
+
+export interface MediaSegment {
+  type: TrackType;
+  data: Uint8Array;
+  framecount: number;
+  timestampOffset?: number;
+  info: MediaSegmentInfo
 }
 
 export abstract class Remuxer {

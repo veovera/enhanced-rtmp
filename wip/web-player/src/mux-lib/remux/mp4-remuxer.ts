@@ -14,9 +14,9 @@ import Log from '../utils/logger.js';
 import MP4 from './mp4-generator.js';
 import AAC from './aac-silent.js';
 import Browser from '../utils/browser.js';
-import { FrameInfo as FrameInfo, MediaSegmentInfo, MediaSegmentInfoList, TrackType } from '../core/media-segment-info.js';
+import { FrameInfo as FrameInfo, MediaSegmentInfo, MediaSegmentInfoList } from '../core/media-segment-info.js';
 import { IllegalStateException } from '../utils/exception.js';
-import { Remuxer } from './remuxer.js';
+import { Remuxer, TrackType } from './remuxer.js';
 import { Callback, assertCallback } from '../utils/common.js';
 import { AudioMetadata, AudioTrack, AudioFrame, VideoMetadata, VideoTrack, VideoFrame } from '../demux/flv-demuxer.js';
 
@@ -155,7 +155,7 @@ export class MP4Remuxer extends Remuxer {
 
         if (metadata.type === TrackType.Audio) {
             this._isAudioMetadataDispatched = true;
-            this._audioMeta = metadata;
+            this._audioMeta = metadata as AudioMetadata;
             if (metadata.codec === 'mp3' && this._mp3UseMpegAudio) {
                 // 'audio/mpeg' for MP3 audio track
                 container = 'mpeg';
@@ -167,7 +167,7 @@ export class MP4Remuxer extends Remuxer {
             }
         } else {
             this._isVideoMetadataDispatched = true;
-            this._videoMeta = metadata;
+            this._videoMeta = metadata as VideoMetadata;
             metabox = MP4.generateInitSegment(metadata);
         }
 
@@ -396,7 +396,7 @@ export class MP4Remuxer extends Remuxer {
                     dts = Math.floor(curRefDts);
                     frameDuration = Math.floor(curRefDts + refFrameDuration) - dts;
 
-                    let silentUnit = AAC.getSilentFrame(this._audioMeta.originalCodec, this._audioMeta.channelCount) as Uint8Array | null;
+                    let silentUnit = AAC.getSilentFrame(this._audioMeta.originalCodec, this._audioMeta.channelCount);
                     if (silentUnit === null) {
                         Log.w(MP4Remuxer.TAG, 'Unable to generate silent frame for ' +
                             `${this._audioMeta.originalCodec} with ${this._audioMeta.channelCount} channels, repeat last frame`);

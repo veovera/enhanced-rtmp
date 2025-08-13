@@ -10,17 +10,7 @@
  * See Git history for full details.
  */
 
-export enum TrackType {
-    Audio = 'audio',
-    Video = 'video'
-};
-
-export interface MediaSegment {
-    type: TrackType;
-    data: Uint8Array;
-    framecount: number;
-    info: MediaSegment
-}
+import { TrackType } from "../remux/remuxer";
 
 // Represents an media frame (audio / video)
 export class FrameInfo {

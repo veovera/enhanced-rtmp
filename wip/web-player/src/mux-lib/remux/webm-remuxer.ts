@@ -65,12 +65,12 @@
  * =============================================================================
  */
 
-import { Remuxer, InitSegment } from './remuxer.js';
+import { Remuxer, InitSegment, TrackType } from './remuxer.js';
 import { WebMGenerator } from './webm-generator.js';
 import { Callback, assertCallback } from '../utils/common.js';
 import { FLVDemuxer, AudioTrack, VideoTrack, VideoFrame, AudioFrame, AudioMetadata, VideoMetadata } from '../demux/flv-demuxer.js';
 import Log from '../utils/logger.js';
-import { MediaSegmentInfoList, TrackType } from '../core/media-segment-info.js';
+import { MediaSegmentInfoList } from '../core/media-segment-info.js';
 import { MediaSegmentInfo, FrameInfo } from '../core/media-segment-info.js';
 
 export class WebMRemuxer extends Remuxer {
