@@ -65,7 +65,7 @@
  * =============================================================================
  */
 
-import { Remuxer, InitSegment, TrackType } from './remuxer.js';
+import { Remuxer, MSEInitSegment, MSEMediaSegment, TrackType, SegmentKind } from './remuxer.js';
 import { WebMGenerator } from './webm-generator.js';
 import { Callback, assertCallback } from '../utils/common.js';
 import { FLVDemuxer, AudioTrack, VideoTrack, VideoFrame, AudioFrame, AudioMetadata, VideoMetadata } from '../demux/flv-demuxer.js';
@@ -212,7 +212,8 @@ export class WebMRemuxer extends Remuxer {
       Remuxer.dbgVideoBuffer = segmentRawData.slice();
     }
 
-    const initSegment: InitSegment = {
+    const initSegment: MSEInitSegment = {
+      kind: SegmentKind.Init,
       type: metadata.type,
       data: segmentRawData,
       codec: `${metadata.codec}`,
@@ -301,12 +302,14 @@ export class WebMRemuxer extends Remuxer {
       Remuxer.dbgVideoBuffer = combined;
     }
 
-    this._onMediaSegment(TrackType.Video, {
+    const mediaSegment: MSEMediaSegment = {
+      kind: SegmentKind.Media,
       type: TrackType.Video,
       data: segmentRawData,
       frameCount: videoTrack.frames.length,
       info: info
-    });
+    };
+    this._onMediaSegment(TrackType.Video, mediaSegment);
 
     videoTrack.frames = [];
     videoTrack.length = 0;

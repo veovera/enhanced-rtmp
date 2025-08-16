@@ -16,7 +16,14 @@ export enum TrackType {
   Audio = 'audio',
   Video = 'video'
 };
-export interface InitSegment {
+
+export enum SegmentKind {
+  Init,
+  Media
+}
+
+export interface MSEInitSegment {
+  kind: SegmentKind.Init;
   type: TrackType;
   data: Uint8Array;
   codec: string;
@@ -24,13 +31,16 @@ export interface InitSegment {
   mediaDuration: number;
 }
 
-export interface MediaSegment {
+export interface MSEMediaSegment {
+  kind: SegmentKind.Media;
   type: TrackType;
   data: Uint8Array;
-  framecount: number;
+  frameCount: number;
   timestampOffset?: number;
   info: MediaSegmentInfo
 }
+
+export type MSESegment = MSEMediaSegment | MSEInitSegment;
 
 export abstract class Remuxer {
   // Set to true to enable downloading of remuxed video data segment buffers for debugging
@@ -49,9 +59,9 @@ export abstract class Remuxer {
 
   // Callback properties
   abstract get onInitSegment(): Callback;
-  abstract set onInitSegment(callback: Callback);
+  abstract set onInitSegment(callback: Callback);   // !!@ define callback signature for type safety
   abstract get onMediaSegment(): Callback;
-  abstract set onMediaSegment(callback: Callback);
+  abstract set onMediaSegment(callback: Callback);  // !!@ define callback signature for type safety
 
   protected abstract _onTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack): void;
   protected abstract _onTrackMetadata(metadata: AudioMetadata | VideoMetadata): void;

@@ -16,7 +16,7 @@ import AAC from './aac-silent.js';
 import Browser from '../utils/browser.js';
 import { FrameInfo as FrameInfo, MediaSegmentInfo, MediaSegmentInfoList } from '../core/media-segment-info.js';
 import { IllegalStateException } from '../utils/exception.js';
-import { Remuxer, TrackType } from './remuxer.js';
+import { MSEInitSegment, MSEMediaSegment, Remuxer, SegmentKind, TrackType } from './remuxer.js';
 import { Callback, assertCallback } from '../utils/common.js';
 import { AudioMetadata, AudioTrack, AudioFrame, VideoMetadata, VideoTrack, VideoFrame } from '../demux/flv-demuxer.js';
 
@@ -88,14 +88,6 @@ export class MP4Remuxer extends Remuxer {
         return this;
     }
 
-    /* prototype: function onInitSegment(type: string, initSegment: ArrayBuffer): void
-       InitSegment: {
-           type: string,
-           data: ArrayBuffer,
-           codec: string,
-           container: string
-       }
-    */
     get onInitSegment() {
         return this._onInitSegment;
     }
@@ -104,14 +96,6 @@ export class MP4Remuxer extends Remuxer {
         this._onInitSegment = callback;
     }
 
-    /* prototype: function onMediaSegment(type: string, mediaSegment: MediaSegment): void
-       MediaSegment: {
-           type: string,
-           data: ArrayBuffer,
-           frameCount: int32
-           info: MediaSegmentInfo
-       }
-    */
     get onMediaSegment() {
         return this._onMediaSegment;
     }
@@ -175,13 +159,17 @@ export class MP4Remuxer extends Remuxer {
         if (!this._onInitSegment) {
             throw new IllegalStateException('MP4Remuxer: onInitSegment callback must be specified!');
         }
-        this._onInitSegment(type, {
+
+        const initSegment: MSEInitSegment = {
+            kind: SegmentKind.Init,
             type: type,
-            data: metabox.buffer,
+            data: new Uint8Array(metabox.buffer),
             codec: codec,
             container: `${type}/${container}`,
             mediaDuration: metadata.duration  // in timescale 1000 (milliseconds)
-        });
+        }
+
+        this._onInitSegment(type, initSegment);
     }
 
     _calculateDtsBase(audioTrack: AudioTrack, videoTrack: VideoTrack) {
@@ -556,9 +544,10 @@ export class MP4Remuxer extends Remuxer {
         track.length = 0;
 
         // !!@ change from any to a more specific type
-        let segment: any = {
+        const mediaSegment: MSEMediaSegment = {
+            kind: SegmentKind.Media,
             type: TrackType.Audio,
-            data: this._mergeBoxes(moofbox, mdatbox).buffer,
+            data: new Uint8Array(this._mergeBoxes(moofbox, mdatbox).buffer),
             frameCount: mp4Frames.length,
             info: info
         };
@@ -566,10 +555,10 @@ export class MP4Remuxer extends Remuxer {
         if (mpegRawTrack && isFirstSegmentAfterSeek) {
             // For MPEG audio stream in MSE, if seeking occurred, before appending new buffer
             // We need explicitly set timestampOffset to the desired point in timeline for mpeg SourceBuffer.
-            segment.timestampOffset = firstDts;
+            mediaSegment.timestampOffset = firstDts;
         }
 
-        this._onMediaSegment(TrackType.Audio, segment);
+        this._onMediaSegment(TrackType.Audio, mediaSegment);
     }
 
     _remuxVideo(videoTrack: VideoTrack, force: boolean) {
@@ -762,12 +751,14 @@ export class MP4Remuxer extends Remuxer {
         track.frames = [];
         track.length = 0;
 
-        this._onMediaSegment(TrackType.Video, {
+        const mediaSegment: MSEMediaSegment = {
+            kind: SegmentKind.Media,
             type: TrackType.Video,
-            data: this._mergeBoxes(moofbox, mdatbox).buffer,
+            data: new Uint8Array(this._mergeBoxes(moofbox, mdatbox).buffer),
             frameCount: mp4Frames.length,
             info: info
-        });
+        };
+        this._onMediaSegment(TrackType.Video, mediaSegment);
     }
 
     _mergeBoxes(moof: Uint8Array, mdat: Uint8Array) {
