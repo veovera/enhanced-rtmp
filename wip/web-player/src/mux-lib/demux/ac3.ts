@@ -1,18 +1,28 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Modified by Slavik Lozben.
+ * Additional changes Copyright (C) 2025 Veovera Software Organization.
+ *
+ * See Git history for full details.
+ */
+
 import Log from "../utils/logger";
 import ExpGolomb from "./exp-golomb";
-import { MPEG4AudioObjectTypes, MPEG4SamplingFrequencies, MPEG4SamplingFrequencyIndex } from "./mpeg4-audio";
+
+const AC3_SAMPLING_FREQUENCIES = [48000, 44100, 32000] as const;
+const EAC3_HALF_SAMPLING_FREQUENCIES = [24000, 22050, 16000] as const;
 
 export class AC3Frame {
-    sampling_frequency: number;
-    sampling_rate_code: number;
-    bit_stream_identification: number;
-    bit_stream_mode: number;
-    low_frequency_effects_channel_on: number;
-    frame_size_code: number;
-    channel_count: number;
-    channel_mode: number;
-
-    data: Uint8Array;
+    sampling_frequency = 48000;              // Default 48 kHz
+    sampling_rate_code = 0;                  // fscod=0 → 48 kHz
+    bit_stream_identification = 8;           // Dolby Digital default
+    bit_stream_mode = 0;                     // Complete Main
+    low_frequency_effects_channel_on = 0;    // No LFE by default
+    frame_size_code = 9;                     // ~384 kbps at 48kHz
+    channel_count = 2;                       // Stereo
+    channel_mode = 2;                        // Stereo mode
+    data: Uint8Array = new Uint8Array(0);    // No frame data yet
 }
 
 const frame_size_code_table = [
@@ -42,8 +52,8 @@ export class AC3Parser {
 
     private data_: Uint8Array;
     private current_syncword_offset_: number;
-    private eof_flag_: boolean;
-    private has_last_incomplete_data: boolean;
+    private eof_flag_: boolean = false;
+    private has_last_incomplete_data: boolean = false;
 
     public constructor(data: Uint8Array) {
         this.data_ = data;
@@ -75,7 +85,7 @@ export class AC3Parser {
 
     public readNextAC3Frame(): AC3Frame | null {
         let data = this.data_;
-        let ac3_frame: AC3Frame = null;
+        let ac3_frame: AC3Frame | null = null;
 
         while (ac3_frame == null) {
             if (this.eof_flag_) {
@@ -86,7 +96,7 @@ export class AC3Parser {
             let offset = syncword_offset;
 
             let sampling_rate_code = data[offset + 4] >> 6;
-            let sampling_frequency = [48000, 44200, 33000][sampling_rate_code];
+            let sampling_frequency = AC3_SAMPLING_FREQUENCIES[sampling_rate_code];
 
             let frame_size_code = data[offset + 4] & 0x3F;
             let frame_size = frame_size_code_table[sampling_rate_code][frame_size_code] * 2;
@@ -133,7 +143,7 @@ export class AC3Parser {
         return this.has_last_incomplete_data;
     }
 
-    public getIncompleteData(): Uint8Array {
+    public getIncompleteData(): Uint8Array | null {
         if (!this.has_last_incomplete_data) {
             return null;
         }
@@ -154,15 +164,11 @@ export class AC3Config {
     public original_codec_mimetype: string;
 
     public constructor(frame: AC3Frame) {
-        let config: Array<number> = null;
-
-        config = [
+        this.config = [
             (frame.sampling_rate_code << 6) | (frame.bit_stream_identification << 1) | (frame.bit_stream_mode >> 2),
             ((frame.bit_stream_mode & 0x03) << 6) | (frame.channel_mode << 3) | (frame.low_frequency_effects_channel_on << 2) | (frame.frame_size_code >> 4),
-            (frame.frame_size_code  << 4) & 0xE0,
-        ]
-
-        this.config = config;
+            (frame.frame_size_code << 4) & 0xE0,
+        ];
         this.sampling_rate = frame.sampling_frequency;
         this.bit_stream_identification = frame.bit_stream_identification;
         this.bit_stream_mode = frame.bit_stream_mode;
@@ -175,16 +181,15 @@ export class AC3Config {
 }
 
 export class EAC3Frame {
-    sampling_frequency: number;
-    sampling_rate_code: number;
-    bit_stream_identification: number;
-    low_frequency_effects_channel_on: number;
-    num_blks: number;
-    frame_size: number;
-    channel_count: number;
-    channel_mode: number;
-
-    data: Uint8Array;
+    sampling_frequency = 48000;              // Default 48 kHz
+    sampling_rate_code = 0;                  // fscod/fscod2 = 0 by default
+    bit_stream_identification = 8;           // Dolby Digital default
+    low_frequency_effects_channel_on = 0;    // No LFE by default
+    num_blks = 6;                            // 6 audio blocks per frame
+    frame_size = 0;                          // Bytes; filled by parser
+    channel_count = 2;                       // Stereo
+    channel_mode = 2;                        // Stereo mode
+    data: Uint8Array = new Uint8Array(0);    // No frame data yet
 }
 export class EAC3Parser {
 
@@ -192,8 +197,8 @@ export class EAC3Parser {
 
     private data_: Uint8Array;
     private current_syncword_offset_: number;
-    private eof_flag_: boolean;
-    private has_last_incomplete_data: boolean;
+    private eof_flag_: boolean = false;
+    private has_last_incomplete_data: boolean = false;
 
     public constructor(data: Uint8Array) {
         this.data_ = data;
@@ -225,7 +230,7 @@ export class EAC3Parser {
 
     public readNextEAC3Frame(): EAC3Frame | null {
         let data = this.data_;
-        let eac3_frame: EAC3Frame = null;
+        let eac3_frame: EAC3Frame | null = null;
 
         while (eac3_frame == null) {
             if (this.eof_flag_) {
@@ -245,10 +250,10 @@ export class EAC3Parser {
             let num_blocks_code: number | null = null;
             if (sampling_rate_code === 0x03) {
                 sampling_rate_code = gb.readBits(2);
-                sampling_frequency = [24000, 22060, 16000][sampling_rate_code];
+                sampling_frequency = EAC3_HALF_SAMPLING_FREQUENCIES[sampling_rate_code];
                 num_blocks_code = 3
             } else {
-                sampling_frequency = [48000, 44100, 32000][sampling_rate_code];
+                sampling_frequency = AC3_SAMPLING_FREQUENCIES[sampling_rate_code];
                 num_blocks_code = gb.readBits(2);
             }
 
@@ -288,7 +293,7 @@ export class EAC3Parser {
         return this.has_last_incomplete_data;
     }
 
-    public getIncompleteData(): Uint8Array {
+    public getIncompleteData(): Uint8Array | null {
         if (!this.has_last_incomplete_data) {
             return null;
         }
@@ -309,20 +314,15 @@ export class EAC3Config {
     public original_codec_mimetype: string;
 
     public constructor(frame: EAC3Frame) {
-        let config: Array<number> = null;
-
         const data_rate_sub = Math.floor((frame.frame_size * frame.sampling_frequency) / (frame.num_blks * 16))
 
-        config = [
+        this.config = [
             (data_rate_sub & 0x1FE0 >> 5),
             (data_rate_sub & 0x001F << 3), // num_ind_sub = zero
             (frame.sampling_rate_code << 6) | (frame.bit_stream_identification << 1) | (0 << 0),
             (0 << 7) | (0 << 4) | (frame.channel_mode << 1) | (frame.low_frequency_effects_channel_on << 0),
             (0 << 5) | (0 << 1) | (0 << 0)
         ];
-
-
-        this.config = config;
         this.sampling_rate = frame.sampling_frequency;
         this.bit_stream_identification = frame.bit_stream_identification;
         this.num_blks = frame.num_blks;
