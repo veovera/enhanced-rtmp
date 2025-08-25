@@ -145,6 +145,9 @@ const PlayerEngineWorker = (self: DedicatedWorkerGlobalScope) => {
         const mediaElementProxy: MediaElementProxy = {
             getCurrentTime: () => media_element_current_time,
             getReadyState: () => media_element_ready_state,
+            setOnMediaTimeUpdate(listener: ((ev: Event) => void) | null) {
+                Log.w(TAG, 'setOnMediaTimeUpdate is not implemented in worker');
+            },
         };
         mse_controller = new MSEController(config, mediaElementProxy);
         mse_controller.on(MSEEvents.SOURCE_OPEN, onMSESourceOpen);

@@ -22,9 +22,11 @@ import { ConfigOptions } from '../config';
 export interface MediaElementProxy {
     getCurrentTime(): number;
     getReadyState(): number;
+    setOnMediaTimeUpdate(listener: ((ev: Event) => void) | null): void;
     // Add other methods you use on this object
 }
- interface TimeRange {
+
+interface TimeRange {
     start: number;
     end: number;
 }
@@ -36,7 +38,7 @@ class MSEController {
     private _emitter: EventEmitter = new EventEmitter();
     private events: any;
     private _mediaSource: MediaSource | null;
-    private _mediaElementProxy: MediaElementProxy | null;
+    private _mediaElementProxy: MediaElementProxy;
     private _mediaSourceObjectURL: string | null = null;
     private _useManagedMediaSource: boolean;
     private _isBufferFull: boolean = false;
@@ -113,6 +115,8 @@ class MSEController {
     }
 
     destroy() {
+        this._mediaElementProxy.setOnMediaTimeUpdate(null);
+
         if (this._mediaSource) {
             this.shutdown();
         }
@@ -398,7 +402,7 @@ class MSEController {
         return false;
     }
 
-    private _doCleanupSourceBuffer() {
+    private _doCleanupSourceBuffer(force: boolean = false) {
         let currentTime = this._mediaElementProxy!.getCurrentTime();
 
         for (const type of TRACK_TYPES) {
@@ -413,9 +417,17 @@ class MSEController {
 
                     if (start <= currentTime && currentTime < end + 3) {  // padding 3 seconds
                         if (currentTime - start >= this._config.autoCleanupMaxBackwardDuration) {
-                            doRemove = true;
-                            let removeEnd = currentTime - this._config.autoCleanupMinBackwardDuration;
-                            this._pendingRemoveRanges[type].push({start: start, end: removeEnd});
+                            const removeEnd = currentTime - this._config.autoCleanupMinBackwardDuration;
+                            if (start < removeEnd) {
+                                doRemove = true;
+                                this._pendingRemoveRanges[type].push({ start: start, end: removeEnd });
+                            }
+                        } else if (force) {
+                            let removeEnd = currentTime - 10; // force remove last 10 seconds
+                            if (start < removeEnd) {
+                                doRemove = true;
+                                this._pendingRemoveRanges[type].push({ start: start, end: removeEnd });
+                            }
                         }
                     } else if (end < currentTime) {
                         doRemove = true;
@@ -424,9 +436,29 @@ class MSEController {
                 }
 
                 if (doRemove) {
+                    Log.v(this.TAG, `Cleanup SourceBuffer ${type}, currentTime: ${currentTime}, pendingRemoveRanges: ${this._pendingRemoveRanges[type].length} ranges`);
                     this._doRemoveRanges();
+                } else {
+                    if (buffered.length > 0) {
+                        Log.w(this.TAG, `Could not cleanup SourceBuffer ${type}, currentTime: ${currentTime} bufferedStart: ${buffered.start(0)} bufferedEnd: ${buffered.end(buffered.length - 1)}`);
+                    } else {
+                        Log.w(this.TAG, `Could not cleanup SourceBuffer ${type}, currentTime: ${currentTime} buffered: empty`);
+                    }
+
                 }
             }
+        }
+    }
+
+    private _onMediaTimeUpdate = (e: Event) => {
+        if (this._needCleanupSourceBuffer()) {
+            this._doCleanupSourceBuffer();
+        }
+
+        // If we have pending EOS and pending segments, try to append them as playback progresses
+        if (this._hasPendingEos && this._hasPendingSegments() && !this._hasPendingRemoveRanges()) {
+            Log.v(this.TAG, 'Retrying append of final segment after playback progress');
+            this._doAppendSegments();
         }
     }
 
@@ -526,8 +558,19 @@ class MSEController {
                     if (error.name === MediaErrorName.QuotaExceededError) {
                         // If we have a pending end-of-stream, we must clear buffer space to append the final segment and finish the stream.
                         if (this._hasPendingEos && this._config.autoCleanupSourceBuffer) {
+                            this._mediaElementProxy.setOnMediaTimeUpdate(this._onMediaTimeUpdate);
                             Log.v(this.TAG, 'QuotaExceededError with pending EOS, forcing cleanup to append final segment.');
-                            this._doCleanupSourceBuffer();
+                            this._doCleanupSourceBuffer(true);
+                            // If cleanup process couldn't be started, defer until more content is played
+                            if (!this._hasPendingRemoveRanges()) {
+                                Log.w(this.TAG, 'Cannot cleanup buffer at current position - will retry as playback progresses');
+                                // Keep the segment in pending queue - it will be retried during normal playback
+                                // Don't emit error, just let the video continue playing buffered content
+                                if (!this._isBufferFull) {
+                                    this._isBufferFull = true;
+                                    this._emitter.emit(MSEEvents.BUFFER_FULL);
+                                }
+                            }
                         } else if (!this._isBufferFull) {
                             // If we are not at the end of the stream, emit BUFFER_FULL event.                            
                             this._isBufferFull = true;

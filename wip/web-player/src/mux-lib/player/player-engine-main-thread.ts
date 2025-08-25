@@ -118,6 +118,9 @@ class PlayerEngineMainThread implements PlayerEngine {
         const mediaElementProxy: MediaElementProxy = {
             getCurrentTime: () => mediaElement.currentTime,
             getReadyState: () => mediaElement.readyState,
+            setOnMediaTimeUpdate: (listener: (ev: Event) => void): void => {
+                mediaElement.ontimeupdate = listener;
+            },
         };
 
         this._mse_controller = new MSEController(this._config, mediaElementProxy);
