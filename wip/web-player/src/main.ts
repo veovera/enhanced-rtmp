@@ -350,24 +350,24 @@ function createPlayer(): MSEPplayer | NativePlayer | null {
   }
 
 
-  const options = {
+  const mediaDataSource = {
     type: 'flv',
     url: selectedFile,  // Use the selected file from the dropdown
-    isLive: false,
     hasAudio: hasAudioCheckbox.checked,
     hasVideo: hasVideoCheckbox.checked,
-    enableStashBuffer: false,
-    stashInitialSize: 128,
     cors: true,
     withCredentials: false,
-    seekType: 'range',
-    fixAudioTimestampGap: false,
-    rangeLoadZeroStart: true,
-    useWebM: useWebMCheckbox.checked
+    useWebM: useWebMCheckbox.checked,
   };
 
-  const _player = Mpegts.createPlayer(options);
-  updateConfigInfoBox(options);
+  const config = {
+    enableStashBuffer: false,     // when true improves performance for network jitter
+    fixAudioTimestampGap: false,  // when true fixes gaps in audio timestamps to improve sync
+    rangeLoadZeroStart: true,     // Always start range requests from 0
+  };
+
+  const _player = Mpegts.createPlayer(mediaDataSource, config);
+  updateConfigInfoBox({mediaDataSource, ...config});
 
   if (!_player) {
     console.error('Failed to create player!');

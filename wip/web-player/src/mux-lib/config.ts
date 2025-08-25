@@ -15,6 +15,7 @@ export const defaultConfig = {
     enableWorker: false,
 
     // Enable using a Worker for Media Source Extensions (MSE) operations
+    //!!@ this path is not enabled value does not signal intent
     enableWorkerForMSE: false,
 
     // Enable stash buffer for input stream (improves performance for network jitter)
