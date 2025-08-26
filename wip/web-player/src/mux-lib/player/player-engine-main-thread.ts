@@ -13,7 +13,7 @@
 import EventEmitter from 'eventemitter3';
 import type PlayerEngine from './player-engine';
 import Log from '../utils/logger';
-import { createDefaultConfig } from '../config';
+import { ConfigOptions, createDefaultConfig } from '../config';
 import MSEController from '../core/mse-controller';
 import PlayerEvents from './player-events';
 import Transmuxer from '../core/transmuxer';
@@ -35,7 +35,7 @@ class PlayerEngineMainThread implements PlayerEngine {
 
     private _emitter: EventEmitter | null = new EventEmitter();
     private _media_data_source: any;
-    private _config: any;
+    private _config: ConfigOptions;
 
     private _media_element?: HTMLMediaElement | null = null;
 
@@ -59,17 +59,13 @@ class PlayerEngineMainThread implements PlayerEngine {
 
     private e?: any = null;
 
-    public constructor(mediaDataSource: any, config: any) {
+    public constructor(mediaDataSource: any, optionalConfig: any) {
         this._media_data_source = mediaDataSource;
-        this._config = createDefaultConfig();
-
-        if (typeof config === 'object') {
-            Object.assign(this._config, config);
-        }
-
-        if (mediaDataSource.isLive === true) {
-            this._config.isLive = true;
-        }
+        this._config = { 
+            ...createDefaultConfig(), 
+            ...optionalConfig,
+            ...(mediaDataSource.isLive === true && { isLive: true }),
+        };
 
         this.e = {
             onMediaLoadedMetadata: this._onMediaLoadedMetadata.bind(this),
@@ -126,6 +122,7 @@ class PlayerEngineMainThread implements PlayerEngine {
         this._mse_controller = new MSEController(this._config, mediaElementProxy);
         this._mse_controller.on(MSEEvents.UPDATE_END, this._onMSEUpdateEnd.bind(this));
         this._mse_controller.on(MSEEvents.BUFFER_FULL, this._onMSEBufferFull.bind(this));
+        this._mse_controller.on(MSEEvents.QUOTA_EXCEEDED_BUFFER_FULL, this._onMSEQuotaExceededBufferFull.bind(this));
         this._mse_controller.on(MSEEvents.SOURCE_OPEN, this._onMSESourceOpen.bind(this));
         this._mse_controller.on(MSEEvents.ERROR, this._onMSEError.bind(this));
         this._mse_controller.on(MSEEvents.START_STREAMING, this._onMSEStartStreaming.bind(this));
@@ -355,6 +352,17 @@ class PlayerEngineMainThread implements PlayerEngine {
         }
 
         this._loading_controller?.notifyBufferedPositionChanged();
+    }
+
+    private _onMSEQuotaExceededBufferFull(data: { type: string; currentBufferLength: number; segmentSize: number }): void {
+        Log.w(this.TAG, `Quota exceeded - reducing buffer durations. Type: ${data.type}, Buffer length: ${data.currentBufferLength}, Segment size: ${data.segmentSize}`);
+
+        if (!this._loading_controller) {
+            Log.w(this.TAG, 'LoadingController not available for quota adjustment');
+            return;
+        }
+
+        this._loading_controller?.adjustLazyLoadDurations(0.5);
     }
 
     private _onMSEBufferFull(): void {

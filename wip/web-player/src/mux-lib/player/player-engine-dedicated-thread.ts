@@ -8,7 +8,6 @@
  */
 
 import EventEmitter from 'eventemitter3';
-import work from 'webworkify-webpack';
 import type PlayerEngine from './player-engine';
 import Log from '../utils/logger';
 import LoggingControl from '../utils/logging-control.js';
@@ -52,23 +51,21 @@ class PlayerEngineDedicatedThread implements PlayerEngine {
     private _media_data_source: any;
     private _config: any;
 
-    private _media_element?: HTMLMediaElement = null;
+    private _media_element: HTMLMediaElement | null = null;
 
-    private _worker: Worker;
+    private _worker: Worker | null;
     private _worker_destroying: boolean = false;
 
-    private _seeking_handler?: SeekingHandler = null;
-    private _loading_controller?: LoadingController = null;
-    private _startup_stall_jumper?: StartupStallJumper = null;
-    private _live_latency_chaser?: LiveLatencyChaser = null;
-    private _live_latency_synchronizer?: LiveLatencySynchronizer = null;
+    private _seeking_handler: SeekingHandler | null = null;
+    private _loading_controller: LoadingController | null = null;
+    private _startup_stall_jumper: StartupStallJumper | null = null;
+    private _live_latency_chaser: LiveLatencyChaser | null = null;
+    private _live_latency_synchronizer: LiveLatencySynchronizer | null = null;
+    private _pending_seek_time: number = NaN;
 
-    private _pending_seek_time?: number = null;
-
-    private _media_info?: MediaInfo = null;
-    private _statistics_info?: any = null;
-
-    private e?: any = null;
+    private _media_info: MediaInfo | null = null;
+    private _statistics_info: any = null;
+    private e: any = null;
 
     public static isSupported(): boolean {
         if (!self.Worker) {
@@ -108,7 +105,7 @@ class PlayerEngineDedicatedThread implements PlayerEngine {
 
         LoggingControl.registerListener(this.e.onLoggingConfigChanged);
 
-        this._worker = work(require.resolve('./player-engine-worker'), {all: true}) as Worker;
+        this._worker = new Worker(new URL('./player-engine-worker.js', import.meta.url), { type: 'module' });
         this._worker.addEventListener('message', this._onWorkerMessage.bind(this));
 
         this._worker.postMessage({
@@ -129,7 +126,7 @@ class PlayerEngineDedicatedThread implements PlayerEngine {
         this.detachMediaElement();
 
         this._worker_destroying = true;
-        this._worker.postMessage({
+        this._worker?.postMessage({
             cmd: 'destroy'
         } as WorkerCommandPacket);
 
@@ -138,7 +135,6 @@ class PlayerEngineDedicatedThread implements PlayerEngine {
         this._media_data_source = null;
 
         this._emitter.removeAllListeners();
-        this._emitter = null;
     }
 
     public on(event: string, listener: (...args: any[]) => void): void {
@@ -168,7 +164,7 @@ class PlayerEngineDedicatedThread implements PlayerEngine {
         this._media_element.addEventListener('timeupdate', this.e.onMediaTimeUpdate);
         this._media_element.addEventListener('readystatechange', this.e.onMediaReadyStateChanged);
 
-        this._worker.postMessage({
+        this._worker?.postMessage({
             cmd: 'initialize_mse',
         })
 
@@ -176,7 +172,7 @@ class PlayerEngineDedicatedThread implements PlayerEngine {
     }
 
     public detachMediaElement(): void {
-        this._worker.postMessage({
+        this._worker?.postMessage({
             cmd: 'shutdown_mse',
         });
 
@@ -196,32 +192,32 @@ class PlayerEngineDedicatedThread implements PlayerEngine {
     }
 
     public load(): void {
-        this._worker.postMessage({
+        this._worker?.postMessage({
             cmd: 'load',
         });
 
         this._seeking_handler = new SeekingHandler(
             this._config,
-            this._media_element,
+            this._media_element!,
             this._onRequiredUnbufferedSeek.bind(this)
         );
 
         this._loading_controller = new LoadingController(
             this._config,
-            this._media_element,
+            this._media_element!,
             this._onRequestPauseTransmuxer.bind(this),
             this._onRequestResumeTransmuxer.bind(this)
         );
 
         this._startup_stall_jumper = new StartupStallJumper(
-            this._media_element,
+            this._media_element!,
             this._onRequestDirectSeek.bind(this)
         );
 
         if (this._config.isLive && this._config.liveBufferLatencyChasing) {
             this._live_latency_chaser = new LiveLatencyChaser(
                 this._config,
-                this._media_element,
+                this._media_element!,
                 this._onRequestDirectSeek.bind(this)
             );
         }
@@ -229,21 +225,21 @@ class PlayerEngineDedicatedThread implements PlayerEngine {
         if (this._config.isLive && this._config.liveSync) {
             this._live_latency_synchronizer = new LiveLatencySynchronizer(
                 this._config,
-                this._media_element
+                this._media_element!
             );
         }
 
         // Reset currentTime to 0
-        if (this._media_element.readyState > 0) {
+        if (this._media_element!.readyState > 0) {
             // IE11 may throw InvalidStateError if readyState === 0
-            this._seeking_handler.directSeek(0);
+            this._seeking_handler?.directSeek(0);
         }
     }
 
     public unload(): void {
         this._media_element?.pause();
 
-        this._worker.postMessage({
+        this._worker?.postMessage({
             cmd: 'unload',
         } as WorkerCommandPacket);
 
@@ -264,11 +260,11 @@ class PlayerEngineDedicatedThread implements PlayerEngine {
     }
 
     public play(): Promise<void> {
-        return this._media_element.play();
+        return this._media_element?.play() || Promise.resolve();
     }
 
     public pause(): void {
-        this._media_element.pause();
+        this._media_element?.pause();
     }
 
     public seek(seconds: number): void {
@@ -299,53 +295,53 @@ class PlayerEngineDedicatedThread implements PlayerEngine {
             this._live_latency_chaser.notifyBufferedRangeUpdate();
         }
 
-        this._loading_controller.notifyBufferedPositionChanged();
+        this._loading_controller?.notifyBufferedPositionChanged();
     }
 
     private _onMSEBufferFull(): void {
         Log.v(this.TAG, 'MSE SourceBuffer is full, suspend transmuxing task');
-        this._loading_controller.suspendTransmuxer();
+        this._loading_controller?.suspendTransmuxer();
     }
 
     private _onMediaLoadedMetadata(e: any): void {
-        if (this._pending_seek_time != null) {
-            this._seeking_handler.seek(this._pending_seek_time);
-            this._pending_seek_time = null;
+        if (!Number.isNaN(this._pending_seek_time)) {
+            this._seeking_handler?.seek(this._pending_seek_time);
+            this._pending_seek_time = NaN;
         }
     }
 
     private _onRequestDirectSeek(target: number): void {
-        this._seeking_handler.directSeek(target);
+        this._seeking_handler?.directSeek(target);
     }
 
     private _onRequiredUnbufferedSeek(milliseconds: number): void {
-        this._worker.postMessage({
+        this._worker?.postMessage({
             cmd: 'unbuffered_seek',
             milliseconds: milliseconds
         } as WorkerCommandPacketUnbufferedSeek);
     }
 
     private _onRequestPauseTransmuxer(): void {
-        this._worker.postMessage({
+        this._worker?.postMessage({
             cmd: 'pause_transmuxer'
         } as WorkerCommandPacket);
     }
 
     private _onRequestResumeTransmuxer(): void {
-        this._worker.postMessage({
+        this._worker?.postMessage({
             cmd: 'resume_transmuxer'
         } as WorkerCommandPacket);
     }
 
     private _onMediaTimeUpdate(e: any): void {
-        this._worker.postMessage({
+        this._worker?.postMessage({
             cmd: 'timeupdate',
             current_time: e.target.currentTime,
         } as WorkerCommandPacketTimeUpdate);
     }
 
     private _onMediaReadyStateChange(e: any): void {
-        this._worker.postMessage({
+        this._worker?.postMessage({
             cmd: 'readystatechange',
             ready_state: e.target.readyState,
         } as WorkerCommandPacketReadyStateChange);
@@ -369,10 +365,10 @@ class PlayerEngineDedicatedThread implements PlayerEngine {
                 const use_managed_media_source = ('ManagedMediaSource' in self) && !('MediaSource' in self);
                 if (use_managed_media_source) {
                     // When using ManagedMediaSource, MediaSource will not open unless disableRemotePlayback is set to true
-                    this._media_element['disableRemotePlayback'] = true;
+                    this._media_element!['disableRemotePlayback'] = true;
                 }
                 // Attach to HTMLMediaElement by using MediaSource Handle
-                this._media_element.srcObject = packet.handle;
+                this._media_element!.srcObject = packet.handle;
                 break;
             }
             case 'mse_event': {
@@ -381,6 +377,8 @@ class PlayerEngineDedicatedThread implements PlayerEngine {
                     this._onMSEUpdateEnd();
                 } else if (packet.event == MSEEvents.BUFFER_FULL) {
                     this._onMSEBufferFull();
+                } else if (packet.event == MSEEvents.QUOTA_EXCEEDED_BUFFER_FULL) {
+                    this._onMSEQuotaExceededBufferFull(packet.data);
                 }
                 break;
             }
@@ -397,7 +395,7 @@ class PlayerEngineDedicatedThread implements PlayerEngine {
                 } else if (packet.event == TransmuxingEvents.RECOMMEND_SEEKPOINT) {
                     const packet = message_packet as WorkerMessagePacketTransmuxingEventRecommendSeekpoint;
                     if (this._media_element && !this._config.accurateSeek) {
-                        this._seeking_handler.directSeek(packet.milliseconds / 1000);
+                        this._seeking_handler?.directSeek(packet.milliseconds / 1000);
                     }
                 }
                 break;
@@ -415,15 +413,27 @@ class PlayerEngineDedicatedThread implements PlayerEngine {
             }
             case 'logcat_callback': {
                 const packet = message_packet as WorkerMessagePacketLogcatCallback;
-                Log.emitter.emit('log', packet.type, packet.logcat);
+                Log.emitLog(packet.type, packet.logcat);
                 break;
             }
             case 'buffered_position_changed': {
                 const packet = message_packet as WorkerMessagePacketBufferedPositionChanged;
-                this._loading_controller.notifyBufferedPositionChanged(packet.buffered_position_milliseconds / 1000);
+                this._loading_controller?.notifyBufferedPositionChanged(packet.buffered_position_milliseconds / 1000);
                 break;
             }
         }
+    }
+    // Add this new method to the class
+    private _onMSEQuotaExceededBufferFull(data: { type: string; currentBufferLength: number; segmentSize: number }): void {
+        Log.w(this.TAG, `Quota exceeded - reducing buffer durations. Type: ${data.type}, Buffer length: ${data.currentBufferLength}, Segment size: ${data.segmentSize}`);
+
+        if (!this._loading_controller) {
+            Log.w(this.TAG, 'LoadingController not available for quota adjustment');
+            return;
+        }
+
+        // Reduce buffering durations by 50% when hitting quota limits
+        this._loading_controller.adjustLazyLoadDurations(0.5);
     }
 
     private _fillStatisticsInfo(stat_info: any): any {
@@ -441,9 +451,9 @@ class PlayerEngineDedicatedThread implements PlayerEngine {
             const quality = this._media_element.getVideoPlaybackQuality();
             decoded = quality.totalVideoFrames;
             dropped = quality.droppedVideoFrames;
-        } else if (this._media_element['webkitDecodedFrameCount'] != undefined) {
-            decoded = this._media_element['webkitDecodedFrameCount'];
-            dropped = this._media_element['webkitDroppedFrameCount'];
+        } else if ((this._media_element as any)['webkitDecodedFrameCount'] != undefined) {
+            decoded = (this._media_element as any)['webkitDecodedFrameCount'];
+            dropped = (this._media_element as any)['webkitDroppedFrameCount'];
         } else {
             has_quality_info = false;
         }

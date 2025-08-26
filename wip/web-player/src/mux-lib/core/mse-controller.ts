@@ -575,6 +575,13 @@ class MSEController {
                             // If we are not at the end of the stream, emit BUFFER_FULL event.                            
                             this._isBufferFull = true;
                             this._emitter.emit(MSEEvents.BUFFER_FULL);
+
+                            // Signal that we need to reduce buffering due to quota limits
+                            this._emitter.emit(MSEEvents.QUOTA_EXCEEDED_BUFFER_FULL, {
+                                type: type,
+                                currentBufferLength: this._sourceBuffers[type]?.buffered.length || 0,
+                                segmentSize: segment.data.byteLength
+                            });
                         }
                     } else {
                         Log.e(this.TAG, error.message);

@@ -153,6 +153,7 @@ const PlayerEngineWorker = (self: DedicatedWorkerGlobalScope) => {
         mse_controller.on(MSEEvents.SOURCE_OPEN, onMSESourceOpen);
         mse_controller.on(MSEEvents.UPDATE_END, onMSEUpdateEnd);
         mse_controller.on(MSEEvents.BUFFER_FULL, onMSEBufferFull);
+        mse_controller.on(MSEEvents.QUOTA_EXCEEDED_BUFFER_FULL, onMSEQuotaExceededBufferFull);
         mse_controller.on(MSEEvents.ERROR, onMSEError);
 
         let handle = mse_controller.getHandle();
@@ -306,6 +307,17 @@ const PlayerEngineWorker = (self: DedicatedWorkerGlobalScope) => {
         self.postMessage({
             msg: 'mse_event',
             event: MSEEvents.BUFFER_FULL,
+        } as WorkerMessagePacketMSEEvent);
+    }
+
+    function onMSEQuotaExceededBufferFull(data: { type: string; currentBufferLength: number; segmentSize: number }): void {
+        Log.w(TAG, `Quota exceeded in worker - Type: ${data.type}, Buffer length: ${data.currentBufferLength}, Segment size: ${data.segmentSize}`);
+
+        // Send message to main thread about quota exceeded
+        self.postMessage({
+            msg: 'mse_event',
+            event: MSEEvents.QUOTA_EXCEEDED_BUFFER_FULL,
+            data: data,
         } as WorkerMessagePacketMSEEvent);
     }
 

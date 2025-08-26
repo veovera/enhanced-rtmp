@@ -26,7 +26,7 @@ class MSEPlayer {
     private _media_element: HTMLMediaElement | null = null;
     private _player_engine: PlayerEngine | null = null;
 
-    public constructor(mediaDataSource: any, config?: any) {
+    public constructor(mediaDataSource: any, optionalConfig?: any) {
         const typeLowerCase: string = mediaDataSource.type.toLowerCase();
         if (typeLowerCase !== 'mse'
                 && typeLowerCase !== 'mpegts'
@@ -35,16 +35,16 @@ class MSEPlayer {
             throw new InvalidArgumentException('MSEPlayer requires an mpegts/m2ts/flv MediaDataSource input!');
         }
 
-        if (config && config.enableWorkerForMSE && PlayerEngineDedicatedThread.isSupported()) {
+        if (optionalConfig?.enableWorkerForMSE && PlayerEngineDedicatedThread.isSupported()) {
             try {
-                this._player_engine = new PlayerEngineDedicatedThread(mediaDataSource, config);
+                this._player_engine = new PlayerEngineDedicatedThread(mediaDataSource, optionalConfig);
             } catch (error) {
                 Log.e(this.TAG,
                     'Error while initializing PlayerEngineDedicatedThread, fallback to PlayerEngineMainThread');
-                this._player_engine = new PlayerEngineMainThread(mediaDataSource, config);
+                this._player_engine = new PlayerEngineMainThread(mediaDataSource, optionalConfig);
             }
         } else {
-            this._player_engine = new PlayerEngineMainThread(mediaDataSource, config);
+            this._player_engine = new PlayerEngineMainThread(mediaDataSource, optionalConfig);
         }
     }
 

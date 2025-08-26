@@ -1,21 +1,16 @@
 /*
- * Copyright (C) 2023 zheng qian. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
  *
+ * Copyright (C) 2023 zheng qian
  * @author zheng qian <xqq@xqq.im>
+ * 
+ * Modified by Slavik Lozben.
+ * Additional changes Copyright (C) 2025 Veovera Software Organization.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * See Git history for full details.
  */
 
+import { ConfigOptions } from '../config';
 import Log from '../utils/logger';
 
 class LoadingController {
@@ -26,22 +21,24 @@ class LoadingController {
      */
     static readonly TAG: string = 'LoadingController';
 
-    private _config: any = null;
+    private _config: ConfigOptions;
     private _media_element: HTMLMediaElement;
     private _on_pause_transmuxer: () => void;
     private _on_resume_transmuxer: () => void;
-
     private _paused: boolean = false;
-
     private e?: any = null;
+    private _lazyLoadMaxDuration: number;
+    private _lazyLoadRecoverDuration: number;
 
     public constructor(
-        config: any,
+        config: ConfigOptions,
         media_element: HTMLMediaElement,
         on_pause_transmuxer: () => void,
         on_resume_transmuxer: () => void
     ) {
         this._config = config;
+        this._lazyLoadMaxDuration = config.lazyLoadMaxDuration;
+        this._lazyLoadRecoverDuration = config.lazyLoadRecoverDuration;
         this._media_element = media_element;
         this._on_pause_transmuxer = on_pause_transmuxer;
         this._on_resume_transmuxer = on_resume_transmuxer;
@@ -54,8 +51,17 @@ class LoadingController {
     public destroy(): void {
         this._media_element.removeEventListener('timeupdate', this.e.onMediaTimeUpdate);
         this.e = null;
-        this._config = null;
+    }
 
+    public adjustLazyLoadDurations(factor: number): void {
+        this._lazyLoadMaxDuration = Math.max(4, this._lazyLoadMaxDuration * factor);
+        this._lazyLoadRecoverDuration = Math.max(2, this._lazyLoadRecoverDuration * factor);
+
+        Log.v(LoadingController.TAG,
+            `Adjusted lazy load durations (factor: ${factor}) to - ` +
+            `Max: ${this._lazyLoadMaxDuration}, ` +
+            `Recover: ${this._lazyLoadRecoverDuration}`
+        );
     }
 
     // buffered_position: in seconds
@@ -98,7 +104,7 @@ class LoadingController {
     private _suspendTransmuxerIfBufferedPositionExceeded(buffered_end: number): void {
         //Log.v(LoadingController.TAG, `_suspendTransmuxerIfBufferedPositionExceeded(buffered_end: ${buffered_end})`);
         const current_time = this._media_element.currentTime;
-        if (buffered_end >= current_time + this._config.lazyLoadMaxDuration && !this._paused) {
+        if (buffered_end >= current_time + this._lazyLoadMaxDuration && !this._paused) {
             Log.v(LoadingController.TAG, '.   Maximum buffering duration exceeded, suspend transmuxing task');
             this.suspendTransmuxer();
             this._media_element.addEventListener('timeupdate', this.e.onMediaTimeUpdate);
@@ -114,7 +120,7 @@ class LoadingController {
         const buffered: TimeRanges = this._media_element.buffered;
         const current_time: number = this._media_element.currentTime;
 
-        const recover_duration = this._config.lazyLoadRecoverDuration;
+        const recover_duration = this._lazyLoadRecoverDuration;
         let should_resume = false;
 
         for (let i = 0; i < buffered.length; i++) {

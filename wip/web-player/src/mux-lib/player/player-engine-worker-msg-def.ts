@@ -41,6 +41,7 @@ export type WorkerMessagePacketMSEInit = WorkerMessagePacket & {
 export type WorkerMessagePacketMSEEvent = WorkerMessagePacket & {
     msg: 'mse_event',
     event: MSEEvents,
+    data?: any,
 };
 
 export type WorkerMessagePacketPlayerEvent = WorkerMessagePacket & {
