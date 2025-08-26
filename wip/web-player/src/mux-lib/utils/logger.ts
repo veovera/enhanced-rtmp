@@ -23,6 +23,10 @@ class Log {
     private static ENABLE_VERBOSE = true;
     private static emitter = new EventEmitter();
 
+    static emitLog(type: string, logcat: any) {
+        Log.emitter.emit('log', type, logcat);
+    }
+    
     static e(tag: string, msg: string) {
         if (!Log.ENABLE_ERROR) {
             return;
