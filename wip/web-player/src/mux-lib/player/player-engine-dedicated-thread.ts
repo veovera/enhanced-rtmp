@@ -246,7 +246,6 @@ class PlayerEngineDedicatedThread implements PlayerEngine {
         this._live_latency_synchronizer?.destroy();
         this._live_latency_synchronizer = null;
 
-        this._live_latency_chaser?.destroy();
         this._live_latency_chaser = null;
 
         this._startup_stall_jumper?.destroy();
