@@ -1,5 +1,6 @@
 import { context } from 'esbuild';
 import path from 'path';
+
 const args = process.argv.slice(2);
 const isWatch = args.includes('--watch');
 const isDebug = args.includes('--debug');
@@ -10,7 +11,8 @@ if (isDebug) {
   isMinify = false; // Disable minification in debug mode
 }
 
-const options = {
+// Main bundle
+const mainOptions = {
   entryPoints: ['src/main.ts'],
   bundle: true,
   outfile: 'dist/bundle.js',
@@ -24,13 +26,28 @@ const options = {
   }
 };
 
-const ctx = await context(options);
-console.log("Using alias:", path.resolve("src/mux-lib"));
+// Worker bundle
+const workerOptions = {
+  entryPoints: ['src/mux-lib/player/player-engine-worker.ts'],
+  bundle: true,
+  outfile: 'dist/player-engine-worker.js',
+  sourcemap: true,
+  target: 'es2022',
+  minify: isMinify,
+  format: 'esm', // Required for { type: 'module' }
+  logLevel: 'info'
+};
+
+const mainCtx = await context(mainOptions);
+const workerCtx = await context(workerOptions);
+
 if (isWatch) {
-  await ctx.watch();
+  await mainCtx.watch();
+  await workerCtx.watch();
   console.log('👀 esbuild is watching for changes...');
 } else {
-  await ctx.rebuild();
+  await mainCtx.rebuild();
+  await workerCtx.rebuild();
   console.log('✅ Build complete.');
-  process.exit(0); // force exit
+  process.exit(0);
 }
