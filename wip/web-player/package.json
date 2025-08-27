@@ -3,7 +3,6 @@
   "version": "0.0.1-alpha.0",
   "description": "Web-based E-FLV player",
   "main": "index.js",
-  
   "scripts": {
     "build": "node build.js --minify",
     "dev": "node build.js --watch --debug",
@@ -31,8 +30,6 @@
     "typescript": "^5.8.2"
   },
   "dependencies": {
-    "es6-promise": "^4.2.8",
-    "eventemitter3": "^5.0.1",
-    "webworkify-webpack": "^2.1.5"
+    "eventemitter3": "^5.0.1"
   }
 }
