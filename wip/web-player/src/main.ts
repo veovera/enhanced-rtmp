@@ -25,15 +25,11 @@ let player: MSEPplayer | NativePlayer | null = null;
 
 // Static list of files to choose from
 const fileList = [
-  { label: "bbb-av1-many-frames-in-cluster.flv", value: "./assets/bbb-av1-many-frames-in-cluster.flv" },
-  { label: "bbb-av1-60thframe-iskey-chopped.flv", value: "./assets/bbb-av1-60thframe-iskey-chopped.flv" },
+  { label: "bbb-avc-aac.flv", value: "./assets/bbb-avc-aac.flv" },
   { label: "bbb-av1-aac-10s-4thframe-iskey.flv", value: "./assets/bbb-av1-aac-10s-4thframe-iskey.flv" },
-  { label: "bbb-av1-10s-4thframe-iskey-chopped.flv", value: "./assets/bbb-av1-10s-4thframe-iskey-chopped.flv" },
   { label: "bbb-av1-aac-60thframe-iskey.flv", value: "./assets/bbb-av1-aac-60thframe-iskey.flv" },
   { label: "bbb-av1-aac-allkey.flv", value: "./assets/bbb-av1-aac-allkey.flv" },
-  { label: "bbb-av1-aac-chopped.flv", value: "./assets/bbb-av1-aac-chopped.flv" },
   { label: "bbb-av1-aac.flv", value: "./assets/bbb-av1-aac.flv" },
-  { label: "bbb-avc-aac.flv", value: "./assets/bbb-avc-aac.flv" },
   { label: "bbb-vp9-aac.flv", value: "./assets/bbb-vp9-aac.flv" },
   { label: "test-av1-aac.flv", value: "./assets/test-av1-aac.flv" },
 ];
