@@ -1,5 +1,4 @@
 import { context } from 'esbuild';
-import path from 'path';
 
 const args = process.argv.slice(2);
 const isWatch = args.includes('--watch');
@@ -19,6 +18,7 @@ const mainOptions = {
   sourcemap: true,
   target: 'es2022',
   minify: isMinify,
+  format: 'esm',
   logLevel: 'info',  // Add this to see more detailed build information
   define: {
     '__VERSION__': JSON.stringify(process.env.npm_package_version),
@@ -34,7 +34,7 @@ const workerOptions = {
   sourcemap: true,
   target: 'es2022',
   minify: isMinify,
-  format: 'esm', // Required for { type: 'module' }
+  format: 'esm',
   logLevel: 'info'
 };
 
