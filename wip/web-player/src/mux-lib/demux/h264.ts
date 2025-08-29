@@ -1,26 +1,35 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Modified by Slavik Lozben.
+ * Additional changes Copyright (C) 2025 Veovera Software Organization.
+ *
+ * See Git history for full details.
+ */
+
 import Log from "../utils/logger";
 
 export enum H264NaluType {
-    kUnspecified = 0,
-    kSliceNonIDR,
-    kSliceDPA,
-    kSliceDPB,
-    kSliceDPC,
-    kSliceIDR,
-    kSliceSEI,
-    kSliceSPS,
-    kSlicePPS,
-    kSliceAUD,
-    kEndOfSequence,
-    kEndOfStream,
-    kFiller,
-    kSPSExt,
-    kReserved0
+    kUnspecified    = 0,
+    kSliceNonIDR    = 1,
+    kSliceDPA       = 2,
+    kSliceDPB       = 3,
+    kSliceDPC       = 4,
+    kSliceIDR       = 5,
+    kSliceSEI       = 6,
+    kSliceSPS       = 7,
+    kSlicePPS       = 8,
+    kSliceAUD       = 9,
+    kEndOfSequence  = 10,
+    kEndOfStream    = 11,
+    kFiller         = 12,
+    kSPSExt         = 13,
+    kReserved0      = 14
 }
 
 export class H264NaluPayload {
-    type: H264NaluType;
-    data: Uint8Array;
+    type: H264NaluType = H264NaluType.kUnspecified;
+    data: Uint8Array = new Uint8Array();
 }
 
 export class H264NaluAVC1 {
@@ -85,7 +94,7 @@ export class H264AnnexBParser {
 
     public readNextNaluPayload(): H264NaluPayload | null {
         let data = this.data_;
-        let nalu_payload: H264NaluPayload = null;
+        let nalu_payload: H264NaluPayload | null = null;
 
         while (nalu_payload == null) {
             if (this.eof_flag_) {

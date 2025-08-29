@@ -25,6 +25,8 @@ import ExpGolomb from './exp-golomb.js';
 import { Callback, assertCallback } from '../utils/common';
 import { AV1OBUType, AV1Metadata } from './av1-parser.js';
 import { Remuxer, TrackType } from '../remux/remuxer.js';
+import { H264NaluType } from './h264.js';
+import { H265NaluType } from './h265.js';
 
 //
 // you can find enhanced flv specification here: https://veovera.org/docs/enhanced/enhanced-rtmp-v2
@@ -212,7 +214,7 @@ export interface VideoTrack {
 }
 
 export interface VideoUnit {
-    unitType: AV1OBUType,
+    type: AV1OBUType | H264NaluType | H265NaluType | VP8FrameType | VP9FrameType | number,
     data: Uint8Array,
 }
 
@@ -1903,7 +1905,7 @@ export class FLVDemuxer {
         let le = this._littleEndian;
         let v = new DataView(arrayBuffer, dataOffset, dataSize);
 
-        let units = [], length = 0;
+        let units: VideoUnit[] = [], length = 0;
 
         let offset = 0;
         const lengthSize = this._naluLengthSize;
@@ -1925,14 +1927,14 @@ export class FLVDemuxer {
                 return;
             }
 
-            let unitType = v.getUint8(offset + lengthSize) & 0x1F;
+            let unitType: H264NaluType = v.getUint8(offset + lengthSize) & 0x1F;
 
-            if (unitType === 5) {  // IDR
+            if (unitType === H264NaluType.kSliceIDR) {
                 keyframe = true;
             }
 
             let data = new Uint8Array(arrayBuffer, dataOffset + offset, lengthSize + naluSize);
-            let unit = {type: unitType, data: data};
+            let unit: VideoUnit = {type: unitType, data: data};
             units.push(unit);
             length += data.byteLength;
 
@@ -1941,17 +1943,15 @@ export class FLVDemuxer {
 
         if (units.length) {
             let track = this._videoTrack;
-            let avcSample = {
+            let avcSample: VideoFrame = {
                 units: units,
                 length: length,
                 isKeyframe: keyframe,
+                fileposition: tagPosition,
                 dts: dts,
                 cts: cts,
                 pts: (dts + cts)
-            } as any;
-            if (keyframe) {
-                avcSample.fileposition = tagPosition;
-            }
+            };
             track.frames.push(avcSample);
             track.length += length;
         }
@@ -1961,7 +1961,7 @@ export class FLVDemuxer {
         let le = this._littleEndian;
         let v = new DataView(arrayBuffer, dataOffset, dataSize);
 
-        let units = [], length = 0;
+        let units: VideoUnit[] = [], length = 0;
 
         let offset = 0;
         const lengthSize = this._naluLengthSize;
@@ -1983,14 +1983,14 @@ export class FLVDemuxer {
                 return;
             }
 
-            let unitType = (v.getUint8(offset + lengthSize) >> 1) & 0x3F;
+            let unitType: H265NaluType = (v.getUint8(offset + lengthSize) >> 1) & 0x3F;
 
-            if (unitType === 19 || unitType === 20 || unitType === 21) {  // IRAP
+            if (unitType === H265NaluType.kSliceIDR_W_RADL || unitType === H265NaluType.kSliceIDR_N_LP || unitType === H265NaluType.kSliceCRA_NUT) {
                 keyframe = true;
             }
 
-            let data = new Uint8Array(arrayBuffer, dataOffset + offset, lengthSize + naluSize);
-            let unit = {type: unitType, data: data};
+            const data = new Uint8Array(arrayBuffer, dataOffset + offset, lengthSize + naluSize);
+            const unit: VideoUnit = {type: unitType, data: data};
             units.push(unit);
             length += data.byteLength;
 
@@ -1999,17 +1999,16 @@ export class FLVDemuxer {
 
         if (units.length) {
             let track = this._videoTrack;
-            let hevcSample = {
+            let hevcSample: VideoFrame = {
                 units: units,
                 length: length,
                 isKeyframe: keyframe,
+                fileposition: tagPosition,
                 dts: dts,
                 cts: cts,
                 pts: (dts + cts)
-            } as any;
-            if (keyframe) {
-                hevcSample.fileposition = tagPosition;
-            }
+            };
+
             track.frames.push(hevcSample);
             track.length += length;
         }
@@ -2032,16 +2031,16 @@ export class FLVDemuxer {
         if (keyframe) {
             let meta = this._videoMetadata;
 
-            const config = AV1OBUParser.parseOBUs(new Uint8Array(arrayBuffer, dataOffset, dataSize), meta.av1Extra) as any; // !!@ fix any
-            if (!config) {
+            const av1Metadata: AV1Metadata | undefined = AV1OBUParser.parseOBUs(new Uint8Array(arrayBuffer, dataOffset, dataSize), meta.av1Extra);
+            if (!av1Metadata) {
                 this._onError(DemuxErrors.FORMAT_ERROR, 'Flv: Invalid AV1 VideoData');
                 return;
             }
-            meta.codecWidth = config.codec_size.width;
-            meta.codecHeight = config.codec_size.height;
-            meta.presentWidth = config.present_size.width;
-            meta.presentHeight = config.present_size.height;
-            meta.sarRatio = config.sar_ratio;
+            meta.codecWidth = av1Metadata.codec_size!.width;
+            meta.codecHeight = av1Metadata.codec_size!.height;
+            meta.presentWidth = av1Metadata.present_size!.width;
+            meta.presentHeight = av1Metadata.present_size!.height;
+            meta.sarRatio = av1Metadata.sar_ratio!;
 
             let mi = this._mediaInfo;
             mi.width = meta.codecWidth;
@@ -2059,7 +2058,7 @@ export class FLVDemuxer {
         // !!@ why are we pushing frame raw data into units? 
         length = dataSize;
         units.push({
-            unitType: AV1OBUType.OBU_RESERVED_0,
+            type: AV1OBUType.OBU_RESERVED_0,
             data: new Uint8Array(arrayBuffer, dataOffset, dataSize)
         });
 

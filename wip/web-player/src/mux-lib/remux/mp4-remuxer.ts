@@ -19,6 +19,7 @@ import { IllegalStateException } from '../utils/exception.js';
 import { MSEInitSegment, MSEMediaSegment, Remuxer, SegmentKind, TrackType } from './remuxer.js';
 import { Callback, assertCallback } from '../utils/common.js';
 import { AudioMetadata, AudioTrack, AudioFrame, VideoMetadata, VideoTrack, VideoFrame } from '../demux/flv-demuxer.js';
+import { ConfigOptions } from '../config.js';
 
 export class MP4Remuxer extends Remuxer {
         static TAG = 'MP4Remuxer';
@@ -45,7 +46,7 @@ export class MP4Remuxer extends Remuxer {
         private _mp3UseMpegAudio: boolean;
         private _fillAudioTimestampGap: boolean;
 
-    constructor(config: any) {
+    constructor(config: ConfigOptions) {
         super(config);
 
 
@@ -543,7 +544,6 @@ export class MP4Remuxer extends Remuxer {
         track.frames = [];
         track.length = 0;
 
-        // !!@ change from any to a more specific type
         const mediaSegment: MSEMediaSegment = {
             kind: SegmentKind.Media,
             type: TrackType.Audio,
@@ -566,8 +566,8 @@ export class MP4Remuxer extends Remuxer {
             return;
         }
 
-        let track = videoTrack;
-        let frames = track.frames;
+        let track: VideoTrack = videoTrack;
+        let frames: VideoFrame[] = track.frames;
         let dtsCorrection = undefined;
         let firstDts = -1, lastDts = -1;
         let firstPts = -1, lastPts = -1;
