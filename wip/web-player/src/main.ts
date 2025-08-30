@@ -334,7 +334,7 @@ function createPlayer(): MSEPplayer | NativePlayer | null {
   // !!@TODO: add a config object
   // !!@TODO: take a look at flags below, logic to handle them is scattered around the code    console.warn('Player already exists, detaching previous media element.');
  
- if (player) {
+  if (player) {
     player.detachMediaElement();
     player.destroy();
     player = null;
