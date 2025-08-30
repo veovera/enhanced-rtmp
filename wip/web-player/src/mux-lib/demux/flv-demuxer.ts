@@ -27,21 +27,21 @@ import { AV1OBUType, AV1Metadata } from './av1-parser.js';
 import { Remuxer, TrackType } from '../remux/remuxer.js';
 import { H264NaluType } from './h264.js';
 import { H265NaluType } from './h265.js';
+import { ConfigOptions } from '../config.js';
 
 //
 // you can find enhanced flv specification here: https://veovera.org/docs/enhanced/enhanced-rtmp-v2
 //
 
-type ProbeResult =
-    | { needMoreData: true }
-    | { match: false }
-    | {
-        match: true;
-        consumed: number;
-        dataOffset: number;
-        hasAudioTrack: boolean;
-        hasVideoTrack: boolean;
-    };
+export interface FlvProbeSuccess {
+    match: true;
+    consumed: number;
+    dataOffset: number;
+    hasAudioTrack: boolean;
+    hasVideoTrack: boolean;
+}
+
+type ProbeResult = { needMoreData: true } | { match: false } | FlvProbeSuccess;
 
 export enum FlvSoundFormat {
     LPcmPlatformEndian  = 0,
@@ -247,7 +247,7 @@ function ReadBig32(array: Uint8Array, index: number) {
 export class FLVDemuxer {
     private static readonly TAG = 'FLVDemuxer';
 
-    private _config: any;
+    private _config: ConfigOptions;
     private _remuxer: Remuxer;
 
     private _onError: Callback;
@@ -307,8 +307,7 @@ export class FLVDemuxer {
     private _audioTrack: AudioTrack;
     private _littleEndian: boolean; 
 
-    //!!@ retype any to something more specific
-    constructor(probeData: any, config: any, remuxer: Remuxer) {
+    constructor(probeData: FlvProbeSuccess, config: ConfigOptions, remuxer: Remuxer) {
         this._config = config;
         this._remuxer = remuxer;
 
@@ -359,7 +358,7 @@ export class FLVDemuxer {
         // nothing to do, garbage collector should do its job
     }
 
-    static probe(buffer: ArrayBuffer): ProbeResult {
+    static probe(buffer: ArrayBuffer): ProbeResult | FlvProbeSuccess {
         let data = new Uint8Array(buffer);
         if (data.byteLength < 9) {
             return {needMoreData: true};
@@ -386,7 +385,7 @@ export class FLVDemuxer {
             dataOffset: offset,
             hasAudioTrack: hasAudio,
             hasVideoTrack: hasVideo
-        };
+        } as FlvProbeSuccess;
     }
 
     //!!@TODO: fix any
@@ -701,7 +700,6 @@ export class FLVDemuxer {
         }
     }
 
-    //!!@todo: stop using any
     _parseKeyframesIndex(keyframes: any) {
         let times = [];
         let filepositions = [];
