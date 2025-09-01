@@ -26,6 +26,7 @@ let player: MSEPplayer | NativePlayer | null = null;
 // Static list of files to choose from
 const fileList = [
   { label: "bbb-avc-aac.flv", value: "./assets/bbb-avc-aac.flv" },
+  { label: "bbb-hevc-aac.flv", value: "./assets/bbb-hevc-aac.flv" },
   { label: "bbb-av1-aac-10s-4thframe-iskey.flv", value: "./assets/bbb-av1-aac-10s-4thframe-iskey.flv" },
   { label: "bbb-av1-aac-60thframe-iskey.flv", value: "./assets/bbb-av1-aac-60thframe-iskey.flv" },
   { label: "bbb-av1-aac-allkey.flv", value: "./assets/bbb-av1-aac-allkey.flv" },
