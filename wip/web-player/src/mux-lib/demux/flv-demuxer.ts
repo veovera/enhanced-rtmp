@@ -61,6 +61,25 @@ export enum FlvSoundFormat {
     Native              = 15   // Device-specific sound
 }
 
+export enum FlvVideoCodecId {
+    //  0 - Reserved
+    Jpeg            = 1,    // Rarely used, in practice almost never seen in the wild
+    SorensonH263    = 2,    // Legacy Flash codec
+    ScreenVideo     = 3,    // Screen sharing
+    On2VP6          = 4,    // Common in mid-era Flash
+    On2VP6WithAlpha = 5,    // VP6 + alpha channel
+    ScreenVideoV2   = 6,    // Improved screen sharing
+    AVC             = 7,    // H.264 / MPEG-4 Part 10 (most common now)
+    //  8 - Reserved
+    //  9 - Reserved
+    // 10 - Reserved
+    // 11 - Reserved
+    Hevc            = 12,   // H.265 / MPEG-H Part 2 (not part of FLV spec, but we support because some devices use it)
+    // 13 - Reserved
+    // 14 - Reserved
+    // 15 - Reserved
+}
+
 export enum FlvVideoFrameType {
     // 0 - Reserved
     KeyFrame                = 1,    // Seekable frame
@@ -608,7 +627,7 @@ export class FLVDemuxer {
         // dispatch parsed frames to consumer (typically, the remuxer)
         if (this._isMetadataDispatched) {
             if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
-                //!!@this._onTrackData(this._audioTrack, this._videoTrack);
+                this._onTrackData(this._audioTrack, this._videoTrack);
             }
         }
 
@@ -1374,10 +1393,10 @@ export class FLVDemuxer {
         let frameType = ((spec & 0b01110000) >>> 4) as FlvVideoFrameType;
 
         if (!isExHeader) {
-            let codecId = spec & 0b00001111;
-            if (codecId === 7) { // AVC
+            let codecId = spec & 0b00001111 as FlvVideoCodecId;
+            if (codecId === FlvVideoCodecId.AVC) {
                 this._parseAVCVideoPacket(arrayBuffer, dataOffset + 1, dataSize - 1, tagTimestamp, tagPosition, frameType);
-            } else if (codecId === 12) { // HEVC
+            } else if (codecId === FlvVideoCodecId.Hevc) {
                 this._parseHEVCVideoPacket(arrayBuffer, dataOffset + 1, dataSize - 1, tagTimestamp, tagPosition, frameType);
             } else {
                 this._onError(DemuxErrors.CODEC_UNSUPPORTED, `Flv: Unsupported codec in video frame: ${codecId}`);
