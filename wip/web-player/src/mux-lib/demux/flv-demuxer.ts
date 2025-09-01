@@ -269,22 +269,21 @@ export class FLVDemuxer {
     private _config: ConfigOptions;
     private _remuxer: Remuxer;
 
-    private _onError: Callback;
-    private _onMediaInfo: Callback;         // Called when complete media information (like codecs, duration, resolution) is available. 
-    private _onScriptMetadata: Callback;    // Called when FLV script data (metaData) is parsed and available.
-    private _onScriptData: Callback;        // Called when any script data (not just metaData) is parsed.
-    private _onTrackMetadata: Callback;     // Called when track metadata (like codecs, duration, resolution) is available.
-    private _onTrackData: Callback;         // Called when parsed audio and video frames are ready to be consumed (e.g., by a remuxer or player).
+    private _onError = assertCallback;
+    private _onMediaInfo = assertCallback;         // Called when complete media information (like codecs, duration, resolution) is available. 
+    private _onScriptMetadata = assertCallback;    // Called when FLV script data (metaData) is parsed and available.
+    private _onScriptData = assertCallback;        // Called when any script data (not just metaData) is parsed.
+    private _onTrackMetadata = assertCallback;     // Called when track metadata (like codecs, duration, resolution) is available.
+    private _onTrackData = assertCallback;         // Called when parsed audio and video frames are ready to be consumed (e.g., by a remuxer or player).
 
     private _dataOffset: number;
-    private _firstParse: boolean;
-    private _dispatch: boolean;             // !!@ do we need this flag?
+    private _firstParse = true;
 
     private _hasAudio: boolean;
     private _hasVideo: boolean;
 
-    private _hasAudioFlagOverrided: boolean;
-    private _hasVideoFlagOverrided: boolean;
+    private _hasAudioFlagOverrided = false;
+    private _hasVideoFlagOverrided = false;
 
     private _mediaInfo: MediaInfo;
 
@@ -292,18 +291,17 @@ export class FLVDemuxer {
     private _audioMetadata!: AudioMetadata;
     private _videoMetadata!: VideoMetadata;
 
-    private _naluLengthSize: number;
-    private _timestampBase: number;
-    private _timescale: number;
-    private _duration: number;
-    private _durationOverrided: boolean;
-
+    private _naluLengthSize = 4;
+    private _timestampBase = 0;                     // int32, in milliseconds
+    private _timescale = 1000;
+    private _duration = 0;                          // int32, in milliseconds
+    private _durationOverrided = false;
     // TODO: define reference frame rate types
-    private _referenceFrameRate: {
-        fixed: boolean;
-        fps: number;
-        fps_num: number;
-        fps_den: number;
+    private _referenceFrameRate = {
+        fixed: true,
+        fps: 23.976,
+        fps_num: 23976,
+        fps_den: 1000
     };
 
     private static readonly _flvSoundRateTable = [5500, 11025, 22050, 44100, 48000] as const;
@@ -322,59 +320,35 @@ export class FLVDemuxer {
     private static readonly _mpegAudioL3BitRateTable = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, -1] as const;
 
     // TODO: define video and audio track types
-    private _videoTrack: VideoTrack;
-    private _audioTrack: AudioTrack;
-    private _littleEndian: boolean; 
+    private _videoTrack: VideoTrack = { type: TrackType.Video, id: 1, sequenceNumber: 0, frames: [], length: 0 };
+    private _audioTrack: AudioTrack = { type: TrackType.Audio, id: 2, sequenceNumber: 0, frames: [], length: 0 };
+    private _littleEndian = (function () {
+        let buf = new ArrayBuffer(2);
+        (new DataView(buf)).setInt16(0, 256, true);  // little-endian write
+        return (new Int16Array(buf))[0] === 256;  // platform-spec read, if equal then LE
+    })();
 
     constructor(probeData: FlvProbeSuccess, config: ConfigOptions, remuxer: Remuxer) {
         this._config = config;
         this._remuxer = remuxer;
 
+        this._dataOffset = probeData.dataOffset;
+
+        this._hasAudio = probeData.hasAudioTrack;
+        this._hasVideo = probeData.hasVideoTrack;
+
+        this._mediaInfo = new MediaInfo();
+        this._mediaInfo.hasAudio = probeData.hasAudioTrack;
+        this._mediaInfo.hasVideo = probeData.hasVideoTrack;
+    }
+
+    destroy() {
         this._onError = assertCallback;
         this._onMediaInfo = assertCallback;
         this._onScriptMetadata = assertCallback;
         this._onScriptData = assertCallback;
         this._onTrackMetadata = assertCallback;
         this._onTrackData = assertCallback;
-
-        this._dataOffset = probeData.dataOffset;
-        this._firstParse = true;
-        this._dispatch = false; // whether to dispatch parsed frames to consumer (remuxer) !!@ do we need this flag?
-
-        this._hasAudio = probeData.hasAudioTrack;
-        this._hasVideo = probeData.hasVideoTrack;
-
-        this._hasAudioFlagOverrided = false;
-        this._hasVideoFlagOverrided = false;
-        
-        this._mediaInfo = new MediaInfo();
-        this._mediaInfo.hasAudio = probeData.hasAudioTrack;
-        this._mediaInfo.hasVideo = probeData.hasVideoTrack;
-
-        this._naluLengthSize = 4;
-        this._timestampBase = 0;    // int32, in milliseconds
-        this._timescale = 1000;
-        this._duration = 0;         // int32, in milliseconds
-        this._durationOverrided = false;
-        this._referenceFrameRate = {
-            fixed: true,
-            fps: 23.976,
-            fps_num: 23976,
-            fps_den: 1000
-        };
-
-        this._videoTrack = {type: TrackType.Video, id: 1, sequenceNumber: 0, frames: [], length: 0};
-        this._audioTrack = {type: TrackType.Audio, id: 2, sequenceNumber: 0, frames: [], length: 0};
-
-        this._littleEndian = (function () {
-            let buf = new ArrayBuffer(2);
-            (new DataView(buf)).setInt16(0, 256, true);  // little-endian write
-            return (new Int16Array(buf))[0] === 256;  // platform-spec read, if equal then LE
-        })();
-    }
-
-    destroy() {
-        // nothing to do, garbage collector should do its job
     }
 
     static probe(buffer: ArrayBuffer): ProbeResult | FlvProbeSuccess {
@@ -562,8 +536,6 @@ export class FLVDemuxer {
         }
 
         while (offset < chunk.byteLength) {
-            this._dispatch = true;
-
             let v = new DataView(chunk, offset);
 
             if (offset + 11 + 4 > chunk.byteLength) {
@@ -626,7 +598,7 @@ export class FLVDemuxer {
 
         // dispatch parsed frames to consumer (typically, the remuxer)
         if (this._isMetadataDispatched) {
-            if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
+            if (this._audioTrack.length || this._videoTrack.length) {
                 this._onTrackData(this._audioTrack, this._videoTrack);
             }
         }
@@ -704,7 +676,7 @@ export class FLVDemuxer {
             } else {
                 this._mediaInfo.hasKeyframesIndex = false;
             }
-            this._dispatch = false;
+
             this._mediaInfo.metadata = onMetaData;
             Log.v(FLVDemuxer.TAG, 'Parsed flv.onMetaData');
             if (this._mediaInfo.isComplete()) {
@@ -842,13 +814,12 @@ export class FLVDemuxer {
 
                 if (this._isMetadataDispatched) {
                     // Non-initial metadata, force dispatch (or flush) parsed frames to remuxer
-                    if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
+                    if (this._audioTrack.length || this._videoTrack.length) {
                         this._onTrackData(this._audioTrack, this._videoTrack);
                     }
                 } 
 
                 // then notify new metadata
-                this._dispatch = false;
                 this._onTrackMetadata(meta);
 
                 let mi = this._mediaInfo;
@@ -1224,12 +1195,11 @@ export class FLVDemuxer {
 
         if (this._isMetadataDispatched) {
             // Non-initial metadata, force dispatch (or flush) parsed frames to remuxer
-            if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
+            if (this._audioTrack.length || this._videoTrack.length) {
                 this._onTrackData(this._audioTrack, this._videoTrack);
             }
         }
         // then notify new metadata
-        this._dispatch = false;
         this._onTrackMetadata(meta);        
 
         let mi = this._mediaInfo;
@@ -1340,12 +1310,11 @@ export class FLVDemuxer {
 
         if (this._isMetadataDispatched) {
             // Non-initial metadata, force dispatch (or flush) parsed frames to remuxer
-            if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
+            if (this._audioTrack.length || this._videoTrack.length) {
                 this._onTrackData(this._audioTrack, this._videoTrack);
             }
         }
         // then notify new metadata
-        this._dispatch = false;
         this._onTrackMetadata(meta);
 
         let mi = this._mediaInfo;
@@ -1679,12 +1648,11 @@ export class FLVDemuxer {
 
         if (this._isMetadataDispatched) {
             // flush parsed frames
-            if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
+            if (this._audioTrack.length || this._videoTrack.length) {
                 this._onTrackData(this._audioTrack, this._videoTrack);
             }
         }
         // notify new metadata
-        this._dispatch = false;
         this._onTrackMetadata(meta);
     }
 
@@ -1815,12 +1783,11 @@ export class FLVDemuxer {
 
         if (this._isMetadataDispatched) {
             // flush parsed frames
-            if (this._dispatch && (this._audioTrack.length || this._videoTrack.length)) {
+            if (this._audioTrack.length || this._videoTrack.length) {
                 this._onTrackData(this._audioTrack, this._videoTrack);
             }
         }
         // notify new metadata
-        this._dispatch = false;
         this._onTrackMetadata(meta);
     }
 
@@ -1913,7 +1880,6 @@ export class FLVDemuxer {
         meta.av1c = new Uint8Array(arrayBuffer, dataOffset, dataSize).slice();  // !!@ do we need to slice? it causes an extra copy
 
         // notify new metadata
-        this._dispatch = false;
         this._onTrackMetadata(meta);
         Log.v(FLVDemuxer.TAG, `Parsed AV1 metadata: ${JSON.stringify(config)}`);
     }
@@ -2066,7 +2032,7 @@ export class FLVDemuxer {
             mi.sarDen = meta.sarRatio.height;
 
             // flush parsed frames
-            if (this._dispatch && this._videoTrack.length) {
+            if (this._videoTrack.length) {
                 this._onTrackData(this._audioTrack, this._videoTrack);
             }
         }
