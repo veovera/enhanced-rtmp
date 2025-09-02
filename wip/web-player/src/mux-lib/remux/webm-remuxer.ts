@@ -183,12 +183,8 @@ export class WebMRemuxer extends Remuxer {
       this._calculateDtsBase(audioTrack, videoTrack);
     }
 
-    if (videoTrack) {
-      this._remuxVideo(videoTrack);
-    }
-    if (audioTrack && false) {
-      this._remuxAudio(audioTrack);
-    }
+    this._remuxVideo(videoTrack);
+    this._remuxAudio(audioTrack);
   }
 
   _onTrackMetadata = (metadata: AudioMetadata | VideoMetadata): void => {
@@ -317,6 +313,10 @@ export class WebMRemuxer extends Remuxer {
   }
 
   private _remuxAudio(audioTrack: AudioTrack, force: boolean = false): void {
+    if (!this._isAudioMetadataDispatched || audioTrack.frames.length === 0) {
+      return;
+    }
+
     //Log.a(WebMRemuxer.TAG, '_remuxAudio method not implemented.');
     //!!@this.generator.remuxAudio(audioTrack);
   }

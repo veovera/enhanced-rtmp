@@ -6,11 +6,17 @@
  * 
  */
 
+import Log  from "./logger.js";
+
 export type Callback = (...args: any[]) => void;
 
-export const assertCallback = (...args: any[]): void => {
+export const assertCallback: Callback = (...args) => {
   throw new Error('Callback function has not been implemented.');
 }; 
+
+export const noopCallback: Callback = (...args) => {
+  Log.v('No operation callback invoked with arguments:', args);
+};
 
 export function initObjectWithFalsyValues<T extends object>(template: T): T {
   const result: any = {};

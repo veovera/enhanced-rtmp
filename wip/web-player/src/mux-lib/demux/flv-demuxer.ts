@@ -22,12 +22,13 @@ import H265Parser from './h265-parser.js';
 import buffersAreEqual from '../utils/typedarray-equality.js';
 import AV1OBUParser from './av1-parser.js';
 import ExpGolomb from './exp-golomb.js';
-import { Callback, assertCallback } from '../utils/common';
+import { assertCallback, Callback, noopCallback } from '../utils/common';
 import { AV1OBUType, AV1Metadata } from './av1-parser.js';
 import { Remuxer, TrackType } from '../remux/remuxer.js';
 import { H264NaluType } from './h264.js';
 import { H265NaluType } from './h265.js';
 import { ConfigOptions } from '../config.js';
+import IOController from '../io/io-controller.js';
 
 //
 // you can find enhanced flv specification here: https://veovera.org/docs/enhanced/enhanced-rtmp-v2
@@ -343,12 +344,12 @@ export class FLVDemuxer {
     }
 
     destroy() {
-        this._onError = assertCallback;
-        this._onMediaInfo = assertCallback;
-        this._onScriptMetadata = assertCallback;
-        this._onScriptData = assertCallback;
-        this._onTrackMetadata = assertCallback;
-        this._onTrackData = assertCallback;
+        this._onError = noopCallback;
+        this._onMediaInfo = noopCallback;
+        this._onScriptMetadata = noopCallback;
+        this._onScriptData = noopCallback;
+        this._onTrackMetadata = noopCallback;
+        this._onTrackData = noopCallback;
     }
 
     static probe(buffer: ArrayBuffer): ProbeResult | FlvProbeSuccess {
@@ -381,30 +382,24 @@ export class FLVDemuxer {
         } as FlvProbeSuccess;
     }
 
-    //!!@TODO: fix any
-    // prototype: function(loader: any): void
-    bindDataSource(loader: any) {
+    bindDataSource(loader: IOController) {
         loader.onDataArrival = this.parseChunks.bind(this);
         return this;
     }
 
-    //!!@TODO: fix any
-    // prototype: function(type: string, metadata: any): void
     get onTrackMetadata() {
         return this._onTrackMetadata;
     }
 
-    set onTrackMetadata(callback) {
+    set onTrackMetadata(callback: (metadata: AudioMetadata | VideoMetadata) => void) {
         this._onTrackMetadata = callback;
     }
 
-    //!!@TODO: take a look at MediaInfo and prototype comments
-    // prototype: function(mediaInfo: MediaInfo): void
     get onMediaInfo() {
         return this._onMediaInfo;
     }
 
-    set onMediaInfo(callback) {
+    set onMediaInfo(callback: (mediaInfo: MediaInfo) => void) {
         this._onMediaInfo = callback;
     }
 
@@ -412,7 +407,7 @@ export class FLVDemuxer {
         return this._onScriptMetadata;
     }
 
-    set onScriptMetadata(callback) {
+    set onScriptMetadata(callback: (metadata: any) => void) {
         this._onScriptMetadata = callback;
     }
 
@@ -420,25 +415,23 @@ export class FLVDemuxer {
         return this._onScriptData;
     }
 
-    set onScriptData(callback) {
+    set onScriptData(callback: (scriptData: any) => void) {
         this._onScriptData = callback;
     }
 
-    // prototype: function(type: number, info: string): void
     get onError() {
         return this._onError;
     }
 
-    set onError(callback) {
+    set onError(callback: (type: number, info: string) => void) {
         this._onError = callback;
     }
 
-    // prototype: function(videoTrack: any, audioTrack: any): void
     get onTrackData() {
         return this._onTrackData;
     }
 
-    set onTrackData(callback) {
+    set onTrackData(callback: (audioTrack: AudioTrack, videoTrack: VideoTrack) => void) {
         this._onTrackData = callback;
     }
 
@@ -480,29 +473,8 @@ export class FLVDemuxer {
         this._mediaInfo = new MediaInfo();
     }
 
-    //!!@ we need to seperate audio and video metadata dispatched?
-    private get _isMetadataDispatched(): boolean {
-        if (this._hasAudio && this._hasVideo) {
-            return this._remuxer.isAudioMetadataDispatched && this._remuxer.isVideoMetadataDispatched;
-        } 
-        
-        if (this._hasAudio) {  // audio only
-            return this._remuxer.isAudioMetadataDispatched;
-        } 
-        
-        if (this._hasVideo) {  // video only
-            return this._remuxer.isVideoMetadataDispatched;
-        }
-
-        return false;
-    }
-
     // function parseChunks(chunk: ArrayBuffer, byteStart: number): number;
     parseChunks(chunk: ArrayBuffer, byteStart: number) : number {
-        if (this._onError === assertCallback || this._onMediaInfo === assertCallback || this._onTrackMetadata === assertCallback || this._onTrackData === assertCallback) {
-            throw new IllegalStateException('Flv: onError & onMediaInfo & onTrackMetadata & onTrackData callback must be specified');
-        }
-
         let offset = 0;
         let le = this._littleEndian;
 
@@ -597,11 +569,7 @@ export class FLVDemuxer {
         }
 
         // dispatch parsed frames to consumer (typically, the remuxer)
-        if (this._isMetadataDispatched) {
-            if (this._audioTrack.length || this._videoTrack.length) {
-                this._onTrackData(this._audioTrack, this._videoTrack);
-            }
-        }
+        this._onTrackData(this._audioTrack, this._videoTrack);
 
         return offset;  // consumed bytes, just equals latest offset index
     }
@@ -812,14 +780,11 @@ export class FLVDemuxer {
                 meta.refFrameDuration = 1024 / meta.audioSampleRate * meta.timescale;
                 Log.v(FLVDemuxer.TAG, 'Parsed AudioSpecificConfig');
 
-                if (this._isMetadataDispatched) {
+                if (this._remuxer.isAudioMetadataDispatched) {
                     // Non-initial metadata, force dispatch (or flush) parsed frames to remuxer
-                    if (this._audioTrack.length || this._videoTrack.length) {
-                        this._onTrackData(this._audioTrack, this._videoTrack);
-                    }
+                    this._onTrackData(this._audioTrack, this._videoTrack);
                 } 
-
-                // then notify new metadata
+                // notify new metadata
                 this._onTrackMetadata(meta);
 
                 let mi = this._mediaInfo;
@@ -1193,13 +1158,11 @@ export class FLVDemuxer {
         meta.refFrameDuration = 20;
         Log.v(FLVDemuxer.TAG, 'Parsed OpusSequenceHeader');
 
-        if (this._isMetadataDispatched) {
+        if (this._remuxer.isAudioMetadataDispatched) {
             // Non-initial metadata, force dispatch (or flush) parsed frames to remuxer
-            if (this._audioTrack.length || this._videoTrack.length) {
-                this._onTrackData(this._audioTrack, this._videoTrack);
-            }
+            this._onTrackData(this._audioTrack, this._videoTrack);
         }
-        // then notify new metadata
+        // notify new metadata
         this._onTrackMetadata(meta);        
 
         let mi = this._mediaInfo;
@@ -1308,13 +1271,11 @@ export class FLVDemuxer {
 
         Log.v(FLVDemuxer.TAG, 'Parsed FlacSequenceHeader');
 
-        if (this._isMetadataDispatched) {
+        if (this._remuxer.isAudioMetadataDispatched) {
             // Non-initial metadata, force dispatch (or flush) parsed frames to remuxer
-            if (this._audioTrack.length || this._videoTrack.length) {
-                this._onTrackData(this._audioTrack, this._videoTrack);
-            }
+            this._onTrackData(this._audioTrack, this._videoTrack);
         }
-        // then notify new metadata
+        // notify new metadata
         this._onTrackMetadata(meta);
 
         let mi = this._mediaInfo;
@@ -1646,12 +1607,10 @@ export class FLVDemuxer {
         meta.avcc.set(new Uint8Array(arrayBuffer, dataOffset, dataSize), 0);
         Log.v(FLVDemuxer.TAG, 'Parsed AVCDecoderConfigurationRecord');
 
-        if (this._isMetadataDispatched) {
-            // flush parsed frames
-            if (this._audioTrack.length || this._videoTrack.length) {
-                this._onTrackData(this._audioTrack, this._videoTrack);
-            }
-        }
+        if (this._remuxer.isVideoMetadataDispatched) {
+            // Non-initial metadata, force dispatch (or flush) parsed frames to remuxer
+            this._onTrackData(this._audioTrack, this._videoTrack);
+        } 
         // notify new metadata
         this._onTrackMetadata(meta);
     }
@@ -1680,15 +1639,13 @@ export class FLVDemuxer {
                 timescale: this._timescale,
                 duration: this._duration
             };
-        } else {
-            if (typeof meta.hvcc !== 'undefined') {
-                let new_hvcc = new Uint8Array(arrayBuffer, dataOffset, dataSize);
-                if (buffersAreEqual(new_hvcc, meta.hvcc)) {
-                    // HEVCDecoderConfigurationRecord not changed, ignore it to avoid initialization segment re-generating
-                    return;
-                } else {
-                    Log.w(FLVDemuxer.TAG, 'HEVCDecoderConfigurationRecord has been changed, re-generate initialization segment');
-                }
+        } else if (meta.hvcc) {
+            let new_hvcc = new Uint8Array(arrayBuffer, dataOffset, dataSize);
+            if (buffersAreEqual(new_hvcc, meta.hvcc)) {
+                // HEVCDecoderConfigurationRecord not changed, ignore it to avoid initialization segment re-generating
+                return;
+            } else {
+                Log.w(FLVDemuxer.TAG, 'HEVCDecoderConfigurationRecord has been changed, re-generate initialization segment');
             }
         }
 
@@ -1781,12 +1738,10 @@ export class FLVDemuxer {
         meta.hvcc.set(new Uint8Array(arrayBuffer, dataOffset, dataSize), 0);
         Log.v(FLVDemuxer.TAG, 'Parsed HEVCDecoderConfigurationRecord');
 
-        if (this._isMetadataDispatched) {
-            // flush parsed frames
-            if (this._audioTrack.length || this._videoTrack.length) {
-                this._onTrackData(this._audioTrack, this._videoTrack);
-            }
-        }
+        if (this._remuxer.isVideoMetadataDispatched) {
+            // Non-initial metadata, force dispatch (or flush) parsed frames to remuxer
+            this._onTrackData(this._audioTrack, this._videoTrack);
+        } 
         // notify new metadata
         this._onTrackMetadata(meta);
     }
@@ -1815,9 +1770,13 @@ export class FLVDemuxer {
                 timescale: this._timescale,
                 duration: this._duration
             };
-        } else {
-            if (typeof meta.av1c !== 'undefined') {
-                Log.w(FLVDemuxer.TAG, 'Found another AV1CodecConfigurationRecord!');
+        } else if (meta.av1c) {
+            let new_av1c = new Uint8Array(arrayBuffer, dataOffset, dataSize);
+            if (buffersAreEqual(new_av1c, meta.av1c)) {
+                // AV1CodecConfigurationRecord not changed, ignore it
+                return;
+            } else {
+                Log.w(FLVDemuxer.TAG, 'AV1CodecConfigurationRecord has been changed, re-generate initialization segment');
             }
         }
 
@@ -1879,6 +1838,10 @@ export class FLVDemuxer {
         }
         meta.av1c = new Uint8Array(arrayBuffer, dataOffset, dataSize).slice();  // !!@ do we need to slice? it causes an extra copy
 
+        if (this._remuxer.isVideoMetadataDispatched) {
+            // Non-initial metadata, force dispatch (or flush) parsed frames to remuxer
+            this._onTrackData(this._audioTrack, this._videoTrack);
+        } 
         // notify new metadata
         this._onTrackMetadata(meta);
         Log.v(FLVDemuxer.TAG, `Parsed AV1 metadata: ${JSON.stringify(config)}`);

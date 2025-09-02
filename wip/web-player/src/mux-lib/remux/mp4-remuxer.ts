@@ -123,12 +123,8 @@ export class MP4Remuxer extends Remuxer {
         if (Number.isNaN(this._dtsBase)) {
             this._calculateDtsBase(audioTrack, videoTrack);
         }
-        if (videoTrack) {
-            this._remuxVideo(videoTrack, false);
-        }
-        if (audioTrack) {
-            this._remuxAudio(audioTrack, false);
-        }
+        this._remuxVideo(videoTrack, false);
+        this._remuxAudio(audioTrack, false);
     }
 
     _onTrackMetadata(metadata: AudioMetadata | VideoMetadata) {
@@ -233,7 +229,7 @@ export class MP4Remuxer extends Remuxer {
     }
 
     _remuxAudio(audioTrack: AudioTrack, force: boolean) {
-        if (this._audioMeta == null) {
+        if (!this._audioMeta || audioTrack.frames.length === 0) {
             return;
         }
 
@@ -562,7 +558,7 @@ export class MP4Remuxer extends Remuxer {
     }
 
     _remuxVideo(videoTrack: VideoTrack, force: boolean) {
-        if (this._videoMeta == null) {
+        if (!this._videoMeta || videoTrack.frames.length === 0) {
             return;
         }
 
