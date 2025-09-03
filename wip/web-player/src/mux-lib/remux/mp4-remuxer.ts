@@ -244,9 +244,6 @@ export class MP4Remuxer extends Remuxer {
 
         let insertPrefixSilentFrame = false;
 
-        if (!frames || frames.length === 0) {
-            return;
-        }
         if (frames.length === 1 && !force) {
             // If [sample count in current batch] === 1 && (force != true)
             // Ignore and keep in demuxer's queue
@@ -567,10 +564,7 @@ export class MP4Remuxer extends Remuxer {
         let dtsCorrection = undefined;
         let firstDts = -1, lastDts = -1;
         let firstPts = -1, lastPts = -1;
-
-        if (!frames || frames.length === 0) {
-            return;
-        }                
+              
         if (frames.length === 1 && !force) {
             // If [frame count in current batch] === 1 && (force != true)
             // Ignore and keep in demuxer's queue

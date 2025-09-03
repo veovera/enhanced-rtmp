@@ -17,7 +17,6 @@ import AMF from './amf-parser.js';
 import SPSParser from './sps-parser.js';
 import DemuxErrors from './demux-errors.js';
 import MediaInfo from '../core/media-info.js';
-import {IllegalStateException} from '../utils/exception.js';
 import H265Parser from './h265-parser.js';
 import buffersAreEqual from '../utils/typedarray-equality.js';
 import AV1OBUParser from './av1-parser.js';
@@ -1961,11 +1960,6 @@ export class FLVDemuxer {
     }
 
     _parseAV1VideoData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: FlvVideoFrameType, cts: number) {
-        if (!this._remuxer.isVideoMetadataDispatched) {
-            Log.e(FLVDemuxer.TAG, 'Flv: AV1 VideoData received before AV1CodecConfigurationRecord!');
-            return;
-        }
-
         let le = this._littleEndian;
         let v = new DataView(arrayBuffer, dataOffset, dataSize);
 
@@ -1993,11 +1987,6 @@ export class FLVDemuxer {
             mi.height = meta.codecHeight;
             mi.sarNum = meta.sarRatio.width;
             mi.sarDen = meta.sarRatio.height;
-
-            // flush parsed frames
-            if (this._videoTrack.length) {
-                this._onTrackData(this._audioTrack, this._videoTrack);
-            }
         }
 
         // !!@FIXME: NEEDS Inspect Per OBUs

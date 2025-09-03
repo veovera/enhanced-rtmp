@@ -7,7 +7,7 @@
  */
 
 // web
-import { AudioMetadata, VideoFrame, VideoMetadata } from "../demux/flv-demuxer";
+import { AudioFrame, AudioMetadata, VideoFrame, VideoMetadata } from "../demux/flv-demuxer";
 import Log from "../utils/logger";
 import AV1OBUParser from "../demux/av1-parser";
 
@@ -55,7 +55,7 @@ enum ClusterBlockMode {
   BlockGroupAll,      // Use BlockGroup for all frames
   BlockGroupLast,     // Use SimpleBlock for all except last frame, which is BlockGroup
 }
-const clusterBlockMode: ClusterBlockMode = ClusterBlockMode.SimpleBlock;
+const clusterBlockMode: ClusterBlockMode = ClusterBlockMode.SimpleBlock; // Most compatible with MSE
 
 type WebMCodec = 'VP8' | 'VP9' | 'AV1' | 'Opus' | 'Vorbis';
 enum EbmlId {
@@ -221,7 +221,11 @@ export class WebMGenerator {
    * @param height - Video height in pixels
    * @returns Uint8Array representing the init segment
    */
-  static generateVideoInitSegment(codecPrivate: Uint8Array, width: number, height: number): Uint8Array {
+  static generateVideoInitSegment(videoMetadata: VideoMetadata): Uint8Array {
+    const width = videoMetadata.codecWidth;
+    const height = videoMetadata.codecHeight;
+    const codecPrivate = videoMetadata.av1c!;
+
     // EBML Header (required at the beginning of any WebM stream)
     const ebmlHeader = encodeElement(EbmlId.Ebml,                   // EBML header element
       concatUint8Arrays([
@@ -244,7 +248,7 @@ export class WebMGenerator {
       ])
     );
 
-    // TrackEntry for a single AV1 video stream
+    // TrackEntry for video stream
     const videoTrack = encodeElement(EbmlId.TrackEntry,
       concatUint8Arrays([
         encodeElement(EbmlId.TrackNumber, writeUInt(1, 1)),         // Track ID (index)
@@ -281,10 +285,99 @@ export class WebMGenerator {
     return result
   }
 
-  static generateAudioInitSegment(codecPrivate: Uint8Array): Uint8Array {
-    Log.a(WebMGenerator.TAG, "generateAudioInitSegment not implemented");
-    // !!@ Implement audio track init segment (e.g. OpusHead or Vorbis)
-    return new Uint8Array();
+  /**
+   * Generates a minimal WebM initialization segment for MSE consumption with audio track.
+   *
+   * WebM Layout:
+   *
+   * [EBML]
+   *   └─ Versioning, DocType, etc.
+   *
+   * [Segment] (ID + unknown size)
+   *   ├─ [Info]
+   *   │   ├─ TimecodeScale
+   *   │   ├─ MuxingApp, WritingApp
+   *   └─ [Tracks]
+   *       └─ [TrackEntry] (audio)
+   *           ├─ TrackNumber, TrackUID, TrackType
+   *           ├─ CodecID = "A_OPUS" | "A_VORBIS"
+   *           ├─ CodecPrivate (OpusHead or Vorbis headers)
+   *           └─ [Audio] (optional, can include SamplingFrequency, Channels)
+   *
+   * @param audioMetadata - Audio metadata containing codec config
+   * @returns Uint8Array representing the init segment
+   */
+  static generateAudioInitSegment(audioMetadata: AudioMetadata): Uint8Array {
+    const codecConfig = audioMetadata.config;
+    const sampleRate = audioMetadata.audioSampleRate;
+    const channels = audioMetadata.channelCount;
+    const codec = audioMetadata.codec;
+
+    // Determine codec ID based on codec type
+    let codecId: string;
+    switch (codec) {
+      case 'opus':
+        codecId = 'A_OPUS';
+        break;
+      case 'vorbis':
+        codecId = 'A_VORBIS';
+        break;
+      default:
+        Log.w(WebMGenerator.TAG, `generateAudioInitSegment: Unsupported codec ${codec}`);
+        return new Uint8Array();
+    }
+
+    // EBML Header (required at the beginning of any WebM stream)
+    const ebmlHeader = encodeElement(EbmlId.Ebml,
+      concatUint8Arrays([
+        encodeElement(EbmlId.EbmlVersion, writeUInt(1, 1)),         // EBMLVersion: 1
+        encodeElement(EbmlId.EbmlReadVersion, writeUInt(1, 1)),     // EBMLReadVersion: 1
+        encodeElement(EbmlId.EbmlMaxIdLength, writeUInt(4, 1)),     // EBMLMaxIDLength: 4 bytes
+        encodeElement(EbmlId.EbmlMaxSizeLength, writeUInt(8, 1)),   // EBMLMaxSizeLength: 8 bytes
+        encodeElement(EbmlId.DocType, writeString("webm")),         // DocType: "webm"
+        encodeElement(EbmlId.DocTypeVersion, writeUInt(2, 1)),      // DocTypeVersion: 2
+        encodeElement(EbmlId.DocTypeReadVersion, writeUInt(2, 1)),  // DocTypeReadVersion: 2
+      ])
+    );
+
+    // Segment Info (defines timing + origin info for the segment)
+    const segmentInfo = encodeElement(EbmlId.Info,
+      concatUint8Arrays([
+        encodeElement(EbmlId.TimecodeScale, writeUInt(1000000, 3)), // Timecode units = 1ms
+        encodeElement(EbmlId.MuxingApp, writeString("e-remux")),    // App creating the segment
+        encodeElement(EbmlId.WritingApp, writeString("e-remux")),   // App writing the file
+      ])
+    );
+
+    // TrackEntry for audio stream
+    const audioTrack = encodeElement(EbmlId.TrackEntry,
+      concatUint8Arrays([
+        encodeElement(EbmlId.TrackNumber, writeUInt(2, 1)),         // Track ID (index) - audio is track 2
+        encodeElement(EbmlId.TrackUid, writeUInt(2, 1)),            // Globally unique ID
+        encodeElement(EbmlId.TrackType, writeUInt(2, 1)),           // 2 = audio track
+        encodeElement(EbmlId.CodecId, writeString(codecId)),        // Codec string
+        encodeElement(EbmlId.CodecPrivate, codecConfig),            // Codec config (OpusHead or Vorbis headers)
+      ])
+    );
+
+    // Wrap audio track in a Tracks element
+    const tracks = encodeElement(EbmlId.Tracks, concatUint8Arrays([audioTrack]));
+
+    // Combine Info and Tracks into Segment payload
+    const segmentContent = concatUint8Arrays([segmentInfo, tracks]);
+
+    // Segment header with unknown size (suitable for live/streaming MSE)
+    const segmentHeader = new Uint8Array([
+      0x18, 0x53, 0x80, 0x67, // Segment ID
+      0xFF                    // Size = unknown (1-byte VINT)
+    ]);
+
+    // Combine Segment header and content
+    const segment = concatUint8Arrays([segmentHeader, segmentContent]);
+    const result = concatUint8Arrays([ebmlHeader, segment]);
+
+    Log.v(WebMGenerator.TAG, `generateAudioInitSegment() codec=${codec}, sampleRate=${sampleRate}, channels=${channels}, codecConfig.length=${codecConfig.length}`);
+    return result;
   }
 
   /**
@@ -363,10 +456,11 @@ export class WebMGenerator {
         //Log.d(WebMGenerator.TAG, `generateVideoCluster() - simpleBlock: key=${isKeyframe}, dts=${dts}, blockTimecode=${blockTimecode}, framePayload.length=${framePayload.length}, simpleBlock.length=${simpleBlock.length}`);
         //Log.d(WebMGenerator.TAG, `generateVideoCluster() - simpleBlock hex dump\n${Log.dumpArrayBuffer(simpleBlock, 512)}`);
       } else {
-        const header = new Uint8Array(3);
+        const header = new Uint8Array(4);
         header[0] = 0x80 | TrackNumber.Video;
         header[1] = (blockTimecode >> 8) & 0xff;
         header[2] = blockTimecode & 0xff;
+        header[3] = isKeyframe ? 0x80 : 0x00;      // Flags: bit 7 is keyframe, bits 1-2 are lacing (set to 0)
 
         const framePayload = AV1OBUParser.extractOBUPayload(rawData!);
         const block = encodeElement(EbmlId.Block, concatUint8Arrays([header, framePayload]));
@@ -389,10 +483,82 @@ export class WebMGenerator {
     return result;
   }
 
-  static generateAudioSegment(rawData: Uint8Array): Uint8Array {
-    Log.a(WebMGenerator.TAG, "generateAudioSegment not implemented");
+  /**
+   * Generates a WebM audio media segment (Cluster) from an array of audio frames.
+   *
+   * Audio clusters contain SimpleBlock or BlockGroup elements with audio data.
+   * Unlike video frames, audio frames don't have keyframe/non-keyframe distinction,
+   * but they do have timing requirements similar to video.
+   *
+   * Cluster Format:
+   *   - Timecode (absolute timestamp of the cluster)
+   *   - [SimpleBlock | BlockGroup][] (one for each frame, depending on mode)
+   *
+   * SimpleBlock Format:
+   *   [Track Number (VINT)] [Timecode (int16)] [Flags] [Frame Data...]
+   *   - Track Number: 2 (as 1-byte VINT, 0x82)
+   *   - Timecode: Signed 16-bit relative to the cluster's timecode (in ms)
+   *   - Flags: 0x00 for audio (no keyframe flag needed). Lacing is NOT used.
+   *   - Frame Data: The raw encoded audio frame.
+   *
+   * @param frames - An array of AudioFrame objects to be included in the cluster.
+   * @param clusterFrameIndex - Starting index in the frames array for this cluster.
+   * @param refFrameDuration - Reference duration for BlockDuration (used with BlockGroup).
+   * @returns A Uint8Array containing the complete WebM Cluster.
+   */
+  static generateAudioCluster(frames: AudioFrame[], clusterFrameIndex: number, refFrameDuration: number): Uint8Array {
+    const clusterTimecodeValue = frames[clusterFrameIndex].dts;
+    const clusterTimecode = encodeElement(EbmlId.Timecode, writeUIntAuto(clusterTimecodeValue));
+    let nextClusterFrameIndex = 0;
+    let result: Uint8Array;
 
-    // !!@ Implement audio segment generation
-    return new Uint8Array();
+    const dtsDelta = frames[frames.length - 1].dts - frames[clusterFrameIndex].dts;
+    if (dtsDelta < 0 || dtsDelta > 32767) {
+      Log.w(WebMGenerator.TAG, `generateAudioCluster() - cluster contains blockTimecode(s) out of range; clusterDTS: ${clusterTimecodeValue} dtsDelta: ${dtsDelta} framesToProcess: ${frames.length - clusterFrameIndex}`);
+    }
+
+    const elements: Uint8Array[] = [];
+    for (let index = clusterFrameIndex; index < frames.length; index++) {
+      const { unit, dts } = frames[index];
+      const blockTimecode = dts - clusterTimecodeValue;
+
+      if (blockTimecode < 0 || blockTimecode > 32767) {
+        nextClusterFrameIndex = index;
+        break; // Stop processing frames if we hit an out-of-range timecode
+      }
+
+      const isSimpleBlock = (clusterBlockMode === ClusterBlockMode.SimpleBlock) || (clusterBlockMode === ClusterBlockMode.BlockGroupLast && index < frames.length - 1);
+
+      if (isSimpleBlock) {
+        const header = new Uint8Array(4);
+        header[0] = 0x80 | TrackNumber.Audio;      // Track number (VINT, 1 byte)
+        header[1] = (blockTimecode >> 8) & 0xff;   // Timecode (signed int16)
+        header[2] = blockTimecode & 0xff;
+        header[3] = 0x00;                          // Flags: audio frames don't use keyframe flag
+
+        const simpleBlock = encodeElement(EbmlId.SimpleBlock, concatUint8Arrays([header, unit]));
+        elements.push(simpleBlock);
+      } else {
+        const header = new Uint8Array(3);
+        header[0] = 0x80 | TrackNumber.Audio;
+        header[1] = (blockTimecode >> 8) & 0xff;
+        header[2] = blockTimecode & 0xff;
+
+        const block = encodeElement(EbmlId.Block, concatUint8Arrays([header, unit]));
+        const blockDuration = encodeElement(EbmlId.BlockDuration, writeUInt(refFrameDuration, 4));
+        const blockGroup = encodeElement(EbmlId.BlockGroup, concatUint8Arrays([block, blockDuration]));
+        elements.push(blockGroup);
+      }
+    }
+
+    if (nextClusterFrameIndex > 0) {
+      const currentCluster = encodeElement(EbmlId.Cluster, concatUint8Arrays([clusterTimecode, ...elements]));
+      const nextCluster = WebMGenerator.generateAudioCluster(frames, nextClusterFrameIndex, refFrameDuration);
+      result = concatUint8Arrays([currentCluster, nextCluster]);
+    } else {
+      result = encodeElement(EbmlId.Cluster, concatUint8Arrays([clusterTimecode, ...elements]));
+    }
+
+    return result;
   }
 }
