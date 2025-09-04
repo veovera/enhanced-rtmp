@@ -108,7 +108,6 @@ export const defaultConfig = {
 
 export type ConfigOptions = typeof defaultConfig;
 
-//!!@ take a look at all the usage of ConfigOptions in the codebase
 export function createDefaultConfig(): ConfigOptions {
     return { ...defaultConfig };
 }
