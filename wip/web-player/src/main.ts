@@ -27,12 +27,13 @@ let player: MSEPplayer | NativePlayer | null = null;
 const fileList = [
   { label: "bbb-avc-aac.flv", value: "./assets/bbb-avc-aac.flv" },
   { label: "bbb-hevc-aac.flv", value: "./assets/bbb-hevc-aac.flv" },
+  { label: "bbb-av1-aac.flv", value: "./assets/bbb-av1-aac.flv" },
+  { label: "bbb-av1-opus.flv", value: "./assets/bbb-av1-opus.flv" },
+  { label: "bbb-vp9-aac.flv", value: "./assets/bbb-vp9-aac.flv" },
+  { label: "test-av1-aac.flv", value: "./assets/test-av1-aac.flv" },
   { label: "bbb-av1-aac-10s-4thframe-iskey.flv", value: "./assets/bbb-av1-aac-10s-4thframe-iskey.flv" },
   { label: "bbb-av1-aac-60thframe-iskey.flv", value: "./assets/bbb-av1-aac-60thframe-iskey.flv" },
   { label: "bbb-av1-aac-allkey.flv", value: "./assets/bbb-av1-aac-allkey.flv" },
-  { label: "bbb-av1-aac.flv", value: "./assets/bbb-av1-aac.flv" },
-  { label: "bbb-vp9-aac.flv", value: "./assets/bbb-vp9-aac.flv" },
-  { label: "test-av1-aac.flv", value: "./assets/test-av1-aac.flv" },
 ];
 let selectedFile = fileList[0].value; // Default selection
 
