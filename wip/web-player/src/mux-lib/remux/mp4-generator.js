@@ -477,7 +477,16 @@ class MP4 {
         let sampleRate = meta.audioSampleRate;
 
         if (meta.config) {
-            return MP4.box(MP4.types.dOps, meta.config);
+            // Convert from little-endian (Opus native) to big-endian (MP4 required)
+            const config = new Uint8Array(meta.config).slice();
+            const dv = new DataView(config.buffer);
+
+            dv.setUint8(0, 0);                              // Version (byte 0) - also required
+            dv.setUint16(2, meta.preSkipSamples, false);    // Write big-endian
+            dv.setUint32(4, meta.inputSampleRate, false);   // Write big-endian
+            dv.setUint16(8, meta.outputGain, false);        // Write big-endian
+
+            return MP4.box(MP4.types.dOps, config);
         }
 
         let mapping = [];

@@ -214,7 +214,7 @@ export class WebMRemuxer extends Remuxer {
       type: metadata.type,
       data: segmentRawData,
       codec: `${metadata.codec}`,
-      container: 'video/webm',
+      container: (metadata.type === TrackType.Audio) ? 'audio/webm' : 'video/webm',
       mediaDuration: metadata.duration
     };
 
@@ -313,12 +313,12 @@ export class WebMRemuxer extends Remuxer {
   }
 
   private _remuxVideo(videoTrack: VideoTrack, force: boolean = false): void {
-    if (!this.isVideoMetadataDispatched) {
-      Log.e(WebMRemuxer.TAG, '_remuxVideo: VideoData received before CodecConfigurationRecord');
+    if (videoTrack.frames.length === 0) {
       return;
     }
 
-    if (videoTrack.frames.length === 0) {
+    if (!this.isVideoMetadataDispatched) {
+      Log.w(WebMRemuxer.TAG, '_remuxVideo: VideoData received before CodecConfigurationRecord');
       return;
     }
 
@@ -335,11 +335,89 @@ export class WebMRemuxer extends Remuxer {
   }
 
   private _remuxAudio(audioTrack: AudioTrack, force: boolean = false): void {
-    if (!this._isAudioMetadataDispatched || audioTrack.frames.length === 0) {
+    if (audioTrack.frames.length === 0) {
       return;
     }
 
-    //Log.a(WebMRemuxer.TAG, '_remuxAudio method not implemented.');
-    //!!@this.generator.remuxAudio(audioTrack);
+    if (!this._isAudioMetadataDispatched) {
+      Log.w(WebMRemuxer.TAG, '_remuxAudio: AudioData received before CodecConfigurationRecord');
+      return;
+    }
+
+    let track = audioTrack;
+    let frames: AudioFrame[] = track.frames;
+    let firstDts = -1, lastDts = -1;
+
+    if (frames.length === 1 && !force) {
+      return;
+    }
+
+    let lastFrame: AudioFrame | undefined;
+
+    if (frames.length > 1) {
+      lastFrame = frames.pop();
+    }
+
+    if (this._audioStashedLastFrame != null) {
+      let frame = this._audioStashedLastFrame;
+      this._audioStashedLastFrame = null;
+      frames.unshift(frame);
+    }
+
+    if (lastFrame != null) {
+      this._audioStashedLastFrame = lastFrame;
+    }
+
+    if (frames.length === 0) {
+      return;
+    }
+
+    let firstFrameOriginalDts = frames[0].dts - this._dtsBase;
+
+    if (!Number.isNaN(this._audioNextDts)) {
+      let dtsCorrection = firstFrameOriginalDts - this._audioNextDts;
+      for (let i = 0; i < frames.length; i++) {
+        frames[i].dts = frames[i].dts - dtsCorrection;
+      }
+    } else {
+      this._audioNextDts = firstFrameOriginalDts;
+    }
+
+    firstDts = frames[0].dts;
+    lastDts = frames[frames.length - 1].dts;
+
+    this._audioNextDts = lastDts + this._refAudioFrameDuration;
+
+    let segmentRawData = WebMGenerator.generateAudioCluster(frames, 0, this._refAudioFrameDuration);
+
+    if (__DEBUG__ && WebMRemuxer.DEBUG_BUFFER) {
+      Remuxer.dbgAudioBuffer = segmentRawData.slice();
+    }
+
+    let info = new MediaSegmentInfo();
+    info.beginDts = firstDts;
+    info.endDts = lastDts;
+    info.beginPts = firstDts;
+    info.endPts = lastDts;
+    info.originalBeginDts = firstFrameOriginalDts;
+    info.originalEndDts = frames[frames.length - 1].dts - this._dtsBase;
+    info.firstFrame = new FrameInfo(firstDts, firstDts, this._refAudioFrameDuration, frames[0].length, false);
+    info.lastFrame = new FrameInfo(lastDts, lastDts, this._refAudioFrameDuration, frames[frames.length - 1].length, false);
+    this._audioSegmentInfoList.append(info);
+
+    let segment: MSEMediaSegment = {
+      kind: SegmentKind.Media,
+      type: TrackType.Audio,
+      data: segmentRawData,
+      frameCount: frames.length,
+      info: info
+    };
+
+    if (this._onMediaSegment) {
+      this._onMediaSegment(TrackType.Audio, segment);
+    }
+
+    track.frames = [];
+    track.length = 0;
   }
 }

@@ -7,9 +7,9 @@
  */
 
 // web
-import { AudioFrame, AudioMetadata, VideoFrame, VideoMetadata } from "../demux/flv-demuxer";
-import Log from "../utils/logger";
-import AV1OBUParser from "../demux/av1-parser";
+import { AudioFrame, AudioMetadata, VideoFrame, VideoMetadata } from "../demux/flv-demuxer.js";
+import Log from "../utils/logger.js";
+import AV1OBUParser from "../demux/av1-parser.js";
 
 /**
  * WebM MSE Bitstream Format Overview
@@ -60,6 +60,14 @@ const clusterBlockMode: ClusterBlockMode = ClusterBlockMode.SimpleBlock; // Most
 type WebMCodec = 'VP8' | 'VP9' | 'AV1' | 'Opus' | 'Vorbis';
 enum EbmlId {
   Ebml                = 0x1A45DFA3,
+  EbmlVersion         = 0x4286,
+  EbmlReadVersion     = 0x42F7,
+  EbmlMaxIdLength     = 0x42F2,
+  EbmlMaxSizeLength   = 0x42F3,
+  CodecId             = 0x00000086,
+  CodecPrivate        = 0x000063A2,
+  CodecDelay          = 0x56AA,
+  SeekPreRoll         = 0x56BB,
   Segment             = 0x18538067,
   Info                = 0x1549A966,
   TimecodeScale       = 0x002AD7B1,
@@ -70,16 +78,13 @@ enum EbmlId {
   TrackNumber         = 0x000000D7,     // 1-based index of the track in the stream 
   TrackUid            = 0x000073C5,     // unique identifier, not used for MSE playback
   TrackType           = 0x00000083,     // 1 = video, 2 = audio
-  CodecId             = 0x00000086,
-  CodecPrivate        = 0x000063A2,
   DefaultDuration     = 0x0023E383,
   Video               = 0x000000E0,
-  PixelWidth          = 0x000000B0,
-  PixelHeight         = 0x000000BA,
-  EbmlVersion         = 0x4286,
-  EbmlReadVersion     = 0x42F7,
-  EbmlMaxIdLength     = 0x42F2,
-  EbmlMaxSizeLength   = 0x42F3,
+  VideoPixelWidth     = 0x000000B0,
+  VideoPixelHeight    = 0x000000BA,
+  Audio               = 0x000000E1,
+  AudioChannels       = 0x0000009F,
+  AudioSamplingFreq   = 0x000000B5,
   DocType             = 0x4282,
   DocTypeVersion      = 0x4287,
   DocTypeReadVersion  = 0x4285,
@@ -102,18 +107,16 @@ enum TrackNumber {
 }
 
 /**
- * Enum representing MSE track types with their EBML VINT Track Number values.
- */
-enum TrackType {
-  Video = 1, // EBML VINT = 0x81 (used in SimpleBlock for video)
-  Audio = 2, // EBML VINT = 0x82 (used in SimpleBlock for audio)
-}
-
-/**
  * Encodes a string into a UTF-8 Uint8Array.
  */
 function writeString(str: string): Uint8Array {
   return new TextEncoder().encode(str);
+}
+
+function writeFloat64(value: number): Uint8Array {
+  const buffer = new ArrayBuffer(8);
+  new DataView(buffer).setFloat64(0, value, false);
+  return new Uint8Array(buffer);
 }
 
 /**
@@ -224,7 +227,12 @@ export class WebMGenerator {
   static generateVideoInitSegment(videoMetadata: VideoMetadata): Uint8Array {
     const width = videoMetadata.codecWidth;
     const height = videoMetadata.codecHeight;
-    const codecPrivate = videoMetadata.av1c!;
+    const codecPrivate = videoMetadata.av1c;
+
+    if (!codecPrivate) {
+      Log.e(WebMGenerator.TAG, 'generateVideoInitSegment(): Missing AV1 codec configuration (av1c)');
+      return new Uint8Array(0);
+    }
 
     // EBML Header (required at the beginning of any WebM stream)
     const ebmlHeader = encodeElement(EbmlId.Ebml,                   // EBML header element
@@ -258,8 +266,8 @@ export class WebMGenerator {
         encodeElement(EbmlId.CodecPrivate, codecPrivate),           // Codec config OBUs (seq_header)
         encodeElement(EbmlId.Video,
           concatUint8Arrays([
-            encodeElement(EbmlId.PixelWidth, writeUInt(width, 2)),  // e.g., 1920
-            encodeElement(EbmlId.PixelHeight, writeUInt(height, 2)),// e.g., 1080
+            encodeElement(EbmlId.VideoPixelWidth, writeUInt(width, 2)),  // e.g., 1920
+            encodeElement(EbmlId.VideoPixelHeight, writeUInt(height, 2)),// e.g., 1080
           ])
         ),
       ])
@@ -309,9 +317,12 @@ export class WebMGenerator {
    */
   static generateAudioInitSegment(audioMetadata: AudioMetadata): Uint8Array {
     const codecConfig = audioMetadata.config;
-    const sampleRate = audioMetadata.audioSampleRate;
-    const channels = audioMetadata.channelCount;
     const codec = audioMetadata.codec;
+    const isOpus = codec === 'opus';
+    const sampleRate = isOpus ? 48000 : audioMetadata.audioSampleRate;
+    const channels = audioMetadata.channelCount;
+    const codecDelayNs = Math.round(audioMetadata.preSkipSamples * (1e9 / sampleRate));
+    const seekPreRollNs = 80_000_000; // 80ms in nanoseconds
 
     // Determine codec ID based on codec type
     let codecId: string;
@@ -343,7 +354,7 @@ export class WebMGenerator {
     // Segment Info (defines timing + origin info for the segment)
     const segmentInfo = encodeElement(EbmlId.Info,
       concatUint8Arrays([
-        encodeElement(EbmlId.TimecodeScale, writeUInt(1000000, 3)), // Timecode units = 1ms
+        encodeElement(EbmlId.TimecodeScale, writeUInt(1_000_000, 3)), // Timecode units = 1ms
         encodeElement(EbmlId.MuxingApp, writeString("e-remux")),    // App creating the segment
         encodeElement(EbmlId.WritingApp, writeString("e-remux")),   // App writing the file
       ])
@@ -356,7 +367,19 @@ export class WebMGenerator {
         encodeElement(EbmlId.TrackUid, writeUInt(2, 1)),            // Globally unique ID
         encodeElement(EbmlId.TrackType, writeUInt(2, 1)),           // 2 = audio track
         encodeElement(EbmlId.CodecId, writeString(codecId)),        // Codec string
-        encodeElement(EbmlId.CodecPrivate, codecConfig),            // Codec config (OpusHead or Vorbis headers)
+        encodeElement(EbmlId.CodecPrivate, codecConfig),            // Keep CodecPrivate for both Opus and Vorbis
+        ...(isOpus
+          ? [
+            encodeElement(EbmlId.CodecDelay, writeUIntAuto(codecDelayNs)),
+            encodeElement(EbmlId.SeekPreRoll, writeUIntAuto(seekPreRollNs)),
+          ]
+          : []),
+        encodeElement(EbmlId.Audio,                                 // REQUIRED by demuxer
+          concatUint8Arrays([
+            encodeElement(EbmlId.AudioSamplingFreq, writeFloat64(sampleRate)),
+            encodeElement(EbmlId.AudioChannels, writeUInt(channels, 1)),
+          ])
+        ),
       ])
     );
 
