@@ -10,6 +10,17 @@
  * See Git history for full details.
  */
 
+export type ReferrerPolicy = 
+    'no-referrer' | 
+    'no-referrer-when-downgrade' | 
+    'origin' | 
+    'origin-when-cross-origin' | 
+    'same-origin' | 
+    'strict-origin' | 
+    'strict-origin-when-cross-origin' | 
+    'unsafe-url' | 
+    undefined;
+
 export const defaultConfig = {
     // Enable demuxing and decoding in a Web Worker thread
     enableWorker: false,
@@ -103,7 +114,10 @@ export const defaultConfig = {
     headers: undefined,
 
     // Custom loader implementation (for advanced use cases)
-    customLoader: undefined
+    customLoader: undefined,
+
+    // Referrer policy for fetch requests
+    referrerPolicy: undefined
 } as const;
 
 export type ConfigOptions = typeof defaultConfig;

@@ -4,7 +4,7 @@
  * Copyright (C) 2016 Bilibili
  * @author zheng qian <xqq@xqq.im>
  * 
- * Modified by Slavik Lozben.
+ * Modified and migrated to TypeScript by Slavik Lozben.
  * Additional changes Copyright (C) 2025 Veovera Software Organization.
  *
  * See Git history for full details. 
@@ -15,21 +15,35 @@ import Log from '../utils/logger.js';
 import Browser from '../utils/browser.js';
 import MediaInfo from './media-info.js';
 import FLVDemuxer from '../demux/flv-demuxer.js';
-import TSDemuxer from '../demux/ts-demuxer';
+import type { FlvProbeSuccess } from '../demux/flv-demuxer.js';
 import MP4Remuxer from '../remux/mp4-remuxer.js';
 import { WebMRemuxer } from '../remux/webm-remuxer.js';
 import DemuxErrors from '../demux/demux-errors.js';
 import IOController from '../io/io-controller.js';
 import TransmuxingEvents from './transmuxing-events';
-import {LoaderStatus, LoaderErrors} from '../io/loader.js';
+import { ConfigOptions } from '../config.js';
+import { SCTE35Data } from '../demux/scte35.js';
+import { SMPTE2038Data } from '../demux/smpte2038.js';
+import { KLVData } from '../demux/klv.js';
+import { PGSData } from '../demux/pgs-data.js';
+import { PESPrivateData, PESPrivateDataDescriptor } from '../demux/pes-private-data.js';
 
 // Transmuxing (IO, Demuxing, Remuxing) controller, with multipart support
 class TransmuxingController {
+    private TAG: string = 'TransmuxingController';
+    private _emitter: EventEmitter = new EventEmitter();
+    private _config: ConfigOptions;
+    private _mediaDataSource: any;
+    private _currentSegmentIndex: number = 0;
+    private _remuxer: MP4Remuxer | WebMRemuxer;
+    private _demuxer: FLVDemuxer | null = null;
+    private _mediaInfo: MediaInfo | null = null;
+    private _ioctl: IOController | null = null;
+    private _pendingSeekTime: number | null = null;
+    private _pendingResolveSeekPoint: number | null = null;
+    private _statisticsReporter: number | null = null;
 
-    constructor(mediaDataSource, config) {
-        this.TAG = 'TransmuxingController';
-        this._emitter = new EventEmitter();
-
+    constructor(mediaDataSource: any, config: ConfigOptions) {
         this._config = config;
 
         // treat single part media as multipart media, which has only one segment
@@ -50,10 +64,15 @@ class TransmuxingController {
         }
 
         this._mediaDataSource = mediaDataSource;
-        this._currentSegmentIndex = 0;
+        if (this._mediaDataSource.useWebM) {
+            this._remuxer = new WebMRemuxer(config);
+        } else {
+            this._remuxer = new MP4Remuxer(config);
+        }
+
         let totalDuration = 0;
 
-        this._mediaDataSource.segments.forEach((segment) => {
+        this._mediaDataSource.segments.forEach((segment: any) => {
             // timestampBase for each segment, and calculate total duration
             segment.timestampBase = totalDuration;
             totalDuration += segment.duration;
@@ -69,16 +88,6 @@ class TransmuxingController {
         if (!isNaN(totalDuration) && this._mediaDataSource.duration !== totalDuration) {
             this._mediaDataSource.duration = totalDuration;
         }
-
-        this._mediaInfo = null;
-        this._demuxer = null;
-        this._remuxer = null;
-        this._ioctl = null;
-
-        this._pendingSeekTime = null;
-        this._pendingResolveSeekPoint = null;
-
-        this._statisticsReporter = null;
     }
 
     destroy() {
@@ -98,18 +107,16 @@ class TransmuxingController {
         }
         if (this._remuxer) {
             this._remuxer.destroy();
-            this._remuxer = null;
         }
 
         this._emitter.removeAllListeners();
-        this._emitter = null;
     }
 
-    on(event, listener) {
+    on(event: TransmuxingEvents, listener: (...args: unknown[]) => void) {
         this._emitter.addListener(event, listener);
     }
 
-    off(event, listener) {
+    off(event: TransmuxingEvents, listener: (...args: unknown[]) => void) {
         this._emitter.removeListener(event, listener);
     }
 
@@ -118,7 +125,7 @@ class TransmuxingController {
         this._enableStatisticsReporter();
     }
 
-    _loadSegment(segmentIndex, optionalFrom) {
+    _loadSegment(segmentIndex: number, optionalFrom?: number) {
         this._currentSegmentIndex = segmentIndex;
         let dataSource = this._mediaDataSource.segments[segmentIndex];
 
@@ -130,7 +137,7 @@ class TransmuxingController {
         ioctl.onRecoveredEarlyEof = this._onIORecoveredEarlyEof.bind(this);
 
         if (optionalFrom) {
-            this._demuxer.bindDataSource(this._ioctl);
+            this._demuxer!.bindDataSource(this._ioctl);
         } else {
             ioctl.onDataArrival = this._onInitChunkArrival.bind(this);
         }
@@ -164,7 +171,7 @@ class TransmuxingController {
         }
     }
 
-    seek(milliseconds) {
+    seek(milliseconds: number) {
         if (this._mediaInfo == null || !this._mediaInfo.isSeekable()) {
             return;
         }
@@ -173,7 +180,7 @@ class TransmuxingController {
 
         if (targetSegmentIndex === this._currentSegmentIndex) {
             // intra-segment seeking
-            let segmentInfo = this._mediaInfo.segments[targetSegmentIndex];
+            let segmentInfo = this._mediaInfo.segments![targetSegmentIndex];
 
             if (segmentInfo == undefined) {
                 // current segment loading started, but mediainfo hasn't received yet
@@ -181,20 +188,20 @@ class TransmuxingController {
                 this._pendingSeekTime = milliseconds;
             } else {
                 let keyframe = segmentInfo.getNearestKeyframe(milliseconds);
-                this._remuxer.seek(keyframe.milliseconds);
-                this._ioctl.seek(keyframe.fileposition);
+                this._remuxer.seek(keyframe!.milliseconds);
+                this._ioctl!.seek(keyframe!.fileposition);
                 // Will be resolved in _onRemuxerMediaSegmentArrival()
-                this._pendingResolveSeekPoint = keyframe.milliseconds;
+                this._pendingResolveSeekPoint = keyframe!.milliseconds;
             }
         } else {
             // cross-segment seeking
-            let targetSegmentInfo = this._mediaInfo.segments[targetSegmentIndex];
+            let targetSegmentInfo = this._mediaInfo.segments![targetSegmentIndex];
 
             if (targetSegmentInfo == undefined) {
                 // target segment hasn't been loaded. We need metadata then seek to expected time
                 this._pendingSeekTime = milliseconds;
                 this._internalAbort();
-                this._remuxer.seek();
+                this._remuxer.seek(milliseconds);
                 this._remuxer.insertDiscontinuity();
                 this._loadSegment(targetSegmentIndex);
                 // Here we wait for the metadata loaded, then seek to expected position
@@ -204,10 +211,10 @@ class TransmuxingController {
                 this._internalAbort();
                 this._remuxer.seek(milliseconds);
                 this._remuxer.insertDiscontinuity();
-                this._demuxer.resetMediaInfo();
-                this._demuxer.timestampBase = this._mediaDataSource.segments[targetSegmentIndex].timestampBase;
-                this._loadSegment(targetSegmentIndex, keyframe.fileposition);
-                this._pendingResolveSeekPoint = keyframe.milliseconds;
+                this._demuxer!.resetMediaInfo();
+                this._demuxer!.timestampBase = this._mediaDataSource.segments[targetSegmentIndex].timestampBase;
+                this._loadSegment(targetSegmentIndex, keyframe!.fileposition);
+                this._pendingResolveSeekPoint = keyframe!.milliseconds;
                 this._reportSegmentMediaInfo(targetSegmentIndex);
             }
         }
@@ -215,7 +222,7 @@ class TransmuxingController {
         this._enableStatisticsReporter();
     }
 
-    _searchSegmentIndexContains(milliseconds) {
+    _searchSegmentIndexContains(milliseconds: number) {
         let segments = this._mediaDataSource.segments;
         let idx = segments.length - 1;
 
@@ -228,40 +235,27 @@ class TransmuxingController {
         return idx;
     }
 
-    _onInitChunkArrival(data, byteStart) {
+    _onInitChunkArrival(data: ArrayBuffer, byteStart: number) {
         let consumed = 0;
 
         if (byteStart > 0) {
             // IOController seeked immediately after opened, byteStart > 0 callback may received
-            this._demuxer.bindDataSource(this._ioctl);
-            this._demuxer.timestampBase = this._mediaDataSource.segments[this._currentSegmentIndex].timestampBase;
+            this._demuxer!.bindDataSource(this._ioctl!);
+            this._demuxer!.timestampBase = this._mediaDataSource.segments[this._currentSegmentIndex].timestampBase;
 
-            consumed = this._demuxer.parseChunks(data, byteStart);
+            consumed = this._demuxer!.parseChunks(data, byteStart);
         } else {
             // byteStart == 0, Initial data, probe it first
-            let probeData = null;
-
             // Try probing input data as FLV first
-            probeData = FLVDemuxer.probe(data);
-            if (probeData.match) {
+            const probeData = FLVDemuxer.probe(data);
+            if ('match' in probeData && probeData.match) {
                 // Hit as FLV
                 this._setupFLVDemuxerRemuxer(probeData);
-                consumed = this._demuxer.parseChunks(data, byteStart);
-            }
-
-            if (!probeData.match && !probeData.needMoreData) {
-                // Non-FLV, try MPEG-TS probe
-                probeData = TSDemuxer.probe(data);
-                if (probeData.match) {
-                    // Hit as MPEG-TS
-                    this._setupTSDemuxerRemuxer(probeData);
-                    consumed = this._demuxer.parseChunks(data, byteStart);
-                }
-            }
-
-            if (!probeData.match && !probeData.needMoreData) {
+                consumed = this._demuxer!.parseChunks(data, byteStart);
+            } else if ('needMoreData' in probeData && probeData.needMoreData) {
+                // keep consumed as 0, wait for more data
+            } else {
                 // Both probing as FLV / MPEG-TS failed, report error
-                probeData = null;
                 Log.e(this.TAG, 'Non MPEG-TS/FLV, Unsupported media type!');
                 Promise.resolve().then(() => {
                     this._internalAbort();
@@ -274,7 +268,7 @@ class TransmuxingController {
         return consumed;
     }
 
-    _setupFLVDemuxerRemuxer(probeData) {
+    _setupFLVDemuxerRemuxer(probeData: FlvProbeSuccess) {
         // !!@ should useWebM be a config option? see this._config?
         if (!this._remuxer) {
             if (this._mediaDataSource.useWebM) {
@@ -305,39 +299,13 @@ class TransmuxingController {
         this._demuxer.onScriptData = this._onScriptData.bind(this);
 
         //!!@ _remuxer has a reference to _demuxer, so we need to bind them together?
-        this._remuxer.bindDataSource(this._demuxer.bindDataSource(this._ioctl));
-        this._remuxer.onInitSegment = this._onRemuxerInitSegmentArrival.bind(this);
-        this._remuxer.onMediaSegment = this._onRemuxerMediaSegmentArrival.bind(this);
-    }
-
-    _setupTSDemuxerRemuxer(probeData) {
-        let demuxer = this._demuxer = new TSDemuxer(probeData, this._config);
-
-        if (!this._remuxer) {
-            this._remuxer = new MP4Remuxer(this._config);
-        }
-
-        demuxer.onError = this._onDemuxException.bind(this);
-        demuxer.onMediaInfo = this._onMediaInfo.bind(this);
-        demuxer.onScriptMetadata = this._onScriptMetadata.bind(this);
-        demuxer.onTimedID3Metadata = this._onTimedID3Metadata.bind(this);
-        demuxer.onPGSSubtitleData = this._onPGSSubtitle.bind(this);
-        demuxer.onSynchronousKLVMetadata = this._onSynchronousKLVMetadata.bind(this);
-        demuxer.onAsynchronousKLVMetadata = this._onAsynchronousKLVMetadata.bind(this);
-        demuxer.onSMPTE2038Metadata = this._onSMPTE2038Metadata.bind(this);
-        demuxer.onSCTE35Metadata = this._onSCTE35Metadata.bind(this);
-        demuxer.onPESPrivateDataDescriptor = this._onPESPrivateDataDescriptor.bind(this);
-        demuxer.onPESPrivateData = this._onPESPrivateData.bind(this);
-
-        this._remuxer.bindDataSource(this._demuxer);
-        this._demuxer.bindDataSource(this._ioctl);
-
+        this._remuxer.bindDataSource(this._demuxer.bindDataSource(this._ioctl!));
         this._remuxer.onInitSegment = this._onRemuxerInitSegmentArrival.bind(this);
         this._remuxer.onMediaSegment = this._onRemuxerMediaSegmentArrival.bind(this);
     }
 
     //!!@ is this ever called?
-    _onMediaInfo(mediaInfo) {
+    _onMediaInfo(mediaInfo: MediaInfo) {
         if (this._mediaInfo == null) {
             // Store first segment's mediainfo as global mediaInfo
             this._mediaInfo = Object.assign({}, mediaInfo);
@@ -349,29 +317,29 @@ class TransmuxingController {
 
         let segmentInfo = Object.assign({}, mediaInfo);
         Object.setPrototypeOf(segmentInfo, MediaInfo.prototype);
-        this._mediaInfo.segments[this._currentSegmentIndex] = segmentInfo;
+        this._mediaInfo.segments![this._currentSegmentIndex] = segmentInfo;
 
         // notify mediaInfo update
         this._reportSegmentMediaInfo(this._currentSegmentIndex);
 
         if (this._pendingSeekTime != null) {
             Promise.resolve().then(() => {
-                let target = this._pendingSeekTime;
+                let target = this._pendingSeekTime!;
                 this._pendingSeekTime = null;
                 this.seek(target);
             });
         }
     }
 
-    _onScriptMetadata(metadata) {
+    _onScriptMetadata(metadata: any) {
         this._emitter.emit(TransmuxingEvents.METADATA_ARRIVED, metadata);
     }
 
-    _onScriptData(data) {
+    _onScriptData(data: any) {
         this._emitter.emit(TransmuxingEvents.SCRIPTDATA_ARRIVED, data);
     }
 
-    _onTimedID3Metadata(timed_id3_metadata) {
+    _onTimedID3Metadata(timed_id3_metadata: any) {
         let timestamp_base = this._remuxer.timestampBase;
         if (timestamp_base == undefined) { return; }
 
@@ -386,7 +354,7 @@ class TransmuxingController {
         this._emitter.emit(TransmuxingEvents.TIMED_ID3_METADATA_ARRIVED, timed_id3_metadata);
     }
 
-    _onPGSSubtitle(pgs_data) {
+    _onPGSSubtitle(pgs_data: PGSData) {
         let timestamp_base = this._remuxer.timestampBase;
         if (timestamp_base == undefined) { return; }
 
@@ -401,7 +369,7 @@ class TransmuxingController {
         this._emitter.emit(TransmuxingEvents.PGS_SUBTITLE_ARRIVED, pgs_data);
     }
 
-    _onSynchronousKLVMetadata(synchronous_klv_metadata) {
+    _onSynchronousKLVMetadata(synchronous_klv_metadata: KLVData) {
         let timestamp_base = this._remuxer.timestampBase;
         if (timestamp_base == undefined) { return; }
 
@@ -416,11 +384,11 @@ class TransmuxingController {
         this._emitter.emit(TransmuxingEvents.SYNCHRONOUS_KLV_METADATA_ARRIVED, synchronous_klv_metadata);
     }
 
-    _onAsynchronousKLVMetadata(asynchronous_klv_metadata) {
+    _onAsynchronousKLVMetadata(asynchronous_klv_metadata: PESPrivateData) {
         this._emitter.emit(TransmuxingEvents.ASYNCHRONOUS_KLV_METADATA_ARRIVED, asynchronous_klv_metadata);
     }
 
-    _onSMPTE2038Metadata(smpte2038_metadata) {
+    _onSMPTE2038Metadata(smpte2038_metadata: SMPTE2038Data) {
         let timestamp_base = this._remuxer.timestampBase;
         if (timestamp_base == undefined) { return; }
 
@@ -439,7 +407,7 @@ class TransmuxingController {
         this._emitter.emit(TransmuxingEvents.SMPTE2038_METADATA_ARRIVED, smpte2038_metadata);
     }
 
-    _onSCTE35Metadata(scte35) {
+    _onSCTE35Metadata(scte35: SCTE35Data) {
         let timestamp_base = this._remuxer.timestampBase;
         if (timestamp_base == undefined) { return; }
 
@@ -454,11 +422,11 @@ class TransmuxingController {
         this._emitter.emit(TransmuxingEvents.SCTE35_METADATA_ARRIVED, scte35);
     }
 
-    _onPESPrivateDataDescriptor(descriptor) {
+    _onPESPrivateDataDescriptor(descriptor: PESPrivateDataDescriptor) {
         this._emitter.emit(TransmuxingEvents.PES_PRIVATE_DATA_DESCRIPTOR, descriptor);
     }
 
-    _onPESPrivateData(private_data) {
+    _onPESPrivateData(private_data: PESPrivateData) {
         let timestamp_base = this._remuxer.timestampBase;
         if (timestamp_base == undefined) { return; }
 
@@ -481,7 +449,7 @@ class TransmuxingController {
         this._remuxer.insertDiscontinuity();
     }
 
-    _onIOComplete(extraData) {
+    _onIOComplete(extraData: number) {
         let segmentIndex = extraData;
         let nextSegmentIndex = segmentIndex + 1;
 
@@ -500,8 +468,8 @@ class TransmuxingController {
         }
     }
 
-    _onIORedirect(redirectedURL) {
-        let segmentIndex = this._ioctl.extraData;
+    _onIORedirect(redirectedURL: string) {
+        let segmentIndex = this._ioctl!.extraData;
         this._mediaDataSource.segments[segmentIndex].redirectedURL = redirectedURL;
     }
 
@@ -509,22 +477,22 @@ class TransmuxingController {
         this._emitter.emit(TransmuxingEvents.RECOVERED_EARLY_EOF);
     }
 
-    _onIOException(type, info) {
+    _onIOException(type: string, info: any) {
         Log.e(this.TAG, `IOException: type = ${type}, code = ${info.code}, msg = ${info.msg}`);
         this._emitter.emit(TransmuxingEvents.IO_ERROR, type, info);
         this._disableStatisticsReporter();
     }
 
-    _onDemuxException(type, info) {
+    _onDemuxException(type: string, info: string) {
         Log.e(this.TAG, `DemuxException: type = ${type}, info = ${info}`);
         this._emitter.emit(TransmuxingEvents.DEMUX_ERROR, type, info);
     }
 
-    _onRemuxerInitSegmentArrival(type, initSegment) {
+    _onRemuxerInitSegmentArrival(type: string, initSegment: ArrayBuffer) {
         this._emitter.emit(TransmuxingEvents.INIT_SEGMENT, type, initSegment);
     }
 
-    _onRemuxerMediaSegmentArrival(type, mediaSegment) {
+    _onRemuxerMediaSegmentArrival(type: string, mediaSegment: any) {
         if (this._pendingSeekTime != null) {
             // Media segments after new-segment cross-seeking should be dropped.
             return;
@@ -562,29 +530,36 @@ class TransmuxingController {
         }
     }
 
-    _reportSegmentMediaInfo(segmentIndex) {
-        let segmentInfo = this._mediaInfo.segments[segmentIndex];
-        let exportInfo = Object.assign({}, segmentInfo);
+    _reportSegmentMediaInfo(segmentIndex: number) {
+        // Get current segment's MediaInfo. `segments` is set when first mediaInfo arrives.
+        const mediaInfo = this._mediaInfo;
+        const segmentInfo = mediaInfo?.segments?.[segmentIndex];
+        if (!segmentInfo) {
+            return;
+        }
 
-        exportInfo.duration = this._mediaInfo.duration;
-        exportInfo.segmentCount = this._mediaInfo.segmentCount;
-        delete exportInfo.segments;
-        delete exportInfo.keyframesIndex;
+        // Omit heavyweight fields before emitting
+        const { keyframesIndex, segments, ...rest } = segmentInfo as any;
+        const exportInfo: any = {
+            ...rest,
+            duration: mediaInfo.duration,
+            segmentCount: mediaInfo.segmentCount,
+        };
 
         this._emitter.emit(TransmuxingEvents.MEDIA_INFO, exportInfo);
     }
 
     _reportStatisticsInfo() {
-        let info = {};
+        let info: any = {};
 
-        info.url = this._ioctl.currentURL;
-        info.hasRedirect = this._ioctl.hasRedirect;
+        info.url = this._ioctl!.currentURL;
+        info.hasRedirect = this._ioctl!.hasRedirect;
         if (info.hasRedirect) {
-            info.redirectedURL = this._ioctl.currentRedirectedURL;
+            info.redirectedURL = this._ioctl!.currentRedirectedURL;
         }
 
-        info.speed = this._ioctl.currentSpeed;
-        info.loaderType = this._ioctl.loaderType;
+        info.speed = this._ioctl!.currentSpeed;
+        info.loaderType = this._ioctl!.loaderType;
         info.currentSegmentIndex = this._currentSegmentIndex;
         info.totalSegmentCount = this._mediaDataSource.segments.length;
 

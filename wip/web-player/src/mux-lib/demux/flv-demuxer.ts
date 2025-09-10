@@ -473,7 +473,7 @@ export class FLVDemuxer {
         return this._onError;
     }
 
-    set onError(callback: (type: number, info: string) => void) {
+    set onError(callback: (type: string, info: string) => void) {
         this._onError = callback;
     }
 
@@ -1874,8 +1874,8 @@ export class FLVDemuxer {
         mi.chromaFormat = config.chroma_format_string;
         mi.videoCodec = config.codec_mimetype;
 
-        meta.codecWidth = mi.width;
-        meta.codecHeight = mi.height;
+        meta.codecWidth = mi.width ?? 0;
+        meta.codecHeight = mi.height ?? 0;
 
         if (mi.hasAudio) {
             if (mi.audioCodec != null) {

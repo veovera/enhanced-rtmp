@@ -1,53 +1,51 @@
 /*
- * Copyright (C) 2016 Bilibili. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
  *
+ * Copyright (C) 2016 Bilibili
  * @author zheng qian <xqq@xqq.im>
+ * 
+ * Modified and migrated to TypeScript by Slavik Lozben.
+ * Additional changes Copyright (C) 2025 Veovera Software Organization.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * See Git history for full details. 
  */
+
+export interface KeyframeInfo {
+    index: number;
+    milliseconds: number;
+    fileposition: number;
+}
 
 class MediaInfo {
 
-    constructor() {
-        this.mimeType = null;
-        this.duration = null;
+    mimeType: string | null = null;
+    duration: number | null = null;
 
-        this.hasAudio = null;
-        this.hasVideo = null;
-        this.audioCodec = null;
-        this.videoCodec = null;
-        this.audioDataRate = null;
-        this.videoDataRate = null;
+    hasAudio: boolean | null = null;
+    hasVideo: boolean | null = null;
+    audioCodec: string | null = null;
+    videoCodec: string | null = null;
+    audioDataRate: number | null = null;
+    videoDataRate: number | null = null;
 
-        this.audioSampleRate = null;
-        this.audioChannelCount = null;
+    audioSampleRate: number | null = null;
+    audioChannelCount: number | null = null;
 
-        this.width = null;
-        this.height = null;
-        this.fps = null;
-        this.profile = null;
-        this.level = null;
-        this.refFrames = null;
-        this.chromaFormat = null;
-        this.sarNum = null;
-        this.sarDen = null;
+    width: number | null = null;
+    height: number | null = null;
+    fps: number | null = null;
+    profile: string | null = null;
+    level: string | null = null;
+    refFrames: number | null = null;
+    chromaFormat: string | null = null;
+    sarNum: number | null = null;
+    sarDen: number | null = null;
 
-        this.metadata = null;
-        this.segments = null;  // MediaInfo[]
-        this.segmentCount = null;
-        this.hasKeyframesIndex = null;
-        this.keyframesIndex = null;
-    }
+    metadata: any = null;
+    segments: MediaInfo[] | null = null;  // MediaInfo[]
+    segmentCount: number | null = null;
+    hasKeyframesIndex: boolean | null = null;
+    keyframesIndex: any = null;
 
     isComplete() {
         let audioInfoComplete = (this.hasAudio === false) ||
@@ -79,7 +77,7 @@ class MediaInfo {
         return this.hasKeyframesIndex === true;
     }
 
-    getNearestKeyframe(milliseconds) {
+    getNearestKeyframe(milliseconds: number): KeyframeInfo | null {
         if (this.keyframesIndex == null) {
             return null;
         }
@@ -94,7 +92,7 @@ class MediaInfo {
         };
     }
 
-    _search(list, value) {
+    _search(list: number[], value: number): number {
         let idx = 0;
 
         let last = list.length - 1;
