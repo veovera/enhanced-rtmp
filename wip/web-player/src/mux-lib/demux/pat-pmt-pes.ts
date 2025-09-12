@@ -1,15 +1,25 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Modified by Slavik Lozben.
+ * Additional changes Copyright (C) 2025 Veovera Software Organization.
+ *
+ * See Git history for full details.
+ */
 interface ProgramToPMTPIDMap {
     [program: number]: number;
 }
 
 export class PAT {
-    version_number: number;
-    network_pid: number;
+    version_number: number = NaN;
+    network_pid: number = NaN;
     // program_number -> pmt_pid
     program_pmt_pid: ProgramToPMTPIDMap = {};
 }
 
 export enum StreamType {
+    // ISO/IEC 13818-1 Table of stream_type values
+    kReserved = 0x00,
     kMPEG1Audio = 0x03,
     kMPEG2Audio = 0x04,
     kPESPrivateData = 0x06,
@@ -29,9 +39,9 @@ interface PIDToStreamTypeMap {
 }
 
 export class PMT {
-    program_number: number;
-    version_number: number;
-    pcr_pid: number;
+    program_number: number = NaN;
+    version_number: number = NaN;
+    pcr_pid: number = NaN;
     // pid -> stream_type
     pid_stream_type: PIDToStreamTypeMap = {};
 
@@ -94,18 +104,18 @@ export interface ProgramToPMTMap {
 }
 
 export class PESData {
-    pid: number;
-    data: Uint8Array;
-    stream_type: StreamType;
-    file_position: number;
-    random_access_indicator: number;
+    pid: number = NaN;
+    data: Uint8Array = new Uint8Array(0);
+    stream_type: StreamType = StreamType.kReserved;
+    file_position: number = NaN;
+    random_access_indicator: number = NaN;
 }
 
 export class SectionData {
-    pid: number;
-    data: Uint8Array;
-    file_position: number;
-    random_access_indicator: number;
+    pid: number = NaN;
+    data: Uint8Array = new Uint8Array(0);
+    file_position: number = NaN;
+    random_access_indicator: number = NaN;
 }
 
 export class SliceQueue {
@@ -113,7 +123,7 @@ export class SliceQueue {
     total_length: number = 0;
     expected_length: number = 0;
     file_position: number = 0;
-    random_access_indicator: 0;
+    random_access_indicator = 0;
 }
 
 export interface PIDToSliceQueues {

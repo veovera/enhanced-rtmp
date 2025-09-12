@@ -1,14 +1,14 @@
 import ExpGolomb from "./exp-golomb";
 
 export class SMPTE2038Data {
-    pid: number;
-    stream_id: number;
+    pid: number = NaN;
+    stream_id: number = NaN;
     pts?: number;
     dts?: number;
     nearest_pts?: number;
-    ancillaries: AncillaryData[];
-    data: Uint8Array;
-    len: number;
+    ancillaries: AncillaryData[] = [];
+    data: Uint8Array = new Uint8Array(0);
+    len: number = 0;
 }
 
 type AncillaryData = {
@@ -83,7 +83,6 @@ export const smpte2038parse = (data: Uint8Array) => {
     }
 
     gb.destroy();
-    gb = null;
 
     return ancillaries;
 }

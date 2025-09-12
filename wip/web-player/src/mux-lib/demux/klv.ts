@@ -1,11 +1,20 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Modified by Slavik Lozben.
+ * Additional changes Copyright (C) 2025 Veovera Software Organization.
+ *
+ * See Git history for full details.
+ */
+
 export class KLVData {
-    pid: number;
-    stream_id: number;
+    pid: number = NaN;
+    stream_id: number = NaN;
     pts?: number;
     dts?: number;
-    access_units: AccessUnit[];
-    data: Uint8Array;
-    len: number;
+    access_units: AccessUnit[] = [];
+    data: Uint8Array = new Uint8Array(0);
+    len: number = 0;
 }
 
 type AccessUnit = {

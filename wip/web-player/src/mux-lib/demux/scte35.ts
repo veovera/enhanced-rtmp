@@ -1,3 +1,12 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Modified by Slavik Lozben.
+ * Additional changes Copyright (C) 2025 Veovera Software Organization.
+ *
+ * See Git history for full details.
+ */
+
 import ExpGolomb from './exp-golomb.js';
 
 export type SCTE35Data = {
@@ -5,7 +14,7 @@ export type SCTE35Data = {
     pts?: number,
     nearest_pts?: number
     auto_return?: boolean
-    duraiton?: number,
+    duration?: number,
     detail: SCTE35Detail
     data: Uint8Array
 } | {
@@ -585,8 +594,8 @@ export const readSCTE35 = (data: Uint8Array): SCTE35Data => {
     const pts_adjustment = reader.readBits(31) * 4 + reader.readBits(2);
     const cw_index = reader.readBits(8);
     const tier = reader.readBits(12);
-    const splice_command_length = reader.readBits(12)
-    const splice_command_type = reader.readBits(8)
+    const splice_command_length = reader.readBits(12);
+    const splice_command_type = reader.readBits(8) as SCTE35CommandType;
 
     let splice_command: SpliceCommand | null = null;
     if (splice_command_type === SCTE35CommandType.kSpliceNull) {
@@ -633,25 +642,137 @@ export const readSCTE35 = (data: Uint8Array): SCTE35Data => {
     const E_CRC32 = encrypted_packet ? reader.readBits(32) : undefined;
     const CRC32 = reader.readBits(32);
 
-    const detail = {
-        table_id,
-        section_syntax_indicator,
-        private_indicator,
-        section_length,
-        protocol_version,
-        encrypted_packet,
-        encryption_algorithm,
-        pts_adjustment,
-        cw_index,
-        tier,
-        splice_command_length,
-        splice_command_type,
-        splice_command,
-        descriptor_loop_length,
-        splice_descriptors,
-        E_CRC32,
-        CRC32
-    };
+    // Build a correctly discriminated detail object
+    let detail: SCTE35Detail | undefined;
+
+    switch (splice_command_type) {
+        case SCTE35CommandType.kSpliceNull:
+            detail = {
+                table_id,
+                section_syntax_indicator,
+                private_indicator,
+                section_length,
+                protocol_version,
+                encrypted_packet,
+                encryption_algorithm,
+                pts_adjustment,
+                cw_index,
+                tier,
+                splice_command_length,
+                splice_command_type: SCTE35CommandType.kSpliceNull,
+                splice_command: splice_command as SpliceNull,
+                descriptor_loop_length,
+                splice_descriptors,
+                E_CRC32,
+                CRC32
+            };
+            break;
+        case SCTE35CommandType.kSpliceSchedule:
+            detail = {
+                table_id,
+                section_syntax_indicator,
+                private_indicator,
+                section_length,
+                protocol_version,
+                encrypted_packet,
+                encryption_algorithm,
+                pts_adjustment,
+                cw_index,
+                tier,
+                splice_command_length,
+                splice_command_type: SCTE35CommandType.kSpliceSchedule,
+                splice_command: splice_command as SpliceSchedule,
+                descriptor_loop_length,
+                splice_descriptors,
+                E_CRC32,
+                CRC32
+            };
+            break;
+        case SCTE35CommandType.kSpliceInsert:
+            detail = {
+                table_id,
+                section_syntax_indicator,
+                private_indicator,
+                section_length,
+                protocol_version,
+                encrypted_packet,
+                encryption_algorithm,
+                pts_adjustment,
+                cw_index,
+                tier,
+                splice_command_length,
+                splice_command_type: SCTE35CommandType.kSpliceInsert,
+                splice_command: splice_command as SpliceInsert,
+                descriptor_loop_length,
+                splice_descriptors,
+                E_CRC32,
+                CRC32
+            };
+            break;
+        case SCTE35CommandType.kTimeSignal:
+            detail = {
+                table_id,
+                section_syntax_indicator,
+                private_indicator,
+                section_length,
+                protocol_version,
+                encrypted_packet,
+                encryption_algorithm,
+                pts_adjustment,
+                cw_index,
+                tier,
+                splice_command_length,
+                splice_command_type: SCTE35CommandType.kTimeSignal,
+                splice_command: splice_command as TimeSignal,
+                descriptor_loop_length,
+                splice_descriptors,
+                E_CRC32,
+                CRC32
+            };
+            break;
+        case SCTE35CommandType.kBandwidthReservation:
+            detail = {
+                table_id,
+                section_syntax_indicator,
+                private_indicator,
+                section_length,
+                protocol_version,
+                encrypted_packet,
+                encryption_algorithm,
+                pts_adjustment,
+                cw_index,
+                tier,
+                splice_command_length,
+                splice_command_type: SCTE35CommandType.kBandwidthReservation,
+                splice_command: splice_command as BandwidthReservation,
+                descriptor_loop_length,
+                splice_descriptors,
+                E_CRC32,
+                CRC32
+            };
+            break;
+        case SCTE35CommandType.kPrivateCommand:
+            detail = {
+                table_id,
+                section_syntax_indicator,
+                private_indicator,
+                section_length,
+                protocol_version,
+                encrypted_packet,
+                encryption_algorithm,
+                pts_adjustment,
+                cw_index,
+                tier,
+                splice_command_length,
+                splice_command_type: SCTE35CommandType.kPrivateCommand,
+                splice_command: splice_command as PrivateCommand,
+                descriptor_loop_length,
+                splice_descriptors,
+                E_CRC32,
+                CRC32
+            };
+            break;
+    }
 
     if (splice_command_type === SCTE35CommandType.kSpliceInsert) {
         const spliceInsert = splice_command as SpliceInsert;
@@ -663,15 +784,15 @@ export const readSCTE35 = (data: Uint8Array): SCTE35Data => {
                 data
             }
         } else if (spliceInsert.program_splice_flag && !spliceInsert.splice_immediate_flag) {
-            const auto_return = spliceInsert.duration_flag ? spliceInsert.break_duration.auto_return : undefined;
-            const duraiton = spliceInsert.duration_flag ? spliceInsert.break_duration.duration / 90 : undefined;
+            const auto_return = spliceInsert.duration_flag ? spliceInsert.break_duration?.auto_return : undefined;
+            const duration = (spliceInsert.duration_flag && spliceInsert.break_duration?.duration) ? spliceInsert.break_duration.duration / 90 : undefined;
 
-            if (spliceInsert.splice_time.time_specified_flag) {
+            if (spliceInsert.splice_time?.time_specified_flag) {
                 return {
                     splice_command_type,
-                    pts: (pts_adjustment + spliceInsert.splice_time.pts_time) % (2 ** 33),
+                    pts: (pts_adjustment + (spliceInsert.splice_time?.pts_time ?? 0)) % (2 ** 33),
                     auto_return,
-                    duraiton,
+                    duration,
                     detail,
                     data
                 }
@@ -679,19 +800,19 @@ export const readSCTE35 = (data: Uint8Array): SCTE35Data => {
                 return {
                     splice_command_type,
                     auto_return,
-                    duraiton,
+                    duration,
                     detail,
                     data
                 }                       
             }
         } else {
-            const auto_return = spliceInsert.duration_flag ? spliceInsert.break_duration.auto_return : undefined;
-            const duraiton = spliceInsert.duration_flag ? spliceInsert.break_duration.duration / 90 : undefined;
+            const auto_return = spliceInsert.duration_flag ? spliceInsert.break_duration?.auto_return : undefined;
+            const duration = (spliceInsert.duration_flag && spliceInsert.break_duration?.duration) ? spliceInsert.break_duration.duration / 90 : undefined;
 
             return {
                 splice_command_type,
                 auto_return,
-                duraiton,
+                duration,
                 detail,
                 data
             }
@@ -702,7 +823,7 @@ export const readSCTE35 = (data: Uint8Array): SCTE35Data => {
         if (timeSignal.splice_time.time_specified_flag) {
             return {
                 splice_command_type,
-                pts: (pts_adjustment + timeSignal.splice_time.pts_time) % (2 ** 33),
+                pts: (pts_adjustment + (timeSignal.splice_time?.pts_time ?? 0)) % (2 ** 33),
                 detail,
                 data
             }
@@ -716,6 +837,7 @@ export const readSCTE35 = (data: Uint8Array): SCTE35Data => {
     } else {
         return {
             splice_command_type,
+            pts: undefined,
             detail,
             data
         }
