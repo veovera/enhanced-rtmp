@@ -179,14 +179,9 @@ class Log {
         console.log(str, ...args);
     }
 
-    static a(tag: string, msg: string): never;
-    static a(tag: string, msg: string, condition: unknown): asserts condition;
     static a(tag: string, msg: string, condition?: unknown): asserts condition {
-        if (arguments.length === 2 || !condition) {
+        if (!condition) {
             const str = `[${tag}] ASSERT FAILED: ${msg}`;
-            if (Log.ENABLE_CALLBACK) {
-                Log.emitter.emit('log', 'assert', str);
-            }
             throw new Error(str);
         }
     }
