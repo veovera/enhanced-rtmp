@@ -12,7 +12,7 @@ if (isDebug) {
 
 // Main bundle
 const mainOptions = {
-  entryPoints: ['src/main.ts'],
+  entryPoints: ['src/demo-app.ts'],
   bundle: true,
   outfile: 'dist/bundle.js',
   sourcemap: true,
