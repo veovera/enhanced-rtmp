@@ -6,12 +6,7 @@
  * 
  */
 
-import Mpegts from "@/mux-lib"
-import NativePlayer from "./mux-lib/player/native-player";
-import MSEPplayer from "./mux-lib/player/mse-player";
-import TransmuxingEvents from './mux-lib/core/transmuxing-events';
-import { Remuxer } from "./mux-lib/remux/remuxer";
-import { defaultConfig } from "./mux-lib/config";
+import { eflv, NativePlayer,  MSEPlayer, TransmuxingEvents, Remuxer, defaultConfig } from "@/mux-lib";
 
 const hasAudioLabel: HTMLLabelElement = document.createElement('label');
 const hasAudioCheckbox: HTMLInputElement = document.createElement('input');
@@ -21,7 +16,7 @@ const useWebMLabel: HTMLLabelElement = document.createElement('label');
 const useWebMCheckbox: HTMLInputElement = document.createElement('input');
 
 let videoElement: HTMLVideoElement;
-let player: MSEPplayer | NativePlayer | null = null;
+let player: MSEPlayer | NativePlayer | null = null;
 
 // Static list of files to choose from
 const fileList = [
@@ -38,9 +33,8 @@ const fileList = [
 let selectedFile = fileList[0].value; // Default selection
 
 function initLayout() {
-  //!!@ remove mpegts mentions since this is only for e-flv
-  if (!Mpegts.isSupported()) {
-    console.error("Your browser doesn't support mpegts.js");
+  if (!eflv.isSupported()) {
+    console.error("Your browser doesn't support e-flv!");
     return;
   }
 
@@ -94,10 +88,6 @@ function initLayout() {
   titleDiv.textContent = 'E-FLV Web Player';
 
   const hr = document.createElement('hr');
-
-  // Insert at the top of the body
-  document.body.insertBefore(titleDiv, document.body.firstChild);
-  document.body.insertBefore(hr, titleDiv.nextSibling);
 
   // Insert at the top of the body
   document.body.insertBefore(titleDiv, document.body.firstChild);
@@ -331,7 +321,7 @@ function updateConfigInfoBox(options: {}) {
   traceBox.value += `json: ${JSON.stringify({configOptions: mergedOptions}, null, 2)}\n\n`;
 };
 
-function createPlayer(): MSEPplayer | NativePlayer | null {
+function createPlayer(): MSEPlayer | NativePlayer | null {
   // Simpler configuration focusing on essential parameters
   // !!@TODO: add a config object
   // !!@TODO: take a look at flags below, logic to handle them is scattered around the code    console.warn('Player already exists, detaching previous media element.');
@@ -364,7 +354,7 @@ function createPlayer(): MSEPplayer | NativePlayer | null {
     rangeLoadZeroStart: true,     // Always start range requests from 0
   };
 
-  const _player = Mpegts.createPlayer(mediaDataSource, config);
+  const _player = eflv.createPlayer(mediaDataSource, config);
   updateConfigInfoBox({mediaDataSource, ...config});
 
   if (!_player) {
@@ -376,21 +366,16 @@ function createPlayer(): MSEPplayer | NativePlayer | null {
     console.error('Player error event args:', args);
   });
 
-  _player.on('sourceopen', () => {
-    console.log('MediaSource opened');
-    if (videoElement.paused) {
-      _player.play().catch((e: Error) => console.error('Play failed:', e));
-    }
-  });
-
-  _player.on('sourceended', () => {
-    console.log('MediaSource ended');
-  });
-
   _player.on('statistics_info', (stats) => {
     console.log('Player statistics:', stats);
   });
 
+  // Auto-play when metadata is ready on the media element
+  videoElement.addEventListener('loadedmetadata', () => {
+    if (videoElement.paused) {
+      _player.play().catch((e: Error) => console.error('Play failed:', e));
+    }
+  }, { once: true });
 
   _player.on(TransmuxingEvents.SCRIPTDATA_ARRIVED, (scriptData) => {
     const traceBox = document.getElementById('videoMetadataBox') as HTMLTextAreaElement;
@@ -485,4 +470,3 @@ window.addEventListener('load', () => {
   videoElement.src = "./assets/bbb-av1.webm"; // Default video source
   initLayout();
 });
-

@@ -28,11 +28,8 @@ class MSEPlayer {
 
     public constructor(mediaDataSource: any, optionalConfig?: any) {
         const typeLowerCase: string = mediaDataSource.type.toLowerCase();
-        if (typeLowerCase !== 'mse'
-                && typeLowerCase !== 'mpegts'
-                && typeLowerCase !== 'm2ts'
-                && typeLowerCase !== 'flv') {
-            throw new InvalidArgumentException('MSEPlayer requires an mpegts/m2ts/flv MediaDataSource input!');
+        if (typeLowerCase !== 'mse' && typeLowerCase !== 'flv') {
+            throw new InvalidArgumentException('MSEPlayer requires an mse/flv MediaDataSource input!');
         }
 
         if (optionalConfig?.enableWorkerForMSE && PlayerEngineDedicatedThread.isSupported()) {

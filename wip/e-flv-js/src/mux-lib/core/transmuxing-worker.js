@@ -10,9 +10,7 @@
  * See Git history for full details. 
  */
 
-import Log from '../utils/logger.js';
 import LoggingControl from '../utils/logging-control.js';
-import Polyfill from '../utils/polyfill.js';
 import TransmuxingController from './transmuxing-controller.js';
 import TransmuxingEvents from './transmuxing-events';
 
@@ -34,8 +32,6 @@ let TransmuxingWorker = function (self) {
     let TAG = 'TransmuxingWorker';
     let controller = null;
     let logcatListener = onLogcatCallback.bind(this);
-
-    Polyfill.install();
 
     self.addEventListener('message', function (e) {
         switch (e.data.cmd) {
