@@ -17,9 +17,12 @@ const useWebMCheckbox: HTMLInputElement = document.createElement('input');
 
 let videoElement: HTMLVideoElement;
 let player: MSEPlayer | NativePlayer | null = null;
+let fileSelect: HTMLSelectElement;
 
-// Static list of files to choose from
-const fileList = [
+// Static list of files to choose from, note: these files must be present in the assets folder
+// farther down we overrite this list and dynamically populate the dropdown with folder contents
+// this list is for reference/debugging
+let fileList = [
   { label: "bbb-avc-aac.flv", value: "./assets/bbb-avc-aac.flv" },
   { label: "bbb-hevc-aac.flv", value: "./assets/bbb-hevc-aac.flv" },
   { label: "bbb-av1-aac.flv", value: "./assets/bbb-av1-aac.flv" },
@@ -31,6 +34,21 @@ const fileList = [
   { label: "bbb-av1-aac-allkey.flv", value: "./assets/bbb-av1-aac-allkey.flv" },
 ];
 let selectedFile = fileList[0].value; // Default selection
+
+function populateFileList() {
+  // Clear existing options
+  fileSelect.innerHTML = '';
+
+  // Populate with new options
+  fileList.forEach(file => {
+    const option = document.createElement('option');
+    option.value = file.value;
+    option.textContent = file.label;
+    fileSelect.appendChild(option);
+  });
+
+  fileSelect.value = selectedFile;
+}
 
 function initLayout() {
   if (!eflv.isSupported()) {
@@ -99,15 +117,9 @@ function initLayout() {
   document.body.appendChild(document.createElement('hr'));
 
   // Add dropdown for file selection
-  const fileSelect = document.createElement('select');
+  fileSelect = document.createElement('select');
   fileSelect.id = 'fileSelect';
-  fileList.forEach(file => {
-    const option = document.createElement('option');
-    option.value = file.value;
-    option.textContent = file.label;
-    fileSelect.appendChild(option);
-  });
-  fileSelect.value = selectedFile;
+  populateFileList();
   fileSelect.onchange = () => {
     selectedFile = fileSelect.value;
   };
@@ -449,6 +461,7 @@ function createPlayer(): MSEPlayer | NativePlayer | null {
   });
 
 
+
   // Simple initialization sequence
   try {
     _player.attachMediaElement(videoElement);
@@ -459,6 +472,7 @@ function createPlayer(): MSEPlayer | NativePlayer | null {
 
   return _player;
 }
+
 // Initialize only after window load
 window.addEventListener('load', () => {
   videoElement = document.getElementById('videoElement') as HTMLVideoElement;
@@ -470,3 +484,70 @@ window.addEventListener('load', () => {
   videoElement.src = "./assets/bbb-av1.webm"; // Default video source
   initLayout();
 });
+
+interface FlvListing {
+  path: string;
+  list: string[];
+}
+
+interface FlvFileLists {
+  assets: FlvListing;
+  demoAssets: FlvListing;
+}
+
+const DEMO_ASSETS_DIR = './demo-assets';
+const ASSETS_DIR = './assets';
+
+async function fetchAndExtractList(path: string): Promise<FlvListing> {
+  const res = await fetch(path, { cache: 'no-cache' });
+  if (!res.ok) throw new Error(`HTTP ${res.status} for ${path}`);
+
+  const html = await res.text();
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+
+  const items = Array.from(doc.querySelectorAll('a[href]'))
+    .map(a => (a as HTMLAnchorElement).getAttribute('href') || '')
+    .filter(href => href && !href.startsWith('?'))
+    .map(href => new URL(href, res.url))
+    .filter(u => u.pathname.toLowerCase().endsWith('.flv'))
+    .map(u => decodeURIComponent(u.pathname.split('/').pop() || ''));
+
+  const list = Array.from(new Set(items)).sort((a, b) => a.localeCompare(b));
+  return { path, list };
+}
+
+async function getFlvFileList(): Promise<FlvFileLists> {
+  const [demoAssets, assets]: [FlvListing, FlvListing] = await Promise.all([
+    fetchAndExtractList(DEMO_ASSETS_DIR),
+    fetchAndExtractList(ASSETS_DIR),
+  ]);
+
+  if (demoAssets.list.length === 0 && assets.list.length === 0) {
+    throw new Error('No FLV files found in demo-assets or assets');
+  }
+
+  return { assets, demoAssets };
+}
+
+getFlvFileList()
+  .then(({ assets, demoAssets }) => {
+    if (demoAssets.list.length > 0) {
+      fileList = demoAssets.list.map(filename => ({
+        label: filename,
+        value: `${DEMO_ASSETS_DIR}/${filename}`
+      }));
+    }
+
+    if (assets.list.length > 0) {
+      fileList = fileList.concat(assets.list.map(filename => ({
+        label: filename,
+        value: `${ASSETS_DIR}/${filename}`
+      })));
+    }
+
+    populateFileList();
+    console.log('Assets FLV files:', assets.list);
+    console.log('Demo-assets FLV files:', demoAssets.list);
+    // Use the lists here
+  })
+  .catch(err => console.error('Failed to get FLV files:', err));
