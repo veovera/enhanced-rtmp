@@ -47,7 +47,7 @@ function populateFileList() {
     fileSelect.appendChild(option);
   });
 
-  fileSelect.value = selectedFile;
+  fileSelect.value = selectedFile = fileList[0].value; // Select the first file by default
 }
 
 function initLayout() {
@@ -176,7 +176,7 @@ function initLayout() {
   useWebMCheckbox.checked = true;
   useWebMLabel.textContent = '';
   useWebMLabel.appendChild(useWebMCheckbox);
-  useWebMLabel.append('Use WebM');
+  useWebMLabel.append('Use WebM (valid for AV1/Opus codecs)');
 
   // Append the button to the controlsDiv
   controlsDiv.appendChild(fileSelect);
@@ -546,8 +546,5 @@ getFlvFileList()
     }
 
     populateFileList();
-    console.log('Assets FLV files:', assets.list);
-    console.log('Demo-assets FLV files:', demoAssets.list);
-    // Use the lists here
   })
   .catch(err => console.error('Failed to get FLV files:', err));
