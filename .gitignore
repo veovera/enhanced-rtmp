@@ -50,3 +50,6 @@
 # Cache
 **/.cache/
 **/.temp/
+
+# Claude Code
+**/.claude/settings.local.json
