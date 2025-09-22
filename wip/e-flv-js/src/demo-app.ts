@@ -19,21 +19,26 @@ let videoElement: HTMLVideoElement;
 let player: MSEPlayer | NativePlayer | null = null;
 let fileSelect: HTMLSelectElement;
 
+interface FileItem {
+  label: string;
+  path: string;
+}
+
 // Static list of files to choose from, note: these files must be present in the assets folder
 // farther down we overrite this list and dynamically populate the dropdown with folder contents
 // this list is for reference/debugging
-let fileList = [
-  { label: "bbb-avc-aac.flv", value: "./assets/bbb-avc-aac.flv" },
-  { label: "bbb-hevc-aac.flv", value: "./assets/bbb-hevc-aac.flv" },
-  { label: "bbb-av1-aac.flv", value: "./assets/bbb-av1-aac.flv" },
-  { label: "bbb-av1-opus.flv", value: "./assets/bbb-av1-opus.flv" },
-  { label: "bbb-vp9-aac.flv", value: "./assets/bbb-vp9-aac.flv" },
-  { label: "test-av1-aac.flv", value: "./assets/test-av1-aac.flv" },
-  { label: "bbb-av1-aac-10s-4thframe-iskey.flv", value: "./assets/bbb-av1-aac-10s-4thframe-iskey.flv" },
-  { label: "bbb-av1-aac-60thframe-iskey.flv", value: "./assets/bbb-av1-aac-60thframe-iskey.flv" },
-  { label: "bbb-av1-aac-allkey.flv", value: "./assets/bbb-av1-aac-allkey.flv" },
+let fileList: FileItem[] = [
+  { label: "bbb-avc-aac.flv", path: "./assets/bbb-avc-aac.flv" },
+  { label: "bbb-hevc-aac.flv", path: "./assets/bbb-hevc-aac.flv" },
+  { label: "bbb-av1-aac.flv", path: "./assets/bbb-av1-aac.flv" },
+  { label: "bbb-av1-opus.flv", path: "./assets/bbb-av1-opus.flv" },
+  { label: "bbb-vp9-aac.flv", path: "./assets/bbb-vp9-aac.flv" },
+  { label: "test-av1-aac.flv", path: "./assets/test-av1-aac.flv" },
+  { label: "bbb-av1-aac-10s-4thframe-iskey.flv", path: "./assets/bbb-av1-aac-10s-4thframe-iskey.flv" },
+  { label: "bbb-av1-aac-60thframe-iskey.flv", path: "./assets/bbb-av1-aac-60thframe-iskey.flv" },
+  { label: "bbb-av1-aac-allkey.flv", path: "./assets/bbb-av1-aac-allkey.flv" },
 ];
-let selectedFile = fileList[0].value; // Default selection
+let selectedFile = fileList[0].path; // Default selection
 
 function populateFileList() {
   // Clear existing options
@@ -42,12 +47,12 @@ function populateFileList() {
   // Populate with new options
   fileList.forEach(file => {
     const option = document.createElement('option');
-    option.value = file.value;
+    option.value = file.path;
     option.textContent = file.label;
     fileSelect.appendChild(option);
   });
 
-  fileSelect.value = selectedFile = fileList[0].value; // Select the first file by default
+  fileSelect.value = selectedFile = fileList[0].path; // Select the first file by default
 }
 
 function initLayout() {
@@ -530,18 +535,18 @@ async function getFlvFileList(): Promise<FlvFileLists> {
 }
 
 getFlvFileList()
-  .then(({ assets, demoAssets }) => {
+  .then(({ assets, demoAssets }: FlvFileLists) => {
     if (demoAssets.list.length > 0) {
       fileList = demoAssets.list.map(filename => ({
         label: filename,
-        value: `${DEMO_ASSETS_DIR}/${filename}`
+        path: `${DEMO_ASSETS_DIR}/${filename}`
       }));
     }
 
     if (assets.list.length > 0) {
       fileList = fileList.concat(assets.list.map(filename => ({
         label: filename,
-        value: `${ASSETS_DIR}/${filename}`
+        path: `${ASSETS_DIR}/${filename}`
       })));
     }
 
