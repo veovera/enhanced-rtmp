@@ -93,7 +93,7 @@ export class WebMRemuxer extends Remuxer {
   private _onMediaSegment = assertCallback;
 
   destroy(): void {
-    Log.v(WebMRemuxer.TAG, 'nothing to destroy');
+    this.clear();
   }
 
   get onInitSegment(): Callback {
@@ -128,11 +128,12 @@ export class WebMRemuxer extends Remuxer {
     this._audioNextDts = this._videoNextDts = NaN;
   } 
   
-  seek(originalDts: number): void {
+  clear(): void {
     this._audioStashedLastFrame = null;
     this._videoStashedLastFrame = null;
     this._videoSegmentInfoList.clear();
     this._audioSegmentInfoList.clear();
+    this._pendingVideoFrames = [];
   }
   
   // !!@ TODO: try to move away from undefined when dealing with numbers?
@@ -313,7 +314,7 @@ export class WebMRemuxer extends Remuxer {
   }
 
   private _remuxVideo(videoTrack: VideoTrack, force: boolean = false): void {
-    if (videoTrack.frames.length === 0) {
+    if (videoTrack.frames.length === 0 && !force) {
       return;
     }
 
@@ -328,6 +329,11 @@ export class WebMRemuxer extends Remuxer {
         videoTrack.sequenceNumber++;
       }
       this._pendingVideoFrames.push(frame);
+    }
+
+    // Force flush if requested (e.g., at end of stream or discontinuity)
+    if (force) {
+      this._flushPendingVideoFrames();
     }
 
     videoTrack.frames = [];

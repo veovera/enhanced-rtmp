@@ -109,7 +109,7 @@ export class MP4Remuxer extends Remuxer {
         this._audioNextDts = this._videoNextDts = NaN;
     }
 
-    seek(originalDts: number) {
+    clear() {
         this._audioStashedLastFrame = null;
         this._videoStashedLastFrame = null;
         this._videoSegmentInfoList.clear();

@@ -188,7 +188,7 @@ class TransmuxingController {
                 this._pendingSeekTime = milliseconds;
             } else {
                 let keyframe = segmentInfo.getNearestKeyframe(milliseconds);
-                this._remuxer.seek(keyframe!.milliseconds);
+                this._remuxer.clear();
                 this._ioctl!.seek(keyframe!.fileposition);
                 // Will be resolved in _onRemuxerMediaSegmentArrival()
                 this._pendingResolveSeekPoint = keyframe!.milliseconds;
@@ -201,7 +201,7 @@ class TransmuxingController {
                 // target segment hasn't been loaded. We need metadata then seek to expected time
                 this._pendingSeekTime = milliseconds;
                 this._internalAbort();
-                this._remuxer.seek(milliseconds);
+                this._remuxer.clear();
                 this._remuxer.insertDiscontinuity();
                 this._loadSegment(targetSegmentIndex);
                 // Here we wait for the metadata loaded, then seek to expected position
@@ -209,7 +209,7 @@ class TransmuxingController {
                 // We have target segment's metadata, direct seek to target position
                 let keyframe = targetSegmentInfo.getNearestKeyframe(milliseconds);
                 this._internalAbort();
-                this._remuxer.seek(milliseconds);
+                this._remuxer.clear();
                 this._remuxer.insertDiscontinuity();
                 this._demuxer!.resetMediaInfo();
                 this._demuxer!.timestampBase = this._mediaDataSource.segments[targetSegmentIndex].timestampBase;

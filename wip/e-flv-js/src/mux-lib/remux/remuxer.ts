@@ -52,7 +52,7 @@ export abstract class Remuxer {
   abstract destroy(): void;
   abstract bindDataSource(producer: FLVDemuxer): this;
   abstract insertDiscontinuity(): void;
-  abstract seek(originalDts: number): void;
+  abstract clear(): void;
   abstract flushStashedFrames(): void;
 
   abstract get timestampBase(): number | undefined;
