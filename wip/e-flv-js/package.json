@@ -9,7 +9,7 @@
     "serve": "http-server . -c-1",
     "start": "npm run build && npm run serve",
     "type-check": "tsc --noEmit",
-    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
+    "lint": "eslint .",
     "check": "npm run type-check && npm run lint"
   },
   "keywords": [
@@ -21,13 +21,16 @@
   "license": "Apache-2.0",
   "type": "module",
   "devDependencies": {
+    "@eslint/js": "^9.36.0",
     "@types/node": "^22.14.0",
-    "@typescript-eslint/eslint-plugin": "^8.29.0",
-    "@typescript-eslint/parser": "^8.29.0",
     "esbuild": "^0.25.2",
-    "eslint": "^9.24.0",
+    "eslint": "^9.36.0",
+    "eslint-import-resolver-typescript": "^4.4.4",
+    "eslint-plugin-import": "^2.32.0",
+    "globals": "^16.4.0",
     "http-server": "^14.1.1",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.45.0"
   },
   "dependencies": {
     "eventemitter3": "^5.0.1"
