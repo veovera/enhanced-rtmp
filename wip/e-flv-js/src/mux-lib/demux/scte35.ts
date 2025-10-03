@@ -268,7 +268,7 @@ const parseSpliceScheduleEvent = (reader: ExpGolomb): SpliceScheduleEvent => {
     return spliceScheduleEvent;
 }
 
-type SpliceNull = {}
+type SpliceNull = object;
 type SpliceSchedule = {
     splice_count: number,
     events: SpliceScheduleEvent[],
@@ -291,7 +291,7 @@ type SpliceInsert = {
 type TimeSignal = {
     splice_time: SpliceTime
 }
-type BandwidthReservation = {}
+type BandwidthReservation = object;
 type PrivateCommand = {
     identifier: string,
     private_data: ArrayBuffer

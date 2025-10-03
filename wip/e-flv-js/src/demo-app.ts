@@ -330,7 +330,7 @@ function initLayout() {
   });
 }
 
-function updateConfigInfoBox(options: {}) {
+function updateConfigInfoBox(options: object) {
   const mergedOptions = { ...defaultConfig, ...options };
   const traceBox = document.getElementById('configInfoBox') as HTMLTextAreaElement;
   traceBox.value = "*** Player Configuration ***\n";

@@ -25,7 +25,7 @@ class Transmuxer {
 
         if (config.enableWorker && typeof (Worker) !== 'undefined') {
             try {
-                this._worker = work(require.resolve('./transmuxing-worker'));
+                this._worker = new Worker(new URL('./transmuxing-worker.js', import.meta.url));
                 this._workerDestroying = false;
                 this._worker.addEventListener('message', this._onWorkerMessage.bind(this));
                 this._worker.postMessage({cmd: 'init', param: [mediaDataSource, config]});

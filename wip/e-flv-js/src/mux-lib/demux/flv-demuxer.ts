@@ -1486,11 +1486,11 @@ export class FLVDemuxer {
             case FlvVideoPacketType.SequenceEnd:
                 // empty, AV1 end of sequence
                 break;
-            case FlvVideoPacketType.Metadata:
+            case FlvVideoPacketType.Metadata: {
                 const typeName = FlvVideoPacketType[packetType] ?? String(packetType);
                 Log.w(FLVDemuxer.TAG, `_parseAV1VideoPacket(): unsupported FlvVideoPacketType=${typeName} ts=${tagTimestamp} offset=${dataOffset} size=${dataSize} action=drop`);
-
                 break;
+            }
 
             default:
                 this._onError(DemuxErrors.FORMAT_ERROR, `Flv: invalid AV1 video packet type ${packetType}`);
@@ -1832,12 +1832,11 @@ export class FLVDemuxer {
         }
 
         const version = v.getUint8(0) & 0x7F;
-        const seq_profile = (v.getUint8(1) & 0xE0) >> 5;
-        const seq_level_idx = (v.getUint8(1) & 0x8F) >> 0;
-        const seq_tier = (v.getUint8(2) & 0x80) >> 7;
 
-        // used to advance the parser
-        void seq_profile, seq_level_idx, seq_tier;
+        // Read but currently unused; kept for advancing the parser in the future
+        const _seq_profile = (v.getUint8(1) & 0xE0) >> 5;
+        const _seq_level_idx = (v.getUint8(1) & 0x8F) >> 0;
+        const _seq_tier = (v.getUint8(2) & 0x80) >> 7;
 
         if (version !== 1) {
             this._onError(DemuxErrors.FORMAT_ERROR, 'Flv: Invalid AV1CodecConfigurationRecord');
