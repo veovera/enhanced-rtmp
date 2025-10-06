@@ -28,15 +28,7 @@ interface FileItem {
 // farther down we overrite this list and dynamically populate the dropdown with folder contents
 // this list is for reference/debugging
 let fileList: FileItem[] = [
-  { label: "bbb-avc-aac.flv", path: "./assets/bbb-avc-aac.flv" },
-  { label: "bbb-hevc-aac.flv", path: "./assets/bbb-hevc-aac.flv" },
-  { label: "bbb-av1-aac.flv", path: "./assets/bbb-av1-aac.flv" },
-  { label: "bbb-av1-opus.flv", path: "./assets/bbb-av1-opus.flv" },
-  { label: "bbb-vp9-aac.flv", path: "./assets/bbb-vp9-aac.flv" },
-  { label: "test-av1-aac.flv", path: "./assets/test-av1-aac.flv" },
-  { label: "bbb-av1-aac-10s-4thframe-iskey.flv", path: "./assets/bbb-av1-aac-10s-4thframe-iskey.flv" },
-  { label: "bbb-av1-aac-60thframe-iskey.flv", path: "./assets/bbb-av1-aac-60thframe-iskey.flv" },
-  { label: "bbb-av1-aac-allkey.flv", path: "./assets/bbb-av1-aac-allkey.flv" },
+  { label: "bbb.flv", path: "./demo-assets/bbb.flv" },
 ];
 let selectedFile = fileList[0].path; // Default selection
 
@@ -486,7 +478,7 @@ window.addEventListener('load', () => {
     return;
   }
   videoElement.controls = true;
-  videoElement.src = "./assets/bbb-av1.webm"; // Default video source
+  videoElement.src = "./demo-assets/testsrc.webm"; // Default video source for native playback
   initLayout();
 });
 
@@ -505,7 +497,9 @@ const ASSETS_DIR = './assets';
 
 async function fetchAndExtractList(path: string): Promise<FlvListing> {
   const res = await fetch(path, { cache: 'no-cache' });
-  if (!res.ok) throw new Error(`HTTP ${res.status} for ${path}`);
+  if (!res.ok) {
+    console.warn(`HTTP ${res.status} for ${path}. Folder may not exist.`);
+  }
 
   const html = await res.text();
   const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -528,7 +522,7 @@ async function getFlvFileList(): Promise<FlvFileLists> {
   ]);
 
   if (demoAssets.list.length === 0 && assets.list.length === 0) {
-    throw new Error('No FLV files found in demo-assets or assets');
+    throw new Error('No FLV files found in demo-assets or assets folders.');
   }
 
   return { assets, demoAssets };
