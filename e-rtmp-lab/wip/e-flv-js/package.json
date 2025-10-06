@@ -1,0 +1,38 @@
+{
+  "name": "web-player",
+  "version": "0.0.1-alpha.0",
+  "description": "Web-based E-FLV player",
+  "main": "index.js",
+  "scripts": {
+    "build": "node build.js --minify",
+    "dev": "node build.js --watch --debug",
+    "serve": "http-server . -c-1",
+    "start": "npm run build && npm run serve",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint .",
+    "check": "npm run type-check && npm run lint"
+  },
+  "keywords": [
+    "E-RTMP",
+    "E-FLV",
+    "player"
+  ],
+  "author": "Slavik Lozben",
+  "license": "Apache-2.0",
+  "type": "module",
+  "devDependencies": {
+    "@eslint/js": "^9.36.0",
+    "@types/node": "^22.14.0",
+    "esbuild": "^0.25.2",
+    "eslint": "^9.36.0",
+    "eslint-import-resolver-typescript": "^4.4.4",
+    "eslint-plugin-import": "^2.32.0",
+    "globals": "^16.4.0",
+    "http-server": "^14.1.1",
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.45.0"
+  },
+  "dependencies": {
+    "eventemitter3": "^5.0.1"
+  }
+}
