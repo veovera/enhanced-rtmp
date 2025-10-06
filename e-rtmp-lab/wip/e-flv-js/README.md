@@ -1,6 +1,6 @@
 # e-flv-js
 
-Hybrid TypeScript/JavaScript implementation, with most core modules ported to TypeScript, for playing enhanced FLV (E‑FLV) and legacy FLV in the browser via [Media Source Extensions (MSE)](https://developer.mozilla.org/docs/Web/API/Media_Source_Extensions_API). Bundles a reusable mux/demux/remux library with a demo app. Currently supports main‑thread only; the worker pipeline is disabled.
+Hybrid TypeScript/JavaScript implementation, with most core modules ported to TypeScript, for playing enhanced FLV (E‑FLV) and legacy FLV files in the browser via [Media Source Extensions (MSE)](https://developer.mozilla.org/docs/Web/API/Media_Source_Extensions_API). Bundles a reusable mux/demux/remux library with a demo app. Currently supports main‑thread only; the worker pipeline is disabled.
 
 ## Background and scope
 
