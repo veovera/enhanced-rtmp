@@ -28,7 +28,7 @@ Protocols and standards should be open and free, fostering innovation and creati
 
 For the latest insights and updates on these exciting developments, we invite you to explore our [news feed](https://veovera.github.io/enhanced-rtmp/docs/news/feed).
 
-### E-RTMP Lab
+## E-RTMP Lab
 
 To advance and validate new capabilities of the Enhanced-RTMP (E-RTMP) specification, the Veovera Software Organization maintains an [E-RTMP Lab](https://github.com/veovera/enhanced-rtmp/tree/main/e-rtmp-lab) workspace within this repository.
 
