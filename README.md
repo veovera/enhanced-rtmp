@@ -28,6 +28,18 @@ Protocols and standards should be open and free, fostering innovation and creati
 
 For the latest insights and updates on these exciting developments, we invite you to explore our [news feed](https://veovera.github.io/enhanced-rtmp/docs/news/feed).
 
+### E-RTMP Lab
+
+To advance and validate new capabilities of the Enhanced-RTMP (E-RTMP) specification, the Veovera Software Organization maintains an [E-RTMP Lab](https://github.com/veovera/enhanced-rtmp/tree/main/e-rtmp-lab) workspace within this repository.
+
+The lab provides a structured environment for developing and evaluating new ideas, tools, and reference implementations. Each project within the lab resides under the `wip/` directory, with dedicated documentation and tooling for efficient iteration.
+
+Current projects include:
+
+- [wip/e-flv-js](https://github.com/veovera/enhanced-rtmp/tree/main/e-rtmp-lab/wip/e-flv-js) - A hybrid TypeScript/JavaScript implementation for playing **Enhanced FLV (E-FLV)** and **legacy FLV files** in the browser using **Media Source Extensions (MSE)**. Includes a demo app and sample video assets.
+
+Feedback and collaboration are welcome as the community helps refine and expand E-RTMP’s capabilities.
+
 ## Community Engagement
 
 In the spirit of open collaboration and continuous improvement, we highly value the community's feedback and contributions. Our work, including detailed documentation, the latest enhancements, and avenues for community engagement, is hosted on GitHub. We invite you to join our efforts by visiting our GitHub repository at <[https://github.com/veovera/enhanced-rtmp](https://github.com/veovera/enhanced-rtmp)>. Here, you can access our publications, contribute to the project, and share your insights by creating [new issues](https://github.com/veovera/enhanced-rtmp/issues).
