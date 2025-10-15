@@ -20,7 +20,7 @@ As the media streaming landscape continues to evolve, the VSO has emerged as a p
 - **Multitrack Capabilities:** New audio and video multitrack capabilities for concurrent management and processing of multiple media streams, enhancing media experiences.  
 - **Reconnect Request Feature:** A new Reconnect Request feature improves connection stability and resilience.  
 - **Timestamp Precision:** Introduction of nanosecond precision offsets, ensuring enhanced synchronization and compatibility across diverse media formats such as MP4, M2TS, and Safari's Media Source Extensions, without altering the core RTMP timestamps.
-- **ModEx Signal:** A signaling mechanism that lets packets carry modifiers or extensions, enabling precise control over timing, metadata, and other media stream behaviors. 
+- **ModEx Signal:** A signaling mechanism that lets packets carry modifiers or extensions, enabling precise control over timing, metadata, and other media stream behaviors.
 
 These enhancements are designed to align RTMP with contemporary streaming technology standards, ensuring its relevance and efficacy in today's digital landscape.
 
