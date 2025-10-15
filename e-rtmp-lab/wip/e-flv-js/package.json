@@ -4,13 +4,14 @@
   "description": "Web-based E-FLV player",
   "main": "index.js",
   "scripts": {
-    "build": "node build.js --minify",
+    "build": "npm run clean && node build.js --minify",
     "dev": "node build.js --watch --debug",
     "serve": "http-server . -c-1",
     "start": "npm run build && npm run serve",
     "type-check": "tsc --noEmit",
     "lint": "eslint .",
-    "check": "npm run type-check && npm run lint"
+    "check": "npm run type-check && npm run lint",
+    "clean": "rm -rf dist"
   },
   "keywords": [
     "E-RTMP",
