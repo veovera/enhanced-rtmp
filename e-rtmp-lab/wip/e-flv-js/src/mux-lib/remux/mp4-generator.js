@@ -208,7 +208,7 @@ class MP4 {
 
     // Track header box
     static tkhd(meta) {
-        let trackId = meta.id, duration = meta.duration;
+        let trackId = meta.trackId, duration = meta.duration;
         let width = meta.presentWidth, height = meta.presentHeight;
 
         return MP4.box(MP4.types.tkhd, new Uint8Array([
@@ -631,7 +631,7 @@ class MP4 {
     }
 
     static avc1(meta) {
-        let avcc = meta.avcc;
+        let avcc = meta.codecConfig;
         let width = meta.codecWidth, height = meta.codecHeight;
 
         let data = new Uint8Array([
@@ -665,7 +665,7 @@ class MP4 {
     }
 
     static hvc1(meta) {
-        let hvcc = meta.hvcc;
+        let hvcc = meta.codecConfig;
         let width = meta.codecWidth, height = meta.codecHeight;
 
         let data = new Uint8Array([
@@ -699,7 +699,7 @@ class MP4 {
     }
 
     static av01(meta) {
-        let av1c = meta.av1c;
+        let av1c = meta.codecConfig;
         let width = meta.codecWidth || 192, height = meta.codecHeight || 108;
 
         let data = new Uint8Array([
@@ -739,7 +739,7 @@ class MP4 {
 
     // Track Extends box
     static trex(meta) {
-        let trackId = meta.id;
+        let trackId = meta.trackId;
         let data = new Uint8Array([
             0x00, 0x00, 0x00, 0x00,  // version(0) + flags
             (trackId >>> 24) & 0xFF, // track_ID

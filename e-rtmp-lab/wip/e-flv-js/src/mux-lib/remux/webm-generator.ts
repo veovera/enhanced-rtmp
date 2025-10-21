@@ -7,7 +7,7 @@
  */
 
 // web
-import { AudioFrame, AudioMetadata, VideoFrame, VideoMetadata } from "../demux/flv-demuxer.js";
+import { AudioFrame, AudioMetadata, VideoFrame, VideoMetadata, VideoCodecType } from "../demux/flv-demuxer.js";
 import Log from "../utils/logger.js";
 import AV1OBUParser from "../demux/av1-parser.js";
 
@@ -57,7 +57,6 @@ enum ClusterBlockMode {
 }
 const clusterBlockMode: ClusterBlockMode = ClusterBlockMode.SimpleBlock; // Most compatible with MSE
 
-type WebMCodec = 'VP8' | 'VP9' | 'AV1' | 'Opus' | 'Vorbis';
 enum EbmlId {
   Ebml                = 0x1A45DFA3,
   EbmlVersion         = 0x4286,
@@ -192,8 +191,20 @@ function concatUint8Arrays(buffers: Uint8Array[]): Uint8Array {
   return result;
 }
 
+function GetCodecId(codecType: VideoCodecType): string {
+  switch (codecType) {
+    case VideoCodecType.Vp9:
+      return "V_VP9";
+    case VideoCodecType.Av1:
+      return "V_AV1";
+    default:
+      Log.a(WebMGenerator.TAG, `GetCodecId(): Unsupported codec ${VideoCodecType[codecType]}`);
+      return '' ; // should not reach here'';
+  }
+}
+
 /**
- * Generates a minimal WebM initialization segment containing AV1 codec config.
+ * Generates a minimal WebM initialization segment containing AV1, VP9 codec config.
  */
 export class WebMGenerator {
   static readonly TAG = "WebMGenerator";
@@ -213,7 +224,7 @@ export class WebMGenerator {
    *   └─ [Tracks]
    *       └─ [TrackEntry] (video)
    *           ├─ TrackNumber, TrackUID, TrackType
-   *           ├─ CodecID = "V_AV1"
+   *           ├─ CodecID = "V_AV1" or "V_VP9" etc.
    *           ├─ CodecPrivate (AV1 OBUs)
    *           └─ [Video]
    *               ├─ PixelWidth
@@ -227,10 +238,10 @@ export class WebMGenerator {
   static generateVideoInitSegment(videoMetadata: VideoMetadata): Uint8Array {
     const width = videoMetadata.codecWidth;
     const height = videoMetadata.codecHeight;
-    const codecPrivate = videoMetadata.av1c;
+    const codecConfig = videoMetadata.codecConfig;
 
-    if (!codecPrivate) {
-      Log.e(WebMGenerator.TAG, 'generateVideoInitSegment(): Missing AV1 codec configuration (av1c)');
+    if (!codecConfig) {
+      Log.e(WebMGenerator.TAG, 'generateVideoInitSegment(): Missing codec configuration for video track');
       return new Uint8Array(0);
     }
 
@@ -262,8 +273,8 @@ export class WebMGenerator {
         encodeElement(EbmlId.TrackNumber, writeUInt(1, 1)),         // Track ID (index)
         encodeElement(EbmlId.TrackUid, writeUInt(1, 1)),            // Globally unique ID
         encodeElement(EbmlId.TrackType, writeUInt(1, 1)),           // 1 = video track
-        encodeElement(EbmlId.CodecId, writeString("V_AV1")),        // Codec string
-        encodeElement(EbmlId.CodecPrivate, codecPrivate),           // Codec config OBUs (seq_header)
+        encodeElement(EbmlId.CodecId, writeString(GetCodecId(videoMetadata.codecType))),        // Codec string
+        encodeElement(EbmlId.CodecPrivate, codecConfig),            // Codec config OBUs (seq_header)
         encodeElement(EbmlId.Video,
           concatUint8Arrays([
             encodeElement(EbmlId.VideoPixelWidth, writeUInt(width, 2)),  // e.g., 1920
@@ -433,7 +444,7 @@ export class WebMGenerator {
    * @param refFrameDuration - Reference duration for BlockDuration (used with BlockGroup).
    * @returns A Uint8Array containing the complete WebM Cluster.
    */
-  static generateVideoCluster(frames: VideoFrame[], clusterFrameIndex: number, refFrameDuration: number): Uint8Array {
+  static generateVideoCluster(frames: VideoFrame[], clusterFrameIndex: number, refFrameDuration: number, codecType: VideoCodecType): Uint8Array {
     const clusterTimecodeValue = frames[clusterFrameIndex].dts;
     const clusterTimecode = encodeElement(EbmlId.Timecode, writeUIntAuto(clusterTimecodeValue));
     let nextClusterFrameIndex = 0;
@@ -473,7 +484,7 @@ export class WebMGenerator {
         header[2] = blockTimecode & 0xff;
         header[3] = isKeyframe ? 0x80 : 0x00;      // Flags: bit 7 is keyframe, bits 1-2 are lacing (set to 0 
         
-        const framePayload = AV1OBUParser.extractOBUPayload(rawData!);
+        const framePayload = codecType === VideoCodecType.Av1 ? AV1OBUParser.extractOBUPayload(rawData!) : rawData!;
         const simpleBlock = encodeElement(EbmlId.SimpleBlock, concatUint8Arrays([header, framePayload]));
         elements.push(simpleBlock);
         //Log.d(WebMGenerator.TAG, `generateVideoCluster() - simpleBlock: key=${isKeyframe}, dts=${dts}, blockTimecode=${blockTimecode}, framePayload.length=${framePayload.length}, simpleBlock.length=${simpleBlock.length}`);
@@ -485,7 +496,7 @@ export class WebMGenerator {
         header[2] = blockTimecode & 0xff;
         header[3] = isKeyframe ? 0x80 : 0x00;      // Flags: bit 7 is keyframe, bits 1-2 are lacing (set to 0)
 
-        const framePayload = AV1OBUParser.extractOBUPayload(rawData!);
+        const framePayload = codecType === VideoCodecType.Av1 ? AV1OBUParser.extractOBUPayload(rawData!) : rawData!;
         const block = encodeElement(EbmlId.Block, concatUint8Arrays([header, framePayload]));
         const blockDuration = encodeElement(EbmlId.BlockDuration, writeUInt(refFrameDuration, 4));
         const blockGroup = encodeElement(EbmlId.BlockGroup, concatUint8Arrays([block, blockDuration]));
@@ -495,7 +506,7 @@ export class WebMGenerator {
 
     if (nextClusterFrameIndex > 0) {
       const currentCluster = encodeElement(EbmlId.Cluster, concatUint8Arrays([clusterTimecode, ...elements]));
-      const nextCluster = WebMGenerator.generateVideoCluster(frames, nextClusterFrameIndex, refFrameDuration);
+      const nextCluster = WebMGenerator.generateVideoCluster(frames, nextClusterFrameIndex, refFrameDuration, codecType);
       result = concatUint8Arrays([currentCluster, nextCluster]);
     } else {
       result = encodeElement(EbmlId.Cluster, concatUint8Arrays([clusterTimecode, ...elements]));

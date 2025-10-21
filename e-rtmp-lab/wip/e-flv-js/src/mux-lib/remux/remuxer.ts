@@ -71,6 +71,10 @@ export abstract class Remuxer {
   protected _isAudioMetadataDispatched = false;
   protected _isVideoMetadataDispatched = false;
 
+  protected _audioMeta: AudioMetadata | null = null;
+  protected _videoMeta: VideoMetadata | null = null;
+  
+  
   constructor(config: ConfigOptions) {
     this._config = config;
     this._isLive = config.isLive;

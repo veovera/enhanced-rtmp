@@ -129,6 +129,8 @@ export class WebMRemuxer extends Remuxer {
   } 
   
   clear(): void {
+    this._videoMeta = null;
+    this._audioMeta = null;
     this._audioStashedLastFrame = null;
     this._videoStashedLastFrame = null;
     this._videoSegmentInfoList.clear();
@@ -195,12 +197,12 @@ export class WebMRemuxer extends Remuxer {
     let segmentRawData: Uint8Array;
 
     if (metadata.type === TrackType.Audio) {
-      const audioMetadata = metadata as AudioMetadata;
+      const audioMetadata = this._audioMeta = metadata as AudioMetadata;
       this._refAudioFrameDuration = Number.isFinite(audioMetadata.refFrameDuration) ? audioMetadata.refFrameDuration : this._refAudioFrameDuration;
       segmentRawData = WebMGenerator.generateAudioInitSegment(audioMetadata);
       this._isAudioMetadataDispatched = true;
     } else {
-      const videoMetadata = metadata as VideoMetadata;
+      const videoMetadata = this._videoMeta = metadata as VideoMetadata;
       this._refVideoFrameDuration = Number.isFinite(videoMetadata.refFrameDuration) ? videoMetadata.refFrameDuration : this._refVideoFrameDuration;
       segmentRawData = WebMGenerator.generateVideoInitSegment(videoMetadata);
       this._isVideoMetadataDispatched = true;
@@ -289,7 +291,7 @@ export class WebMRemuxer extends Remuxer {
     //  Log.v(WebMRemuxer.TAG, `    Input Frame: dts=${frame.dts}, pts=${frame.pts}, isKeyframe=${frame.isKeyframe}, dataSize=${frame.rawData?.length ?? 0} fileposition=${frame.fileposition}`);
     //}
 
-    const segmentRawData = WebMGenerator.generateVideoCluster(this._pendingVideoFrames, 0, this._refVideoFrameDuration);
+    const segmentRawData = WebMGenerator.generateVideoCluster(this._pendingVideoFrames, 0, this._refVideoFrameDuration, this._videoMeta!.codecType);
     // Log.v(WebMRemuxer.TAG, `Generated video segment, length: ${segment.byteLength} \n${Log.dumpArrayBuffer(segment, 100)}`);
 
     if (__DEBUG__ && Remuxer.DEBUG_BUFFER) {

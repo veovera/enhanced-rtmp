@@ -32,9 +32,6 @@ export class MP4Remuxer extends Remuxer {
         private _audioStashedLastFrame: AudioFrame | null = null;
         private _videoStashedLastFrame: VideoFrame | null = null;
 
-        private _audioMeta: AudioMetadata | null = null;
-        private _videoMeta: VideoMetadata | null = null;
-
         private _audioSegmentInfoList = new MediaSegmentInfoList(TrackType.Audio);
         private _videoSegmentInfoList = new MediaSegmentInfoList(TrackType.Video);
 
