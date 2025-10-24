@@ -15,6 +15,7 @@ class MP4 {
     static types;
     
     static init() {
+        // NOTE: FourCC codes are exactly 4 chars; MP3 is 'mp3 ' (trailing space), not '.mp3'
         MP4.types = {
             avc1: [], avcC: [], btrt: [], dinf: [],
             dref: [], esds: [], ftyp: [], hdlr: [],
@@ -26,10 +27,11 @@ class MP4 {
             stts: [], tfdt: [], tfhd: [], traf: [],
             trak: [], trun: [], trex: [], tkhd: [],
             vmhd: [], smhd: [], chnl: [],
-            '.mp3': [],
+            'mp3 ': [],
             Opus: [], dOps: [], fLaC: [], dfLa: [],
             ipcm: [], pcmC: [],
             'ac-3': [], dac3: [], 'ec-3': [], dec3: [],
+            vp08: [], vp09: [], vpcC: [],
         };
 
         for (let name in MP4.types) {
@@ -47,9 +49,10 @@ class MP4 {
 
         constants.FTYP = new Uint8Array([
             0x69, 0x73, 0x6F, 0x6D,  // major_brand: isom
-            0x0,  0x0,  0x0,  0x1,   // minor_version: 0x01
-            0x69, 0x73, 0x6F, 0x6D,  // isom
-            0x61, 0x76, 0x63, 0x31   // avc1
+            0x00, 0x00, 0x00, 0x01,  // minor_version: 0x01
+            0x69, 0x73, 0x6F, 0x6D,  // 'isom'
+            0x69, 0x73, 0x6F, 0x36,  // 'iso6'
+            0x6D, 0x70, 0x34, 0x31   // 'mp41'
         ]);
 
         constants.STSD_PREFIX = new Uint8Array([
@@ -209,7 +212,8 @@ class MP4 {
     // Track header box
     static tkhd(meta) {
         let trackId = meta.trackId, duration = meta.duration;
-        let width = meta.presentWidth, height = meta.presentHeight;
+        let width = (meta.presentWidth || meta.codecWidth || 0) >>> 0;
+        let height = (meta.presentHeight || meta.codecHeight || 0) >>> 0;
 
         return MP4.box(MP4.types.tkhd, new Uint8Array([
             0x00, 0x00, 0x00, 0x07,  // version(0) + flags
@@ -336,6 +340,8 @@ class MP4 {
             return MP4.box(MP4.types.stsd, MP4.constants.STSD_PREFIX, MP4.hvc1(meta));
         } else if (meta.type === 'video' && meta.codec.startsWith('av01')) {
             return MP4.box(MP4.types.stsd, MP4.constants.STSD_PREFIX, MP4.av01(meta));
+        } else if (meta.type === 'video' && meta.codec.startsWith('vp09')) {
+            return MP4.box(MP4.types.stsd, MP4.constants.STSD_PREFIX, MP4.vp09(meta));
         } else {
             return MP4.box(MP4.types.stsd, MP4.constants.STSD_PREFIX, MP4.avc1(meta));
         }
@@ -358,7 +364,7 @@ class MP4 {
             0x00, 0x00
         ]);
 
-        return MP4.box(MP4.types['.mp3'], data);
+        return MP4.box(MP4.types['mp3 '], data);
     }
 
     static mp4a(meta) {
@@ -696,6 +702,76 @@ class MP4 {
             0xFF, 0xFF               // pre_defined = -1
         ]);
         return MP4.box(MP4.types.hvc1, data, MP4.box(MP4.types.hvcC, hvcc));
+    }
+
+    static vp09(meta) {
+        let vpcc = meta.codecConfig || null;
+        let width = meta.codecWidth || meta.presentWidth || 192;
+        let height = meta.codecHeight || meta.presentHeight || 108;
+
+        // Build a minimal vpcC if codecConfig is not provided
+        if (!vpcc) {
+            const profile = (meta.profile != null) ? meta.profile : 0;              // 0..3
+            const level = (meta.level != null) ? meta.level : 10;                   // e.g., 10, 11, 20...
+            const bitDepth = (meta.bitDepth != null) ? meta.bitDepth : 8;           // 8/10/12
+            const chromaSubsampling = (meta.chromaSubsampling != null) ? meta.chromaSubsampling : 2; // 0=444,1=422,2=420
+            const colorRange = meta.colorRange ? 1 : 0;                             // 0=limited,1=full
+            const colourPrimaries = (meta.colourPrimaries != null) ? meta.colourPrimaries : 1;          // 1=BT.709
+            const transferCharacteristics = (meta.transferCharacteristics != null) ? meta.transferCharacteristics : 1; // 1=BT.709
+            const matrixCoefficients = (meta.matrixCoefficients != null) ? meta.matrixCoefficients : 1; // 1=BT.709
+
+            vpcc = new Uint8Array([
+                0x01,                               // configurationVersion
+                profile & 0xFF,                     // profile
+                level & 0xFF,                       // level
+                ((bitDepth & 0x0F) << 4) |
+                ((chromaSubsampling & 0x07) << 1) |
+                (colorRange & 0x01),                // bitDepth/chromaSubsampling/colorRange packed
+                colourPrimaries & 0xFF,             // colourPrimaries
+                transferCharacteristics & 0xFF,     // transferCharacteristics
+                matrixCoefficients & 0xFF,          // matrixCoefficients
+                0x00, 0x00,                         // codecInitializationDataSize = 0
+            ]);
+        } else {
+            vpcc = new Uint8Array(vpcc);
+            if (vpcc.length === 7) {                
+                const fixed = new Uint8Array(9);
+                fixed.set(vpcc, 0);
+                fixed.set([0x00, 0x00], 7);
+                vpcc = fixed;
+            }
+        }
+
+        // VisualSampleEntry (same layout as avc1/av01/hvc1)
+        let data = new Uint8Array([
+            0x00, 0x00, 0x00, 0x00,  // reserved(4)
+            0x00, 0x00, 0x00, 0x01,  // reserved(2) + data_reference_index(2)
+            0x00, 0x00, 0x00, 0x00,  // pre_defined(2) + reserved(2)
+            0x00, 0x00, 0x00, 0x00,  // pre_defined: 3 * 4 bytes
+            0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+            (width >>> 8) & 0xFF,    // width: 2 bytes
+            (width) & 0xFF,
+            (height >>> 8) & 0xFF,   // height: 2 bytes
+            (height) & 0xFF,
+            0x00, 0x48, 0x00, 0x00,  // horizresolution: 4 bytes
+            0x00, 0x48, 0x00, 0x00,  // vertresolution: 4 bytes
+            0x00, 0x00, 0x00, 0x00,  // reserved: 4 bytes
+            0x00, 0x01,              // frame_count
+            0x0A,                    // strlen
+            0x78, 0x71, 0x71, 0x2F,  // compressorname: 32 bytes ("xqq/flv.js")
+            0x66, 0x6C, 0x76, 0x2E,
+            0x6A, 0x73, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00,
+            0x00, 0x18,              // depth
+            0xFF, 0xFF               // pre_defined = -1
+        ]);
+
+        return MP4.box(MP4.types.vp09, data, MP4.box(MP4.types.vpcC, vpcc));
     }
 
     static av01(meta) {

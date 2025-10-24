@@ -187,8 +187,21 @@ export interface AudioTrack {
     length: number;
 }
 
+export enum AudioCodecType {
+    Unknown = 0,
+    Mp3 = 1,
+    Aac = 2,
+    Opus = 3,
+    Flac = 4,
+    Lpcm = 5,
+}
+
 export interface AudioMetadata {
     type: TrackType.Audio;
+    codecType: AudioCodecType;
+    codec: string;
+    config: Uint8Array;  // Audio specific config / codec private data
+
     trackId: number;
     timescale: number;
     preSkipSamples: number;
@@ -197,8 +210,6 @@ export interface AudioMetadata {
     inputSampleRate: number;
     outputGain: number;
     channelCount: number;
-    config: Uint8Array;
-    codec: string;
     originalCodec: string;
     bitsPerSample: number;
     littleEndian: boolean;
@@ -207,6 +218,11 @@ export interface AudioMetadata {
 
 const AudioMetadataDefault: AudioMetadata = {
     type: TrackType.Audio,
+    codecType: AudioCodecType.Unknown,
+    codec: 'Unknown',
+    originalCodec: 'Unknown',
+    config: new Uint8Array(0),
+
     trackId: NaN,
     timescale: NaN,
     preSkipSamples: 0,
@@ -215,16 +231,13 @@ const AudioMetadataDefault: AudioMetadata = {
     inputSampleRate: NaN,
     outputGain: 0,
     channelCount: NaN,
-    config: new Uint8Array(0),
-    codec: '',
-    originalCodec: '',
     bitsPerSample: NaN,
     littleEndian: false,
     refFrameDuration: NaN,
 }
 
 export enum VideoCodecType {
-    NotValid    = 0,
+    Unknown     = 0,
     Avc         = 1,
     Hevc        = 2,
     Vp8         = 3,
@@ -237,7 +250,7 @@ export interface VideoMetadata {
     codecType: VideoCodecType;
     codec: string;
     av1Extra?: AV1Metadata;
-    codecConfig?: Uint8Array;  // / Holds avcc, hvcc, av1c, or vp9c data
+    codecConfig?: Uint8Array;  // Holds avcc, hvcc, av1c, or vp9c data
 
     trackId: number;
     timescale: number;
@@ -257,8 +270,8 @@ export interface VideoMetadata {
 
 const VideoMetadataDefault: VideoMetadata = {
     type: TrackType.Video,
-    codecType: VideoCodecType.NotValid,
-    codec: '',
+    codecType: VideoCodecType.Unknown,
+    codec: 'Unknown',
 
     trackId: NaN,
     timescale: NaN,
@@ -811,6 +824,7 @@ export class FLVDemuxer {
         }
 
         if (soundFormat === FlvSoundFormat.Aac) {
+            meta.codecType = AudioCodecType.Aac;
             let aacData = this._parseAACAudioData(arrayBuffer, dataOffset + 1, dataSize - 1);
             if (aacData == undefined) {
                 return;
@@ -865,6 +879,7 @@ export class FLVDemuxer {
                 Log.e(FLVDemuxer.TAG, `Flv: Unsupported AAC data type ${aacData.packetType}`);
             }
         } else if (soundFormat === FlvSoundFormat.Mp3) {
+            meta.codecType = AudioCodecType.Mp3;
             if (!meta.codec) {
                 // We need metadata for mp3 audio track, extract info from frame header
                 let misc = this._parseMP3AudioData(arrayBuffer, dataOffset + 1, dataSize - 1, true);
@@ -908,6 +923,7 @@ export class FLVDemuxer {
             track.frames.push(mp3Sample);
             track.length += data.length;
         } else if (soundFormat === FlvSoundFormat.LPcmLittleEndian) {
+            meta.codecType = AudioCodecType.Lpcm;
             if (!meta.codec) {
                 meta.audioSampleRate = soundRate;
                 meta.bitsPerSample = (soundSize + 1) * 8;
@@ -1202,6 +1218,7 @@ export class FLVDemuxer {
                 duration: this._duration, 
             }
         }
+        meta.codecType = AudioCodecType.Opus;
 
         if (meta.config) {
             if (buffersAreEqual(config, meta.config)) {
@@ -1289,6 +1306,8 @@ export class FLVDemuxer {
                 duration: this._duration,
             }
         }
+        meta.codecType = AudioCodecType.Flac;
+
 
         // METADATA_BLOCK_HEADER
         let header = new Uint8Array(arrayBuffer, dataOffset + 4, dataSize - 4);
