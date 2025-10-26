@@ -327,13 +327,18 @@ export class WebMGenerator {
    * @returns Uint8Array representing the init segment
    */
   static generateAudioInitSegment(audioMetadata: AudioMetadata): Uint8Array {
-    const codecConfig = audioMetadata.config;
+    const codecConfig = audioMetadata.codecConfig;
     const codec = audioMetadata.codec;
     const isOpus = codec === 'opus';
     const sampleRate = isOpus ? 48000 : audioMetadata.audioSampleRate;
     const channels = audioMetadata.channelCount;
     const codecDelayNs = Math.round(audioMetadata.preSkipSamples * (1e9 / sampleRate));
     const seekPreRollNs = 80_000_000; // 80ms in nanoseconds
+
+    if (!codecConfig) {
+      Log.e(WebMGenerator.TAG, 'generateAudioInitSegment(): Missing codec configuration for audio track');
+      return new Uint8Array(0);
+    }
 
     // Determine codec ID based on codec type
     let codecId: string;

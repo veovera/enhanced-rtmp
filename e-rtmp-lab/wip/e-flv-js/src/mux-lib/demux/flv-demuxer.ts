@@ -200,7 +200,7 @@ export interface AudioMetadata {
     type: TrackType.Audio;
     codecType: AudioCodecType;
     codec: string;
-    config: Uint8Array;  // Audio specific config / codec private data
+    codecConfig?: Uint8Array;  // Audio specific config / codec private data
 
     trackId: number;
     timescale: number;
@@ -221,7 +221,6 @@ const AudioMetadataDefault: AudioMetadata = {
     codecType: AudioCodecType.Unknown,
     codec: 'Unknown',
     originalCodec: 'Unknown',
-    config: new Uint8Array(0),
 
     trackId: NaN,
     timescale: NaN,
@@ -831,8 +830,8 @@ export class FLVDemuxer {
             }
 
             if (aacData.packetType === 0) {  // AAC sequence header (AudioSpecificConfig)
-                if (meta.config) {
-                    if (buffersAreEqual(aacData.data.config, meta.config)) {
+                if (meta.codecConfig) {
+                    if (buffersAreEqual(aacData.data.config, meta.codecConfig)) {
                         // If AudioSpecificConfig is not changed, ignore it to avoid generating initialization segment repeatedly
                         return;
                     } else {
@@ -844,7 +843,7 @@ export class FLVDemuxer {
                 meta.channelCount = misc.channelCount;
                 meta.codec = misc.codec;
                 meta.originalCodec = misc.originalCodec;
-                meta.config = misc.config;
+                meta.codecConfig = misc.config;
                 // The decode result of an aac sample is 1024 PCM samples
                 meta.refFrameDuration = 1024 / meta.audioSampleRate * meta.timescale;
                 Log.v(FLVDemuxer.TAG, 'Parsed AudioSpecificConfig');
@@ -1220,8 +1219,8 @@ export class FLVDemuxer {
         }
         meta.codecType = AudioCodecType.Opus;
 
-        if (meta.config) {
-            if (buffersAreEqual(config, meta.config)) {
+        if (meta.codecConfig) {
+            if (buffersAreEqual(config, meta.codecConfig)) {
                 // If OpusSequenceHeader is not changed, ignore it to avoid generating initialization segment repeatedly
                 return;
             } else {
@@ -1232,7 +1231,7 @@ export class FLVDemuxer {
         meta.channelCount = channelCount;
         meta.codec = 'opus';
         meta.originalCodec = 'opus';
-        meta.config = config;
+        meta.codecConfig = config;
         meta.preSkipSamples = preskipSamples;
         meta.inputSampleRate = inputSampleRate;
         meta.outputGain = outputGain;
@@ -1289,7 +1288,7 @@ export class FLVDemuxer {
 
     _parseFlacSequenceHeader(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number) {
         let meta = this._audioMetadata;
-        let track = this._audioTrack;
+        const track = this._audioTrack;
 
         if (!meta) {
             if (this._hasAudio === false && this._hasAudioFlagOverrided === false) {
@@ -1308,37 +1307,36 @@ export class FLVDemuxer {
         }
         meta.codecType = AudioCodecType.Flac;
 
-
         // METADATA_BLOCK_HEADER
-        let header = new Uint8Array(arrayBuffer, dataOffset + 4, dataSize - 4);
-        let gb = new ExpGolomb(header);
-        let minimum_block_size = gb.readBits(16); // minimum_block_size
-        let maximum_block_size = gb.readBits(16); // maximum_block_size
-        let block_size = maximum_block_size === minimum_block_size ? maximum_block_size : NaN;
-        gb.readBits(24); // minimum_frame_size
-        gb.readBits(24); // maximum_frame_size
-        let samplingFrequence = gb.readBits(20);
-        let channelCount = gb.readBits(3) + 1;
-        let bitsPerSample = gb.readBits(5) + 1;
+        const payload = new Uint8Array(arrayBuffer, dataOffset, dataSize);
+        const codecConfig = new Uint8Array(dataSize + 4);
+        codecConfig[0] = 0x80;                          // last-metadata-block flag + STREAMINFO (type 0)
+        codecConfig[1] = 0x00;
+        codecConfig[2] = 0x00;
+        codecConfig[3] = dataSize;                      // 34 bytes expected
+        codecConfig.set(payload, 4);
+
+        const gb = new ExpGolomb(payload);
+        const minimum_block_size = gb.readBits(16);     // minimum_block_size
+        const maximum_block_size = gb.readBits(16);     // maximum_block_size
+        const block_size = maximum_block_size === minimum_block_size ? maximum_block_size : 4096; // use maximum block size if variable
+        const _minimum_frame_size = gb.readBits(24);    // minimum_frame_size
+        const _maximum_frame_size = gb.readBits(24);    // maximum_frame_size
+        const samplingFrequence = gb.readBits(20);
+        const channelCount = gb.readBits(3) + 1;
+        const bitsPerSample = gb.readBits(5) + 1;
         gb.destroy();
 
-        let config = new Uint8Array(header.byteLength + 4);
-        config.set(header, 4);
-        config[0] = 1 << 7;
-        config[1] = (header.byteLength >>> 16) & 0xFF;
-        config[2] = (header.byteLength >>>  8) & 0xFF;
-        config[3] = (header.byteLength >>>  0) & 0xFF;
-
         let misc = {
-            config,
+            config: codecConfig,
             channelCount,
             samplingFrequence,
             bitsPerSample: bitsPerSample,
             codec: 'flac',
             originalCodec: 'flac',
         };
-        if (meta.config) {
-            if (buffersAreEqual(misc.config, meta.config)) {
+        if (meta.codecConfig) {
+            if (buffersAreEqual(misc.config, meta.codecConfig)) {
                 // If FlacSequenceHeader is not changed, ignore it to avoid generating initialization segment repeatedly
                 return;
             } else {
@@ -1350,7 +1348,7 @@ export class FLVDemuxer {
         meta.bitsPerSample = misc.bitsPerSample;
         meta.codec = misc.codec;
         meta.originalCodec = misc.originalCodec;
-        meta.config = misc.config;
+        meta.codecConfig = misc.config;
         meta.refFrameDuration = block_size * 1000 / misc.samplingFrequence; // practical encoder sends 4608 blobksize (lower bound limitation)
 
         Log.v(FLVDemuxer.TAG, 'Parsed FlacSequenceHeader');
@@ -2088,8 +2086,6 @@ export class FLVDemuxer {
     }
 
     _parseEnhancedVP9VideoPacket(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: number, packetType: FlvVideoPacketType) {
-        let v = new DataView(arrayBuffer, dataOffset, dataSize);
-
         switch (packetType) {
             case FlvVideoPacketType.SequenceStart:
                 this._parseVP9CodecConfigurationRecord(arrayBuffer, dataOffset, dataSize);
@@ -2098,7 +2094,7 @@ export class FLVDemuxer {
                 this._parseVP9VideoData(arrayBuffer, dataOffset, dataSize, tagTimestamp, tagPosition, frameType, 0);
                 break;
             case FlvVideoPacketType.SequenceEnd:
-                // empty, AV1 end of sequence
+                // empty, VP9 end of sequence
                 break;
             case FlvVideoPacketType.Metadata:
                 Log.w(FLVDemuxer.TAG, `_parseEnhancedVP9VideoPacket(): unsupported VP9 video packet type ${packetType} (FlvVideoPacketType.Metadata) ts=${tagTimestamp} offset=${dataOffset} size=${dataSize} action=drop`);
@@ -2242,6 +2238,7 @@ export class FLVDemuxer {
     }
 
     _parseVP9VideoData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: FlvVideoFrameType, cts: number) {
+        let length = 0;
         let units: VideoUnit[] = [];
         let dts = this._timestampBase + tagTimestamp;
         const isKeyFrame = (frameType === FlvVideoFrameType.KeyFrame);

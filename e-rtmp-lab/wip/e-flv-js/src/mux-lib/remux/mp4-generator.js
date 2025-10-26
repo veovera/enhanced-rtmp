@@ -404,7 +404,7 @@ class MP4 {
             0x00, 0x00
         ]);
 
-        return MP4.box(MP4.types['ac-3'], data, MP4.box(MP4.types.dac3, new Uint8Array(meta.config)));
+        return MP4.box(MP4.types['ac-3'], data, MP4.box(MP4.types.dac3, new Uint8Array(meta.codecConfig)));
     }
 
     static ec3(meta) {
@@ -424,11 +424,11 @@ class MP4 {
             0x00, 0x00
         ]);
 
-        return MP4.box(MP4.types['ec-3'], data, MP4.box(MP4.types.dec3, new Uint8Array(meta.config)));
+        return MP4.box(MP4.types['ec-3'], data, MP4.box(MP4.types.dec3, new Uint8Array(meta.codecConfig)));
     }
 
     static esds(meta) {
-        let config = meta.config || [];
+        let config = meta.codecConfig || [];
         let configSize = config.length;
         let data = new Uint8Array([
             0x00, 0x00, 0x00, 0x00,  // version 0 + flags
@@ -482,9 +482,9 @@ class MP4 {
         let channelConfigCode = meta.channelConfigCode;
         let sampleRate = meta.audioSampleRate;
 
-        if (meta.config) {
+        if (meta.codecConfig) {
             // Convert from little-endian (Opus native) to big-endian (MP4 required)
-            const config = new Uint8Array(meta.config).slice();
+            const config = new Uint8Array(meta.codecConfig).slice();
             const dv = new DataView(config.buffer);
 
             dv.setUint8(0, 0);                              // Version (byte 0) - also required
@@ -586,7 +586,7 @@ class MP4 {
     static dfLa(meta) {
         let data = new Uint8Array([
             0x00, 0x00, 0x00, 0x00, // version, flag
-            ... meta.config
+            ... meta.codecConfig
         ]);
         return MP4.box(MP4.types.dfLa, data);
     }
