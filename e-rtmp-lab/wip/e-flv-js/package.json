@@ -6,7 +6,7 @@
   "scripts": {
     "build": "npm run clean && node build.js --minify",
     "dev": "node build.js --watch --debug",
-    "serve": "http-server . -c-1",
+    "serve": "http-server . -c-1 -o demo-app.html",
     "start": "npm run build && npm run serve",
     "type-check": "tsc --noEmit",
     "lint": "eslint .",
