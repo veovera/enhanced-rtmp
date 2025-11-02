@@ -2,6 +2,8 @@
 
 Hybrid TypeScript/JavaScript implementation, with most core modules ported to TypeScript, for playing enhanced FLV (E‑FLV) and legacy FLV files in the browser via [Media Source Extensions (MSE)](https://developer.mozilla.org/docs/Web/API/Media_Source_Extensions_API). Bundles a reusable mux/demux/remux library with a demo app. Currently supports main‑thread only; the worker pipeline is disabled.
 
+Browse the live GitHub repository → [\<e-flv-js\>](https://github.com/veovera/enhanced-rtmp/tree/main/e-rtmp-lab/wip/e-flv-js)
+
 ## Background and scope
 
 - Goal: prototype and validate features within the E‑RTMP specification.
