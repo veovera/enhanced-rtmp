@@ -36,7 +36,7 @@
 &nbsp; \
 **Contributors**: Adobe, Google, Twitch, Jean-Baptiste Kempf (FFmpeg, VideoLAN), pkv (OBS), Dennis Sädtler (OBS), Xavier Hallade (Intel Corporation), Luxoft, SplitmediaLabs Limited (XSplit), Meta, Michael Thornburgh, Veovera Software Organization \
 &nbsp; \
-**Document Version:** **v2-2025-04-22-r1** \
+**Document Version:** **v2-2025-11-21-r1** \
 &nbsp; \
 **General Disclaimer:** The features, enhancements, and specifications described in this document are intended for informational purposes only and may not reflect the final implementation. Veovera Software Organization (VSO) does not guarantee the accuracy, completeness, or suitability of this information for any specific purpose. Users are solely responsible for any decisions or implementations based on this document. \
 &nbsp; \
@@ -244,7 +244,7 @@ This document employs certain conventions to convey particular meanings and requ
 - **E-RTMP**: refers to a series of improvements made to the legacy Real-Time Messaging Protocol [[RTMP](#rtmp)], originally developed by Adobe. While "enhanced RTMP" may be used descriptively, the preferred and consistent name for the protocol is **E-RTMP**, which serves as a consistent identifier that distinguishes the updated protocol from the legacy RTMP specification. Endorsed by Adobe and widely adopted across the industry, E-RTMP serves as the current standard for RTMP-based solutions and includes enhancements to both RTMP and the legacy [[FLV](#flv)] formats. The name E-RTMP refers to an evolving protocol and does not correspond to any single release or version. To avoid confusion, alternate forms such as ERTMP, eRTMP, Enhanced-RTMP, or EnhancedRTMP should be avoided. The lowercase hyphenated form e-rtmp is acceptable in URLs, folder names, and other technical contexts where lowercase formatting is conventional.
 - **Pseudocode**: Pseudocode has been provided to convey logic on how to interpret the E-RTMP binary format. The code style imitates a cross between TypeScript and C. The pseudocode was written in TypeScript and validated using VSCode to ensure correct syntax and catch any minor typographical errors. Below are some further explanations:
 
-  - Enumerations are used to define valid values
+  - **Enumerations define valid values for fields that appear in the encoded bitstream.** In contrast, script-level may use textual names or key/value maps, consistent with historical SCRIPTDATA and ActionScript object model.
   - Pseudo variables are named in a self-descriptive manner. For instance: \
      \
     **`videoCommand = UI8 as VideoCommand`** \
@@ -477,7 +477,7 @@ To signal FLV metadata, the item within the **ScriptTagBody** MUST encapsulate t
 +----------------------+----------------------------+-------------------------------------------------------------------------------+
 ¦audiosamplerate       ¦number                      ¦Frequency at which the audio stream is replayed                                ¦
 +----------------------+----------------------------+-------------------------------------------------------------------------------+
-¦audiosamplesize       ¦number                      ¦Resolution of a single audio sample                                            ¦
+¦audiosamplesize       ¦number                      ¦Number of bits used to represent each audio sample                             ¦
 +----------------------+----------------------------+-------------------------------------------------------------------------------+
 ¦canSeekToEnd          ¦boolean                     ¦Indicating the last video frame is a key frame                                 ¦
 +----------------------+----------------------------+-------------------------------------------------------------------------------+
@@ -504,63 +504,75 @@ To signal FLV metadata, the item within the **ScriptTagBody** MUST encapsulate t
 +----------------------+----------------------------+-------------------------------------------------------------------------------+
 ¦width                 ¦number                      ¦Width of the video, in pixels                                                  ¦
 +----------------------+----------------------------+-------------------------------------------------------------------------------+
-¦audioTrackIdInfoMap   ¦Object                      ¦The audioTrackIdInfoMap and videoTrackIdInfoMap objects are designed to store  ¦
-+----------------------+                            ¦metadata for audio and video tracks respectively. Each object uses a TrackId as¦
-¦videoTrackIdInfoMap   ¦                            ¦a key to map to properties that detail the unique characteristics of each      ¦
-¦                      ¦                            ¦individual track, diverging from the default configurations.                   ¦
+¦audioTrackIdInfoMap   ¦Object                      ¦audioTrackIdInfoMap and videoTrackIdInfoMap are objects used to provide        ¦
++----------------------+                            ¦per-track metadata for additional audio and video tracks beyond the default    ¦
+¦videoTrackIdInfoMap   ¦                            ¦track. Each object uses a trackId as a key to describe the characteristics of a¦
+¦                      ¦                            ¦specific non-default track. The default track for each media type uses trackId ¦
+¦                      ¦                            ¦= 0 and is described by the top-level onMetaData fields for that media type.   ¦
+¦                      ¦                            ¦Tracks with trackId values 1, 2, 3, … represent additional variants.           ¦
 ¦                      ¦                            ¦                                                                               ¦
-¦                      ¦                            ¦- Key-Value Structure:                                                         ¦
-¦                      ¦                            ¦  * Keys: Each TrackId acts as a unique identifier for a specific audio or     ¦
-¦                      ¦                            ¦    video track.                                                               ¦
-¦                      ¦                            ¦  * Values: Track Objects containing metadata that specify characteristics     ¦
-¦                      ¦                            ¦    which deviate from the default track settings.                             ¦
+¦                      ¦                            ¦- Key–Value Structure:                                                         ¦
+¦                      ¦                            ¦  * Keys: Each key represents a trackId for a non-default track. Keys begin at ¦
+¦                      ¦                            ¦    1, since the default track (trackId 0) is represented by the top-level     ¦
+¦                      ¦                            ¦    onMetaData fields.                                                         ¦
+¦                      ¦                            ¦  * Values: Each value is an object containing metadata that describes the     ¦
+¦                      ¦                            ¦    characteristics of that specific track.                                    ¦
 ¦                      ¦                            ¦- Properties of Each Track Object:                                             ¦
-¦                      ¦                            ¦  * These properties detail non-standard configurations needed for custom      ¦
-¦                      ¦                            ¦    handling of the track, facilitating specific adjustments to enhance track  ¦
-¦                      ¦                            ¦    performance and quality for varied conditions.                             ¦
-¦                      ¦                            ¦  * For videoTrackIdInfoMap:                                                   ¦
-¦                      ¦                            ¦    + Properties such as width, height, videodatarate, etc. specify video      ¦
-¦                      ¦                            ¦      characteristics that differ from standard settings.                      ¦
-¦                      ¦                            ¦  * For audioTrackIdInfoMap:                                                   ¦
-¦                      ¦                            ¦    + Properties such as audiodatarate, channels, etc., define audio           ¦
-¦                      ¦                            ¦      characteristics that differ from standard configurations.                ¦
+¦                      ¦                            ¦These properties describe track-level attributes for each additional track.    ¦
+¦                      ¦                            ¦These attributes often differ from the top-level onMetaData fields, for        ¦
+¦                      ¦                            ¦example, a different bitrate, resolution, codec, channel count, or other media ¦
+¦                      ¦                            ¦properties. Implementations may choose either approach:                        ¦
+¦                      ¦                            ¦  * Provide only the properties that differ from the top-level defaults        ¦
+¦                      ¦                            ¦    (delta-style), or                                                          ¦
+¦                      ¦                            ¦  * Repeat shared fields so that each track entry is a complete per-track      ¦
+¦                      ¦                            ¦    descriptor.                                                                ¦
+¦                      ¦                            ¦Both approaches are valid and interoperable. Typical fields include, but are   ¦
+¦                      ¦                            ¦not limited to:                                                                ¦
+¦                      ¦                            ¦  * For videoTrackIdInfoMap: width, height, videodatarate, codec identifier,   ¦
+¦                      ¦                            ¦    and related video characteristics.                                         ¦
+¦                      ¦                            ¦  * For audioTrackIdInfoMap: audiodatarate, channels, samplerate, codec        ¦
+¦                      ¦                            ¦    identifier, and related audio characteristics.                             ¦
 ¦                      ¦                            ¦- Purpose:                                                                     ¦
-¦                      ¦                            ¦  * The purpose of these maps is to specify unique properties for each track,  ¦
-¦                      ¦                            ¦    ensuring tailored configurations that optimize performance and quality for ¦
-¦                      ¦                            ¦    specific media content and delivery scenarios.                             ¦
+¦                      ¦                            ¦The purpose of these maps is to describe the characteristics of                ¦
+¦                      ¦                            ¦  additional tracks so that encoders, servers, and players can distinguish     ¦
+¦                      ¦                            ¦  between variants and, when needed, apply track selection or processing logic.¦
+¦                      ¦                            ¦  These maps supplement the top-level onMetaData fields by providing per-track ¦
+¦                      ¦                            ¦  metadata for multitrack scenarios such as alternative codecs, different      ¦
+¦                      ¦                            ¦  qualities, or configuration variants.                                        ¦
 ¦                      ¦                            ¦This structure provides a framework for detailed customization and control over¦
 ¦                      ¦                            ¦the media tracks, ensuring optimal management and delivery across various types¦
 ¦                      ¦                            ¦of content and platforms.                                                      ¦
 ¦                      ¦                            ¦                                                                               ¦
-¦                      ¦                            ¦Examples:                                                                      ¦
-¦                      ¦                            ¦                                                                               ¦
-¦                      ¦                            ¦e.g., 1                                                                        ¦
-¦                      ¦                            ¦videoTrackIdInfoMap = {                                                        ¦
+¦                      ¦                            ¦Example:                                                                       ¦
+¦                      ¦                            ¦// TrackId 0 is the default track and is described by the top-level            ¦
+¦                      ¦                            ¦// onMetaData fields for each media type. Additional tracks begin at TrackId 1.¦
+¦                      ¦                            ¦var videoTrackIdInfoMap = {                                                    ¦
 ¦                      ¦                            ¦  1: {                                                                         ¦
 ¦                      ¦                            ¦    width: 1024,                                                               ¦
 ¦                      ¦                            ¦    height: 768,                                                               ¦
 ¦                      ¦                            ¦    videodatarate: 2000,                                                       ¦
+¦                      ¦                            ¦    videocodecid: makeFourCc("av01"),                                          ¦
 ¦                      ¦                            ¦  },                                                                           ¦
-¦                      ¦                            ¦                                                                               ¦
-¦                      ¦                            ¦  2 : {                                                                        ¦
+¦                      ¦                            ¦  2: {                                                                         ¦
 ¦                      ¦                            ¦    width: 3840,                                                               ¦
 ¦                      ¦                            ¦    height: 2160,                                                              ¦
 ¦                      ¦                            ¦    videodatarate: 30000,                                                      ¦
+¦                      ¦                            ¦    videocodecid: makeFourCc("avc1"),                                          ¦
 ¦                      ¦                            ¦  },                                                                           ¦
 ¦                      ¦                            ¦}                                                                              ¦
 ¦                      ¦                            ¦                                                                               ¦
-¦                      ¦                            ¦e.g., 2                                                                        ¦
-¦                      ¦                            ¦audioTrackIdInfoMap = {                                                        ¦
+¦                      ¦                            ¦var audioTrackIdInfoMap = {                                                    ¦
 ¦                      ¦                            ¦  1: {                                                                         ¦
 ¦                      ¦                            ¦    audiodatarate: 256,                                                        ¦
 ¦                      ¦                            ¦    channels: 2,                                                               ¦
 ¦                      ¦                            ¦    samplerate: 44100,                                                         ¦
+¦                      ¦                            ¦    audiocodecid: makeFourCc("mp4a"),                                          ¦
 ¦                      ¦                            ¦  },                                                                           ¦
-¦                      ¦                            ¦                                                                               ¦
 ¦                      ¦                            ¦  2: {                                                                         ¦
 ¦                      ¦                            ¦    audiodatarate: 320,                                                        ¦
-¦                      ¦                            ¦    channels: 1,                                                               ¦
-¦                      ¦                            ¦    samplerate: 22050,                                                         ¦
+¦                      ¦                            ¦    channels: 2,                                                               ¦
+¦                      ¦                            ¦    samplerate: 48000,                                                         ¦
+¦                      ¦                            ¦    audiocodecid: makeFourCc("Opus"),                                          ¦
 ¦                      ¦                            ¦  },                                                                           ¦
 ¦                      ¦                            ¦}                                                                              ¦
 +----------------------+----------------------------+-------------------------------------------------------------------------------+
@@ -717,7 +729,7 @@ The **AudioTagHeader** has been extended to define additional audio codecs, mult
 &nbsp; \
 During the parsing process, the logic MUST handle unexpected or unknown elements gracefully. Specifically, if any critical signaling or flags (e.g., AudioPacketType and AudioFourCc) are not recognized, the system MUST fail in a controlled and predictable manner.
 
->**Important:** A single audio message for a unique timestamp may include a batch of AudioPacketType values (e.g., multiple **TrackId** values). When parsing an audio message, the bitstream MUST be processed completely to ensure all payload data has been handled.
+>**Important:** A single audio message for a unique timestamp may include a batch of AudioPacketType values (e.g., multiple **trackId** values). When parsing an audio message, the bitstream MUST be processed completely to ensure all payload data has been handled.
 
 **Table**: Extended **AudioTagHeader**
 
@@ -881,101 +893,127 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 ¦                                                                                    ¦  // which as defined in the AudioChannel enum).                                    ¦
 ¦    // Track Ordering:                                                              ¦  //                                                                                ¦
 ¦    //                                                                              ¦  Native      = 1,                                                                  ¦
-¦    // For identifying the highest priority (a.k.a., default track)                 ¦                                                                                    ¦
-¦    // or highest quality track, it is RECOMMENDED to use trackId                   ¦  //                                                                                ¦
-¦    // set to zero. For tracks of lesser priority or quality, use                   ¦  // The channel order does not correspond to any predefined                        ¦
-¦    // multiple instances of trackId with ascending numerical values.               ¦  // order and is stored as an explicit map.                                        ¦
-¦    // The concept of priority or quality can have multiple                         ¦  //                                                                                ¦
-¦    // interpretations, including but not limited to bitrate,                       ¦  Custom      = 2                                                                   ¦
-¦    // resolution, default angle, and language. This recommendation                 ¦                                                                                    ¦
-¦    // serves as a guideline intended to standardize track numbering                ¦  //  3 - Reserved                                                                  ¦
-¦    // across various applications.                                                 ¦  // ...                                                                            ¦
-¦    audioTrackId = UI8                                                              ¦  // 15 - reserved                                                                  ¦
-¦                                                                                    ¦}                                                                                   ¦
+¦    // To provide a consistent convention, it is RECOMMENDED that trackId 0 be      ¦                                                                                    ¦
+¦    // used for the default track of a given media type. The default track is       ¦  //                                                                                ¦
+¦    // the representation that the publisher expects most receivers to select       ¦  // The channel order does not correspond to any predefined                        ¦
+¦    // when no additional selection logic is applied, for example the primary       ¦  // order and is stored as an explicit map.                                        ¦
+¦    // or most broadly applicable presentation for the stream.                      ¦  //                                                                                ¦
+¦    //                                                                              ¦  Custom      = 2                                                                   ¦
+¦    // Additional variants, for example different bitrates, resolutions,            ¦                                                                                    ¦
+¦    // codecs, languages, or camera angles, SHOULD use distinct positive            ¦  //  3 - Reserved                                                                  ¦
+¦    // trackId values (1, 2, 3, ...). These values are identifiers only and do      ¦  // ...                                                                            ¦
+¦    // not imply any inherent ordering, priority, or quality ranking.               ¦  // 15 - reserved                                                                  ¦
+¦    //                                                                              ¦}                                                                                   ¦
+¦    // Encoders and ingesters SHOULD provide complete and accurate information      ¦                                                                                    ¦
+¦    // in the onMetaData fields for each track. This includes codec identifiers     ¦enum AudioChannelMask {                                                             ¦
+¦    // and other descriptive track-level attributes such as bitrate, resolution,    ¦  //                                                                                ¦
+¦    // sample rate, channel count, language, and similar properties relevant to     ¦  // Mask used to indicate which channels are present in the stream.                ¦
+¦    // track selection and processing.                                              ¦  //                                                                                ¦
+¦    //                                                                              ¦                                                                                    ¦
+¦    // The authoritative details for each track are also present within the         ¦  // masks for commonly used speaker configurations                                 ¦
+¦    // stream itself, for example through codec configuration records and fully     ¦  // <https://en.wikipedia.org/wiki/Surround_sound#Standard_speaker_channels>       ¦
+¦    // self-describing media packets. These in-stream signals can be used by        ¦  FrontLeft           = 0x000001,                                                   ¦
+¦    // receivers when determining appropriate processing behavior.                  ¦  FrontRight          = 0x000002,                                                   ¦
+¦    //                                                                              ¦  FrontCenter         = 0x000004,                                                   ¦
+¦    // The full definition of track selection or priority logic is beyond the       ¦  LowFrequency1       = 0x000008,                                                   ¦
+¦    // scope of the E-RTMP specification. The guidance provided here is intended    ¦  BackLeft            = 0x000010,                                                   ¦
+¦    // only to establish a consistent convention for trackId usage and related      ¦  BackRight           = 0x000020,                                                   ¦
+¦    // metadata structure. Individual implementations can use different             ¦  FrontLeftCenter     = 0x000040,                                                   ¦
+¦    // approaches when combining onMetaData information with in-stream              ¦  FrontRightCenter    = 0x000080,                                                   ¦
+¦    // signaling to perform track selection or processing.                          ¦  BackCenter          = 0x000100,                                                   ¦
+¦    //                                                                              ¦  SideLeft            = 0x000200,                                                   ¦
+¦    // Implementations MUST NOT infer detailed quality or compatibility             ¦  SideRight           = 0x000400,                                                   ¦
+¦    // characteristics from the trackId alone. Instead, they SHOULD consider        ¦  TopCenter           = 0x000800,                                                   ¦
+¦    // the metadata provided via onMetaData together with the information           ¦  TopFrontLeft        = 0x001000,                                                   ¦
+¦    // conveyed within the media stream to evaluate characteristics such as         ¦  TopFrontCenter      = 0x002000,                                                   ¦
+¦    // bitrate, resolution, codec, language, or device profile alignment when       ¦  TopFrontRight       = 0x004000,                                                   ¦
+¦    // choosing a track.                                                            ¦  TopBackLeft         = 0x008000,                                                   ¦
+¦    audioTrackId = UI8                                                              ¦  TopBackCenter       = 0x010000,                                                   ¦
+¦                                                                                    ¦  TopBackRight        = 0x020000,                                                   ¦
 ¦    if (audioMultitrackType != AvMultitrackType.OneTrack) {                         ¦                                                                                    ¦
-¦      // The `sizeOfAudioTrack` specifies the size in bytes of the                  ¦enum AudioChannelMask {                                                             ¦
-¦      // current track that is being processed. This size starts                    ¦  //                                                                                ¦
-¦      // counting immediately after the position where the `sizeOfAudioTrack`       ¦  // Mask used to indicate which channels are present in the stream.                ¦
-¦      // value is located. You can use this value as an offset to locate the        ¦  //                                                                                ¦
-¦      // next audio track in a multitrack system. The data pointer is               ¦                                                                                    ¦
-¦      // positioned immediately after this field. Depending on the MultiTrack       ¦  // masks for commonly used speaker configurations                                 ¦
-¦      // type, the offset points to either a `fourCc` or a `trackId.`               ¦  // <https://en.wikipedia.org/wiki/Surround_sound#Standard_speaker_channels>       ¦
-¦      sizeOfAudioTrack = UI24                                                       ¦  FrontLeft           = 0x000001,                                                   ¦
-¦    }                                                                               ¦  FrontRight          = 0x000002,                                                   ¦
-¦  }                                                                                 ¦  FrontCenter         = 0x000004,                                                   ¦
-¦                                                                                    ¦  LowFrequency1       = 0x000008,                                                   ¦
-¦  if (audioPacketType == AudioPacketType.MultichannelConfig) {                      ¦  BackLeft            = 0x000010,                                                   ¦
-¦    //                                                                              ¦  BackRight           = 0x000020,                                                   ¦
-¦    // Specify a speaker for a channel as it appears in the bitstream.              ¦  FrontLeftCenter     = 0x000040,                                                   ¦
-¦    // This is needed if the codec is not self-describing for channel mapping       ¦  FrontRightCenter    = 0x000080,                                                   ¦
-¦    //                                                                              ¦  BackCenter          = 0x000100,                                                   ¦
-¦                                                                                    ¦  SideLeft            = 0x000200,                                                   ¦
-¦    // set audio channel order                                                      ¦  SideRight           = 0x000400,                                                   ¦
-¦    audioChannelOrder = UI8 as AudioChannelOrder                                    ¦  TopCenter           = 0x000800,                                                   ¦
-¦                                                                                    ¦  TopFrontLeft        = 0x001000,                                                   ¦
-¦    // number of channels                                                           ¦  TopFrontCenter      = 0x002000,                                                   ¦
-¦    channelCount = UI8                                                              ¦  TopFrontRight       = 0x004000,                                                   ¦
-¦                                                                                    ¦  TopBackLeft         = 0x008000,                                                   ¦
-¦    if (audioChannelOrder == AudioChannelOrder.Custom) {                            ¦  TopBackCenter       = 0x010000,                                                   ¦
-¦      // Each entry specifies the speaker layout (see AudioChannel enum above       ¦  TopBackRight        = 0x020000,                                                   ¦
-¦      // for layout definition) in the order that it appears in the bitstream.      ¦                                                                                    ¦
-¦      // First entry (i.e., index 0) specifies the speaker layout for channel 1.    ¦  // Completes 22.2 multichannel audio, as                                          ¦
-¦      // Subsequent entries specify the speaker layout for the next channels        ¦  // standardized in SMPTE ST2036-2-2008                                            ¦
-¦      // (e.g., second entry for channel 2, third entry for channel 3, etc.).       ¦  // see - <https://en.wikipedia.org/wiki/22.2_surround_sound>                      ¦
-¦      audioChannelMapping = UI8[channelCount] as AudioChannel                       ¦  LowFrequency2       = 0x040000,                                                   ¦
-¦    }                                                                               ¦  TopSideLeft         = 0x080000,                                                   ¦
-¦                                                                                    ¦  TopSideRight        = 0x100000,                                                   ¦
-¦    if (audioChannelOrder == AudioChannelOrder.Native) {                            ¦  BottomFrontCenter   = 0x200000,                                                   ¦
-¦      // audioChannelFlags indicates which channels are present in the              ¦  BottomFrontLeft     = 0x400000,                                                   ¦
-¦      // multi-channel stream. You can perform a Bitwise AND                        ¦  BottomFrontRight    = 0x800000,                                                   ¦
-¦      // (i.e., audioChannelFlags & AudioChannelMask.xxx) to see if a               ¦}                                                                                   ¦
+¦      // The `sizeOfAudioTrack` specifies the size in bytes of the                  ¦  // Completes 22.2 multichannel audio, as                                          ¦
+¦      // current track that is being processed. This size starts                    ¦  // standardized in SMPTE ST2036-2-2008                                            ¦
+¦      // counting immediately after the position where the `sizeOfAudioTrack`       ¦  // see - <https://en.wikipedia.org/wiki/22.2_surround_sound>                      ¦
+¦      // value is located. You can use this value as an offset to locate the        ¦  LowFrequency2       = 0x040000,                                                   ¦
+¦      // next audio track in a multitrack system. The data pointer is               ¦  TopSideLeft         = 0x080000,                                                   ¦
+¦      // positioned immediately after this field. Depending on the MultiTrack       ¦  TopSideRight        = 0x100000,                                                   ¦
+¦      // type, the offset points to either a `fourCc` or a `trackId.`               ¦  BottomFrontCenter   = 0x200000,                                                   ¦
+¦      sizeOfAudioTrack = UI24                                                       ¦  BottomFrontLeft     = 0x400000,                                                   ¦
+¦    }                                                                               ¦  BottomFrontRight    = 0x800000,                                                   ¦
+¦  }                                                                                 ¦}                                                                                   ¦
+¦                                                                                    ¦                                                                                    ¦
+¦  if (audioPacketType == AudioPacketType.MultichannelConfig) {                      ¦enum AudioChannel {                                                                 ¦
+¦    //                                                                              ¦  //                                                                                ¦
+¦    // Specify a speaker for a channel as it appears in the bitstream.              ¦  // Channel mappings enums                                                         ¦
+¦    // This is needed if the codec is not self-describing for channel mapping       ¦  //                                                                                ¦
+¦    //                                                                              ¦                                                                                    ¦
+¦                                                                                    ¦  // commonly used speaker configurations                                           ¦
+¦    // set audio channel order                                                      ¦  // see - <https://en.wikipedia.org/wiki/Surround_sound#Standard_speaker_channels> ¦
+¦    audioChannelOrder = UI8 as AudioChannelOrder                                    ¦  FrontLeft           = 0,  // i.e., FrontLeft is assigned to channel zero          ¦
+¦                                                                                    ¦  FrontRight,                                                                       ¦
+¦    // number of channels                                                           ¦  FrontCenter,                                                                      ¦
+¦    channelCount = UI8                                                              ¦  LowFrequency1,                                                                    ¦
+¦                                                                                    ¦  BackLeft,                                                                         ¦
+¦    if (audioChannelOrder == AudioChannelOrder.Custom) {                            ¦  BackRight,                                                                        ¦
+¦      // Each entry specifies the speaker layout (see AudioChannel enum above       ¦  FrontLeftCenter,                                                                  ¦
+¦      // for layout definition) in the order that it appears in the bitstream.      ¦  FrontRightCenter,                                                                 ¦
+¦      // First entry (i.e., index 0) specifies the speaker layout for channel 1.    ¦  BackCenter          = 8,                                                          ¦
+¦      // Subsequent entries specify the speaker layout for the next channels        ¦  SideLeft,                                                                         ¦
+¦      // (e.g., second entry for channel 2, third entry for channel 3, etc.).       ¦  SideRight,                                                                        ¦
+¦      audioChannelMapping = UI8[channelCount] as AudioChannel[]                     ¦  TopCenter,                                                                        ¦
+¦    }                                                                               ¦  TopFrontLeft,                                                                     ¦
+¦                                                                                    ¦  TopFrontCenter,                                                                   ¦
+¦    if (audioChannelOrder == AudioChannelOrder.Native) {                            ¦  TopFrontRight,                                                                    ¦
+¦      // audioChannelFlags indicates which channels are present in the              ¦  TopBackLeft,                                                                      ¦
+¦      // multi-channel stream. You can perform a Bitwise AND                        ¦  TopBackCenter       = 16,                                                         ¦
+¦      // (i.e., audioChannelFlags & AudioChannelMask.xxx) to see if a               ¦  TopBackRight,                                                                     ¦
 ¦      // specific audio channel is present                                          ¦                                                                                    ¦
-¦      audioChannelFlags = UI32                                                      ¦enum AudioChannel {                                                                 ¦
-¦    }                                                                               ¦  //                                                                                ¦
-¦  }                                                                                 ¦  // Channel mappings enums                                                         ¦
-¦                                                                                    ¦  //                                                                                ¦
-¦  if (audioPacketType == AudioPacketType.SequenceEnd) {                             ¦                                                                                    ¦
-¦    // signals end of sequence                                                      ¦  // commonly used speaker configurations                                           ¦
-¦  }                                                                                 ¦  // see - <https://en.wikipedia.org/wiki/Surround_sound#Standard_speaker_channels> ¦
-¦                                                                                    ¦  FrontLeft           = 0,  // i.e., FrontLeft is assigned to channel zero          ¦
-¦  if (audioPacketType == AudioPacketType.SequenceStart) {                           ¦  FrontRight,                                                                       ¦
-¦    if (audioFourCc == AudioFourCc.Aac) {                                           ¦  FrontCenter,                                                                      ¦
-¦      // The AAC audio specific config (a.k.a., AacSequenceHeader) is               ¦  LowFrequency1,                                                                    ¦
-¦      // defined in ISO/IEC 14496-3.                                                ¦  BackLeft,                                                                         ¦
-¦      aacHeader = [AacSequenceHeader]                                               ¦  BackRight,                                                                        ¦
-¦    }                                                                               ¦  FrontLeftCenter,                                                                  ¦
-¦                                                                                    ¦  FrontRightCenter,                                                                 ¦
-¦    if (audioFourCc == AudioFourCc.Flac) {                                          ¦  BackCenter          = 8,                                                          ¦
-¦      // FlacSequenceHeader layout is:                                              ¦  SideLeft,                                                                         ¦
-¦      //                                                                            ¦  SideRight,                                                                        ¦
-¦      // The bytes 0x66 0x4C 0x61 0x43 ("fLaC" in ASCII) signature                  ¦  TopCenter,                                                                        ¦
-¦      //                                                                            ¦  TopFrontLeft,                                                                     ¦
-¦      // Followed by a metadata block (called the STREAMINFO block) as described    ¦  TopFrontCenter,                                                                   ¦
-¦      // in section 7 of the FLAC specification. The STREAMINFO block contains      ¦  TopFrontRight,                                                                    ¦
-¦      // information about the whole sequence, such as sample rate, number of       ¦  TopBackLeft,                                                                      ¦
-¦      // channels, total number of samples, etc. It MUST be present as the first    ¦  TopBackCenter       = 16,                                                         ¦
-¦      // metadata block in the sequence. The FLAC audio specific bitstream format   ¦  TopBackRight,                                                                     ¦
-¦      // is defined at <https://xiph.org/flac/format.html>                          ¦                                                                                    ¦
-¦      flacHeader = [FlacSequenceHeader]                                             ¦  // mappings to complete 22.2 multichannel audio, as                               ¦
+¦      audioChannelFlags = UI32                                                      ¦  // mappings to complete 22.2 multichannel audio, as                               ¦
 ¦    }                                                                               ¦  // standardized in SMPTE ST2036-2-2008                                            ¦
-¦                                                                                    ¦  // see - <https://en.wikipedia.org/wiki/22.2_surround_sound>                      ¦
-¦    if (audioFourCc == AudioFourCc.Opus) {                                          ¦  LowFrequency2       = 18,                                                         ¦
-¦      // Opus Sequence header (a.k.a., ID header):                                  ¦  TopSideLeft,                                                                      ¦
-¦      // - The Opus sequence start is also known as the ID header.                  ¦  TopSideRight,                                                                     ¦
-¦      // - It contains essential information needed to initialize                   ¦  BottomFrontCenter,                                                                ¦
-¦      //   the decoder and understand the stream format.                            ¦  BottomFrontLeft,                                                                  ¦
-¦      // - For detailed structure, refer to RFC 7845, Section 5.1:                  ¦  BottomFrontRight    = 23,                                                         ¦
+¦  }                                                                                 ¦  // see - <https://en.wikipedia.org/wiki/22.2_surround_sound>                      ¦
+¦                                                                                    ¦  LowFrequency2       = 18,                                                         ¦
+¦  if (audioPacketType == AudioPacketType.SequenceEnd) {                             ¦  TopSideLeft,                                                                      ¦
+¦    // signals end of sequence                                                      ¦  TopSideRight,                                                                     ¦
+¦  }                                                                                 ¦  BottomFrontCenter,                                                                ¦
+¦                                                                                    ¦  BottomFrontLeft,                                                                  ¦
+¦  if (audioPacketType == AudioPacketType.SequenceStart) {                           ¦  BottomFrontRight    = 23,                                                         ¦
+¦    if (audioFourCc == AudioFourCc.Aac) {                                           ¦                                                                                    ¦
+¦      // The AAC audio specific config (a.k.a., AacSequenceHeader) is               ¦  //   24 - Reserved                                                                ¦
+¦      // defined in ISO/IEC 14496-3.                                                ¦  // ...                                                                            ¦
+¦      aacHeader = [AacSequenceHeader]                                               ¦  // 0xfd - reserved                                                                ¦
+¦    }                                                                               ¦                                                                                    ¦
+¦                                                                                    ¦  // Channel is empty and can be safely skipped.                                    ¦
+¦    if (audioFourCc == AudioFourCc.Flac) {                                          ¦  Unused              = 0xfe,                                                       ¦
+¦      // FlacSequenceHeader layout is:                                              ¦                                                                                    ¦
+¦      //                                                                            ¦  // Channel contains data, but its speaker configuration is unknown.               ¦
+¦      // The bytes 0x66 0x4C 0x61 0x43 ("fLaC" in ASCII) signature                  ¦  Unknown             = 0xff,                                                       ¦
+¦      //                                                                            ¦}                                                                                   ¦
+¦      // Followed by a metadata block (called the STREAMINFO block) as described    ¦                                                                                    ¦
+¦      // in section 7 of the FLAC specification. The STREAMINFO block contains      ¦                                                                                    ¦
+¦      // information about the whole sequence, such as sample rate, number of       ¦                                                                                    ¦
+¦      // channels, total number of samples, etc. It MUST be present as the first    ¦                                                                                    ¦
+¦      // metadata block in the sequence. The FLAC audio specific bitstream format   ¦                                                                                    ¦
+¦      // is defined at <https://xiph.org/flac/format.html>                          ¦                                                                                    ¦
+¦      flacHeader = [FlacSequenceHeader]                                             ¦                                                                                    ¦
+¦    }                                                                               ¦                                                                                    ¦
+¦                                                                                    ¦                                                                                    ¦
+¦    if (audioFourCc == AudioFourCc.Opus) {                                          ¦                                                                                    ¦
+¦      // Opus Sequence header (a.k.a., ID header):                                  ¦                                                                                    ¦
+¦      // - The Opus sequence start is also known as the ID header.                  ¦                                                                                    ¦
+¦      // - It contains essential information needed to initialize                   ¦                                                                                    ¦
+¦      //   the decoder and understand the stream format.                            ¦                                                                                    ¦
+¦      // - For detailed structure, refer to RFC 7845, Section 5.1:                  ¦                                                                                    ¦
 ¦      //   <https://datatracker.ietf.org/doc/html/rfc7845#section-5.1>              ¦                                                                                    ¦
-¦      //                                                                            ¦  //   24 - Reserved                                                                ¦
-¦      // If the Opus sequence start payload is empty, use the                       ¦  // ...                                                                            ¦
-¦      // AudioPacketType.MultichannelConfig signal for channel                      ¦  // 0xfd - reserved                                                                ¦
+¦      //                                                                            ¦                                                                                    ¦
+¦      // If the Opus sequence start payload is empty, use the                       ¦                                                                                    ¦
+¦      // AudioPacketType.MultichannelConfig signal for channel                      ¦                                                                                    ¦
 ¦      // mapping when present; otherwise, default to mono/stereo mode.              ¦                                                                                    ¦
-¦      opusHeader = [OpusSequenceHeader]                                             ¦  // Channel is empty and can be safely skipped.                                    ¦
-¦    }                                                                               ¦  Unused              = 0xfe,                                                       ¦
+¦      opusHeader = [OpusSequenceHeader]                                             ¦                                                                                    ¦
+¦    }                                                                               ¦                                                                                    ¦
 ¦  }                                                                                 ¦                                                                                    ¦
-¦                                                                                    ¦  // Channel contains data, but its speaker configuration is unknown.               ¦
-¦  if (audioPacketType == AudioPacketType.CodedFrames) {                             ¦  Unknown             = 0xff,                                                       ¦
-¦    if (audioFourCc == AudioFourCc.Ac3 || audioFourCc == AudioFourCc.Eac3) {        ¦}                                                                                   ¦
+¦                                                                                    ¦                                                                                    ¦
+¦  if (audioPacketType == AudioPacketType.CodedFrames) {                             ¦                                                                                    ¦
+¦    if (audioFourCc == AudioFourCc.Ac3 || audioFourCc == AudioFourCc.Eac3) {        ¦                                                                                    ¦
 ¦      // Body contains audio data as defined by the bitstream syntax                ¦                                                                                    ¦
 ¦      // in the ATSC standard for Digital Audio Compression (AC-3, E-AC-3)          ¦                                                                                    ¦
 ¦      ac3Data = [Ac3CodedData]                                                      ¦                                                                                    ¦
@@ -1042,7 +1080,7 @@ The **VideoTagHeader** has been extended to define additional video codecs, mult
 &nbsp; \
 During the parsing process, the logic MUST handle unexpected or unknown elements gracefully. Specifically, if any critical signaling or flags (e.g., **VideoFrameType**, **VideoPacketType**, or **VideoFourCc**) are not recognized, the system MUST fail in a controlled and predictable manner.
 
->**Important:** A single video message for a unique timestamp may include a batch of **VideoPacketType** values (e.g., multiple **TrackId** values, **Metadata** values). When parsing a video message, the bitstream MUST be processed completely to ensure all payload data has been handled.
+>**Important:** A single video message for a unique timestamp may include a batch of **VideoPacketType** values (e.g., multiple **trackId** values, **Metadata** values). When parsing a video message, the bitstream MUST be processed completely to ensure all payload data has been handled.
 
 **Table**: Extended **VideoTagHeader**
 
@@ -1054,7 +1092,7 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 ¦// video mode. In this case, VideoCodecId's 4-bit unsigned binary (UB[4])           ¦  // 0 - reserved                                                                   ¦
 ¦// should not be interpreted as a codec identifier. Instead, these                  ¦  KeyFrame                = 1,    // a seekable frame                               ¦
 ¦// UB[4] bits should be interpreted as VideoPacketType.                             ¦  InterFrame              = 2,    // a non - seekable frame                         ¦
-¦isExVideoHeader = UB[1]                                                             ¦  DisposableInterFrame    = 3,    // H.263 only                                     ¦
+¦isExVideoHeader = Boolean(UB[1])                                                    ¦  DisposableInterFrame    = 3,    // H.263 only                                     ¦
 ¦videoFrameType = UB[3] as VideoFrameType                                            ¦  GeneratedKeyFrame       = 4,    // reserved for server use only                   ¦
 ¦                                                                                    ¦                                                                                    ¦
 ¦if (isExVideoHeader == 0) {                                                         ¦  // If videoFrameType is not ignored and is set to VideoFrameType.Command,         ¦
@@ -1111,7 +1149,7 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 ¦// process ExVideoTagHeader                                                         ¦  SequenceStart         = 0,                                                        ¦
 ¦//                                                                                  ¦  CodedFrames           = 1,                                                        ¦
 ¦processVideoBody = false                                                            ¦  SequenceEnd           = 2,                                                        ¦
-¦if (isExVideoHeader == 1) {                                                         ¦                                                                                    ¦
+¦if (isExVideoHeader) {                                                              ¦                                                                                    ¦
 ¦  processVideoBody = true                                                           ¦  // CompositionTime Offset is implicitly set to zero. This optimization            ¦
 ¦                                                                                    ¦  // avoids transmitting an SI24 composition time value of zero over the wire.      ¦
 ¦  // Interpret UB[4] bits as VideoPacketType instead of sound rate, size, and type. ¦  // See the ExVideoTagBody section below for corresponding pseudocode.             ¦
@@ -1206,15 +1244,41 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 ¦                                                                                                                                                                         ¦
 ¦    // Track Ordering:                                                                                                                                                   ¦
 ¦    //                                                                                                                                                                   ¦
-¦    // For identifying the highest priority (a.k.a., default track)                                                                                                      ¦
-¦    // or highest quality track, it is RECOMMENDED to use trackId                                                                                                        ¦
-¦    // set to zero. For tracks of lesser priority or quality, use                                                                                                        ¦
-¦    // multiple instances of trackId with ascending numerical values.                                                                                                    ¦
-¦    // The concept of priority or quality can have multiple                                                                                                              ¦
-¦    // interpretations, including but not limited to bitrate,                                                                                                            ¦
-¦    // resolution, default angle, and language. This recommendation                                                                                                      ¦
-¦    // serves as a guideline intended to standardize track numbering                                                                                                     ¦
-¦    // across various applications.                                                                                                                                      ¦
+¦    // To provide a consistent convention, it is RECOMMENDED that trackId 0 be                                                                                           ¦
+¦    // used for the default track of a given media type. The default track is                                                                                            ¦
+¦    // the representation that the publisher expects most receivers to select                                                                                            ¦
+¦    // when no additional selection logic is applied, for example the primary                                                                                            ¦
+¦    // or most broadly applicable presentation for the stream.                                                                                                           ¦
+¦    //                                                                                                                                                                   ¦
+¦    // Additional variants, for example different bitrates, resolutions,                                                                                                 ¦
+¦    // codecs, languages, or camera angles, SHOULD use distinct positive                                                                                                 ¦
+¦    // trackId values (1, 2, 3, ...). These values are identifiers only and do                                                                                           ¦
+¦    // not imply any inherent ordering, priority, or quality ranking.                                                                                                    ¦
+¦    //                                                                                                                                                                   ¦
+¦    // Encoders and ingesters SHOULD provide complete and accurate information                                                                                           ¦
+¦    // in the onMetaData fields for each track. This includes codec identifiers                                                                                          ¦
+¦    // and other descriptive track-level attributes such as bitrate, resolution,                                                                                         ¦
+¦    // sample rate, channel count, language, and similar properties relevant to                                                                                          ¦
+¦    // track selection and processing.                                                                                                                                   ¦
+¦    //                                                                                                                                                                   ¦
+¦    // The authoritative details for each track are also present within the                                                                                              ¦
+¦    // stream itself, for example through codec configuration records and fully                                                                                          ¦
+¦    // self-describing media packets. These in-stream signals can be used by                                                                                             ¦
+¦    // receivers when determining appropriate processing behavior.                                                                                                       ¦
+¦    //                                                                                                                                                                   ¦
+¦    // The full definition of track selection or priority logic is beyond the                                                                                            ¦
+¦    // scope of the E-RTMP specification. The guidance provided here is intended                                                                                         ¦
+¦    // only to establish a consistent convention for trackId usage and related                                                                                           ¦
+¦    // metadata structure. Individual implementations can use different                                                                                                  ¦
+¦    // approaches when combining onMetaData information with in-stream                                                                                                   ¦
+¦    // signaling to perform track selection or processing.                                                                                                               ¦
+¦    //                                                                                                                                                                   ¦
+¦    // Implementations MUST NOT infer detailed quality or compatibility                                                                                                  ¦
+¦    // characteristics from the trackId alone. Instead, they SHOULD consider                                                                                             ¦
+¦    // the metadata provided via onMetaData together with the information                                                                                                ¦
+¦    // conveyed within the media stream to evaluate characteristics such as                                                                                              ¦
+¦    // bitrate, resolution, codec, language, or device profile alignment when                                                                                            ¦
+¦    // choosing a track.                                                                                                                                                 ¦
 ¦    videoTrackId = UI8                                                                                                                                                   ¦
 ¦                                                                                                                                                                         ¦
 ¦    if (videoMultitrackType != AvMultitrackType.OneTrack) {                                                                                                              ¦
@@ -1473,9 +1537,9 @@ type ColorInfo = {
 
 ### Introduction to Multitrack Capabilities
 
-E-RTMP has introduced support for multitrack streaming, offering increased flexibility in audio and video streaming through the use of a track index (a.k.a., **trackId**). This feature allows for the serialization of multiple tracks over a single [[RTMP](#rtmp)] connection and stream channel. \
+E-RTMP has introduced support for multitrack streaming, offering increased flexibility in audio and video streaming through the use of a track index (i.e., **audioTrackId and videoTrackId**). This feature allows for the serialization of multiple tracks over a single E-RTMP connection and stream channel. \
 &nbsp; \
-It's important to note that multitrack support is designed to augment, not replace, the option of using multiple streams for streaming. While both multiple streams and multitrack can potentially address the same use cases, the choice between them will depend on the specific capabilities of your RTMP implementation and requirements. In certain cases, multitrack may not be the most efficient option.
+It's important to note that multitrack support is designed to augment, not replace, the option of using multiple streams for streaming. While both multiple streams and multitrack can potentially address the same use cases, the choice between them will depend on the specific capabilities of your E-RTMP implementation and requirements. In certain cases, multitrack may not be the most efficient option.
 
 ### Multitrack Sample Use Cases
 
@@ -1487,23 +1551,42 @@ It's important to note that multitrack support is designed to augment, not repla
 
 ### Multitrack Media Message Guidelines
 
-- **Video Messages**: Each video message MUST include a **trackId** (refer to the **videoPacketType.Multitrack** entry in the **ExVideoTagHeader** table within the [Enhanced Video](#enhanced-video) section for video bitstream signaling) as it is not persistent across messages.
-- **Audio Messages**: Similarly, each audio message MUST include a **trackId** (refer to the **AudioPacketType.Multitrack** in the **ExAudioTagHeader** table within the [Enhanced Audio](#enhanced-audio) section for audio bitstream signaling).
+- **Video Messages**: Each video message MUST include a **videoTrackId** (refer to the **videoPacketType.Multitrack** entry in the **ExVideoTagHeader** table within the [Enhanced Video](#enhanced-video) section for video bitstream signaling) as it is not persistent across messages.
+- **Audio Messages**: Similarly, each audio message MUST include an **audioTrackId** (refer to the **AudioPacketType.Multitrack** in the **ExAudioTagHeader** table within the [Enhanced Audio](#enhanced-audio) section for audio bitstream signaling).
 - **Payload Parsing**: All tracks within a single timestamp MUST be processed to ensure comprehensive media handling.
-- **Track Ordering**: For identifying the highest priority (a.k.a., default track) or highest quality track, it is RECOMMENDED to use **trackId** set to zero. For tracks of lesser priority or quality, use multiple instances of **trackId** with ascending numerical values. The concept of **priority** or **quality** can have multiple interpretations, including but not limited to bitrate, resolution, default angle, and language. This recommendation serves as a guideline intended to standardize track numbering across various applications.
+- **Track Ordering**: To provide a consistent convention, it is RECOMMENDED that trackId 0 be used for the default track of a given media type. The default track is the representation that the publisher expects most receivers to select when no additional selection logic is applied, for example the primary or most broadly applicable presentation for the stream. \
+   \
+  Additional variants, for example different bitrates, resolutions, codecs, languages, or camera angles, SHOULD use distinct positive trackId values (1, 2, 3, …). These values are identifiers only and do not imply any inherent ordering, priority, or quality ranking. \
+   \
+  Encoders and ingesters SHOULD provide complete and accurate information in the onMetaData fields for each track. This includes codec identifiers and other descriptive track-level attributes such as bitrate, resolution, sample rate, channel count, language, and similar properties relevant to track selection and processing.
+
+The authoritative details for each track are also present within the stream itself, for example through codec configuration records, and fully self-describing media packets. These in-stream signals can be used by receivers when determining the appropriate processing behavior. \
+&nbsp; \
+The full definition of track selection or priority logic is beyond the scope of the E-RTMP specification. The guidance provided here is intended only to establish a consistent convention for trackId usage and related metadata structure. Individual implementations can use different approaches when combining onMetaData information with in-stream signaling to perform track selection or processing. \
+&nbsp; \
+Implementations MUST NOT infer detailed quality or compatibility characteristics from the trackId alone. Instead, they SHOULD consider the metadata provided via onMetaData together with the information conveyed within the media stream to evaluate characteristics such as bitrate, resolution, codec, language, or device profile alignment when choosing a track.
 
 ### SCRIPTDATA Multitrack Parameter Handling
 
-- **trackId SHOULD be a Parameter**: For methods within RTMP that involve [[SCRIPTDATA](#scriptdata)] messages, the **trackId** can be a critical parameter for operations that pertain to specific media tracks. In such cases, the **trackId** SHOULD be passed in as an argument to the method, ensuring that the action or data manipulation is accurately applied to the correct track.
+- **trackId SHOULD be a Parameter**: For methods within RTMP that involve [[SCRIPTDATA](#scriptdata)] messages, the **trackId** can be a critical parameter for operations that pertain to specific media tracks. In such cases, the **trackId** SHOULD be passed in as an argument to the method, ensuring that the action or data manipulation is accurately applied to the correct track. When track namespaces include both audio and video tracks, the combination of **trackId** and **mediaType** uniquely identifies the target track.
 - **Recommended Parameter Passing**:
   - **Using a Map or Object Argument:** The recommended way to pass the **trackId** to methods involving SCRIPTDATA is by including it within a map or as a property of an object argument. This approach aligns with practices such as those used in the [Enhancing onMetaData](#enhancing-onmetadata) section, enhancing consistency and scalability across various implementations.
-  - **Function Signature Example**: This method takes an object arg which contains the property **trackId**. This structure is particularly effective for managing multiple parameters efficiently and enhances the readability and maintainability of the code.
+  - **Function Signature Example**: This method takes an object arg which contains the properties **trackId** and **mediaType**. This structure is effective for managing multiple parameters and enhances readability and maintainability.
 
 ```js
-function ScriptMethodName(arg: Object) {
-  console.log("Invoking a script with trackId: ", arg.trackId);
+// Invokes a media-type specific script for a given track.
+function scriptMethodName(arg: {
+  trackId: number,
+  mediaType: "video" | "audio" | "data",
+  // ... additional properties can be added here
+}) {
+  console.log(`Invoking ${arg.mediaType} script for trackId:`, arg.trackId);
 }
 ```
+
+``> \
+**Note:** This example illustrates one possible object structure. Actual SCRIPTDATA payloads may vary depending on the encoder or tooling, and may use maps or other AMF object forms consistent with historical SCRIPTDATA usage. \
+``>
 
 - **Advantages of Parameter Passing Approach**:
   - **Clarity and Structure:** Using an object or map to pass arguments, including the trackId, organizes the parameters neatly and reduces the chances of errors or misalignment in parameter order.
