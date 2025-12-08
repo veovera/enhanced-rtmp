@@ -145,8 +145,22 @@ function writeUInt(value: number, size: number): Uint8Array {
  * Writes a variable-length integer (VINT) in EBML format.
  * The value must be between 0 and 0xFFFFFFFF (inclusive) because of JS limitations.
  *
+ * EBML VINT Layout:
+ *   Width   | Marker   | Value Bits | Range
+ *   1 byte  | 1xxxxxxx | 7 bits     | 0 to 126 (2^7 - 2)
+ *   2 bytes | 01xxxxxx | 14 bits    | 0 to 16382 (2^14 - 2)
+ *   3 bytes | 001xxxxx | 21 bits    | 0 to 2097150 (2^21 - 2)
+ *   4 bytes | 0001xxxx | 28 bits    | 0 to 268435454 (2^28 - 2)
+ *   ...
+ *
+ * Examples:
+ *   Value   1 (0x01)  -> 10000001 (0x81) [1 byte]
+ *   Value 127 (0x7F)  -> 01000000 01111111 (0x407F) [2 bytes] (1-byte 0xFF is reserved)
+ *   Value 128 (0x80)  -> 01000000 10000000 (0x4080) [2 bytes]
+ *   Value 255 (0xFF)  -> 01000000 11111111 (0x40FF) [2 bytes]
+ *
  * Note: A VINT with all bits set to 1 (e.g. 0xFF, 0x7FFF) is RESERVED in EBML and NOT valid for values or sizes,
- * except when used to indicate "unknown size" in element size fields. Never emit 0xFF as a value.
+ * except when used to indicate "unknown" 
  */
 function writeVint(value: number): Uint8Array {
   Log.a(WebMGenerator.TAG, `writeVint assert failed: value of ${value} > 0xFFFFFFF`, value >= 0 && value <= 0xFFFFFFFF);
