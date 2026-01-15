@@ -36,7 +36,7 @@
 &nbsp; \
 **Contributors**: Adobe, Google, Twitch, Jean-Baptiste Kempf (FFmpeg, VideoLAN), pkv (OBS), Dennis Sädtler (OBS), Xavier Hallade (Intel Corporation), Luxoft, SplitmediaLabs Limited (XSplit), Meta, Michael Thornburgh, Veovera Software Organization \
 &nbsp; \
-**Document Version:** **v2-2025-11-21-r1** \
+**Document Version:** **v2-2026-01-15-r1** \
 &nbsp; \
 **General Disclaimer:** The features, enhancements, and specifications described in this document are intended for informational purposes only and may not reflect the final implementation. Veovera Software Organization (VSO) does not guarantee the accuracy, completeness, or suitability of this information for any specific purpose. Users are solely responsible for any decisions or implementations based on this document. \
 &nbsp; \
@@ -670,7 +670,7 @@ When using the **onStatus** command, the goal is to inform the client about the 
 
 Both the Command Object and the Info Object offer additional context and details for the command. The **onStatus** command is triggered whenever there's a status change or an error concerning the **NetConnection**. To handle this information, you should define a callback function.
 
-```js
+```ts
 // Sample pseudocode for the onStatus callback function
 nc.onStatus = function(infoObject) {
   // Handle the status change or error here.
@@ -1424,7 +1424,7 @@ The **colorInfo** object provides HDR metadata to enable a higher quality image 
 >- For content creators: Whenever it behooves to add video hint information via metadata (e.g., HDR) to the FLV container it is RECOMMENDED to add it via **VideoPacketType.Metadata**. This may be done in addition (or instead) to encoding the metadata directly into the codec bitstream.
 >- The object encoding format (i.e., AMF0 or AMF3) is signaled during the [**connect**](https://veovera.github.io/enhanced-rtmp/original-rtmp-related-specs/rtmp-v1-0-spec.pdf#page=29) command.
 
-```js
+```ts
 type ColorInfo = {
   colorConfig: {
     // number of bits used to record the color channels for each pixel
@@ -1533,6 +1533,49 @@ type ColorInfo = {
 +-----------------------------------------------------+-------------------------------------------------------------------+-------------+
 ```
 
+### HDR Formats (Informative)
+
+E-RTMP supports transport of video encoded using a variety of HDR formats. The following table summarizes common HDR formats, their associated codecs, metadata characteristics, and signaling considerations. This section is informative and does not define protocol requirements. \
+&nbsp; \
+**Table:** HDR formats (informative)
+
+```txt
++--------------------------+-----------------------+-----------------------+-----------------------+-----------------------+
+¦                          ¦         HDR10         ¦        HDR10+         ¦          HLG          ¦          DV           ¦
++--------------------------+-----------------------+-----------------------+-----------------------+-----------------------+
+¦                          ¦          AVC          ¦         HEVC          ¦          AVC          ¦          AVC          ¦
+¦                          ¦         HEVC          ¦          VVC          ¦         HEVC          ¦         HEVC          ¦
+¦     Supported Codecs     ¦          VVC          ¦          VP9          ¦          VVC          ¦          VVC          ¦
+¦                          ¦          VP9          ¦          AV1          ¦          VP9          ¦          AV1          ¦
+¦                          ¦          AV1          ¦                       ¦          AV1          ¦                       ¦
++--------------------------+-----------------------+-----------------------+-----------------------+-----------------------+
+¦     Supported Color      ¦          PQ           ¦          PQ           ¦          HLG          ¦          PQ           ¦
+¦    Transfer Functions    ¦                       ¦                       ¦                       ¦          HLG          ¦
++--------------------------+-----------------------+-----------------------+-----------------------+-----------------------+
+¦       HDR Metadata       ¦        Static         ¦        Dynamic        ¦         None          ¦        Dynamic        ¦
++--------------------------+-----------------------+-----------------------+-----------------------+-----------------------+
+¦ Container Dependency for ¦          YES          ¦          YES          ¦          NO           ¦          NO           ¦
+¦       HDR Metadata       ¦                       ¦                       ¦                       ¦                       ¦
++--------------------------+-----------------------+-----------------------+-----------------------+-----------------------+
+¦      Authoritative       ¦       Container       ¦       Container       ¦         None          ¦       Bitstream       ¦
+¦    Metadata Location     ¦     (recommended)     ¦     (recommended)     ¦   (self-describing)   ¦                       ¦
++--------------------------+-----------------------+-----------------------+-----------------------+-----------------------+
+¦     Color Primaries      ¦        BT.2020        ¦        BT.2020        ¦        BT.2020        ¦        BT.2020        ¦
+¦    (Technical Limit)     ¦                       ¦                       ¦                       ¦                       ¦
++--------------------------+-----------------------+-----------------------+-----------------------+-----------------------+
+```
+
+>**Note:**
+>
+>- HDR10+ with AVC is defined, but rarely deployed in practice.
+>- AVC, HEVC, and VVC may carry HDR metadata in the codec bitstream via Supplemental Enhancement Information (SEI) messages.
+>- For HDR10 and HDR10+, metadata presence in the codec bitstream is not guaranteed; therefore, it is RECOMMENDED to include HDR metadata in the FLV container.
+>- For Dolby Vision, HDR dynamic metadata is read from the codec bitstream (for example, via NAL units for AVC/HEVC/VVC or OBUs for AV1). Accordingly, such metadata SHOULD NOT be duplicated in the FLV container.
+>- Dolby Vision with HLG transfer characteristics remains Dolby Vision and requires Dolby Vision signaling and metadata. It MUST NOT be interpreted as baseline HLG.
+
+&nbsp; \
+Where applicable, HDR-related signaling and metadata may be carried via the colorInfo object as described above.
+
 ## Multitrack Streaming via Enhanced RTMP
 
 ### Introduction to Multitrack Capabilities
@@ -1573,7 +1616,7 @@ Implementations MUST NOT infer detailed quality or compatibility characteristics
   - **Using a Map or Object Argument:** The recommended way to pass the **trackId** to methods involving SCRIPTDATA is by including it within a map or as a property of an object argument. This approach aligns with practices such as those used in the [Enhancing onMetaData](#enhancing-onmetadata) section, enhancing consistency and scalability across various implementations.
   - **Function Signature Example**: This method takes an object arg which contains the properties **trackId** and **mediaType**. This structure is effective for managing multiple parameters and enhances readability and maintainability.
 
-```js
+```ts
 // Invokes a media-type specific script for a given track.
 function scriptMethodName(arg: {
   trackId: number,
@@ -1584,9 +1627,7 @@ function scriptMethodName(arg: {
 }
 ```
 
-``> \
-**Note:** This example illustrates one possible object structure. Actual SCRIPTDATA payloads may vary depending on the encoder or tooling, and may use maps or other AMF object forms consistent with historical SCRIPTDATA usage. \
-``>
+>**Note:** This example illustrates one possible object structure. Actual SCRIPTDATA payloads may vary depending on the encoder or tooling, and may use maps or other AMF object forms consistent with historical SCRIPTDATA usage.
 
 - **Advantages of Parameter Passing Approach**:
   - **Clarity and Structure:** Using an object or map to pass arguments, including the trackId, organizes the parameters neatly and reduces the chances of errors or misalignment in parameter order.
