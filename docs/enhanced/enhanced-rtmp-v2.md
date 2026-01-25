@@ -36,7 +36,7 @@
 &nbsp; \
 **Contributors**: Adobe, Google, Twitch, Jean-Baptiste Kempf (FFmpeg, VideoLAN), pkv (OBS), Dennis Sädtler (OBS), Xavier Hallade (Intel Corporation), Luxoft, SplitmediaLabs Limited (XSplit), Meta, Michael Thornburgh, Veovera Software Organization \
 &nbsp; \
-**Document Version:** **v2-2026-01-15-r1** \
+**Document Version:** **v2-2026-01-24-r2** \
 &nbsp; \
 **General Disclaimer:** The features, enhancements, and specifications described in this document are intended for informational purposes only and may not reflect the final implementation. Veovera Software Organization (VSO) does not guarantee the accuracy, completeness, or suitability of this information for any specific purpose. Users are solely responsible for any decisions or implementations based on this document. \
 &nbsp; \
@@ -176,13 +176,13 @@ Additionally we add the keyword [[DEPRECATED](#deprecated)] to the set of keywor
 
 ## Abstract
 
-In the rapidly evolving media streaming landscape, there is a pressing need to update legacy protocols to align with modern technological standards. The Real-Time Messaging Protocol [[RTMP](#rtmp)] and Flash Video [[FLV](#flv)] file format, introduced in 2002, have been pivotal and continue to be vital especially in live broadcasting. Despite RTMP widespread use, it has shown signs of aging, particularly in the lack of support for contemporary video codecs (e.g., VP8, VP9, HEVC, AV1) and audio codecs (Opus, FLAC, AC-3, E-AC-3). Recognizing this, Veovera Software Organization (VSO), in collaboration with industry giants like Adobe, YouTube, and Twitch, and other key stakeholders, has embarked on a mission to rejuvenate RTMP, ensuring it meets the demands of contemporary streaming needs. \
+In the rapidly evolving media streaming landscape, there is a pressing need to update legacy protocols to align with modern technological standards. The Real-Time Messaging Protocol [[RTMP](#rtmp)] and Flash Video [[FLV](#flv)] file format, introduced in 2002, have been pivotal and continue to be vital especially in live broadcasting. Despite RTMP widespread use, it has shown signs of aging, particularly in the lack of support for contemporary video codecs (e.g., VP8, VP9, HEVC, VVC, AV1) and audio codecs (Opus, FLAC, AC-3, E-AC-3). Recognizing this, Veovera Software Organization (VSO), in collaboration with industry giants like Adobe, YouTube, and Twitch, and other key stakeholders, has embarked on a mission to rejuvenate RTMP, ensuring it meets the demands of contemporary streaming needs. \
 &nbsp; \
 This document details the comprehensive enhancements made to the RTMP and FLV specifications, aimed at revitalizing the technology for current and future media demands. Our strategic approach prioritizes innovation while maintaining backward compatibility, thereby augmenting RTMP's utility without undermining existing infrastructures. Some of the key advancements include:
 
 - **Advanced Audio Codecs**: Integration of codecs like AC-3, E-AC-3, Opus, and FLAC to meet diverse audio quality and compression needs, ensuring compatibility with modern systems.
 - **Multichannel Audio Configurations**: Support for multichannel audio to enhance auditory experiences without compromising existing setups.
-- **Advanced Video Codecs**: Introduction of codecs such as VP8, VP9, HEVC and AV1 with HDR support to meet modern display and content standards.
+- **Advanced Video Codecs**: Introduction of codecs such as VP8, VP9, HEVC, VVC and AV1 with HDR support to meet modern display and content standards.
 - **Video Metadata**: Expansion of **VideoPacketType.Metadata** to support a broader range of video metadata types.
 - **FourCC Signaling**: Inclusion of FourCC signaling for advanced codecs mentioned above, as well as for legacy codecs such as AVC, AAC, and MP3.
 - **Multitrack Capabilities**: New audio and video multitrack capabilities for concurrent management and processing of multiple media streams, enhancing media experiences.
@@ -190,7 +190,7 @@ This document details the comprehensive enhancements made to the RTMP and FLV sp
 - **Timestamp Precision:** Introduction of nanosecond precision offsets, ensuring enhanced synchronization and compatibility across diverse media formats such as MP4, M2TS, and Safari's Media Source Extensions, without altering the core RTMP timestamps.
 - **ModEx Signal**: A signaling mechanism that lets packets carry modifiers or extensions, enabling precise control over timing, metadata, and other media stream behaviors.
 
-The additional audio and video codecs supported by enhanced RTMP are summarized in the following table: \
+The additional audio and video codecs supported by enhanced RTMP (E-RTMP) are summarized in the following table: \
 &nbsp; \
 **Table**: Additional audio and video codecs for E-RTMP
 
@@ -224,10 +224,18 @@ The additional audio and video codecs supported by enhanced RTMP are summarized 
 +----------------------------------------------+                                                            ¦
 ¦AV1                                           ¦                                                            ¦
 +----------------------------------------------+------------------------------------------------------------+
+¦                                              ¦VVC is a next-generation video codec under active industry  ¦
+¦                                              ¦evaluation. Codec carriage is supported by E-RTMP; browser  ¦
+¦                                              ¦decode support via WebCodecs is not yet available. As an    ¦
+¦VVC (a.k.a., H.266)                           ¦ingest and contribution protocol, E-RTMP is intentionally   ¦
+¦                                              ¦codec-agnostic and well suited to carrying emerging codecs  ¦
+¦                                              ¦prior to widespread viability at the delivery or playback   ¦
+¦                                              ¦layer.                                                      ¦
++----------------------------------------------+------------------------------------------------------------+
 ```
 
 &nbsp; \
-These strategic enhancements position RTMP as a robust, future-proof standard in the streaming technology arena. Veovera is committed to open collaboration and values community input, believing that protocols and standards should be open and free to foster innovation and create a thriving ecosystem. Companies can capitalize on solutions built around open standards; the more popular and accessible a protocol is, the stronger the foundation for developing compelling solutions. A standard’s popularity fuels adoption, allowing companies to leverage its widespread use. In contrast, fragmentation caused by proprietary protocols hampers industry growth, while open standards empower everyone to innovate freely, creating a healthier marketplace. E-RTMP’s shift toward openness aligns with the principles of open standards, emphasizing its potential to become a foundational technology. We encourage participation in the ongoing development process through our [GitHub repository](https://github.com/veovera/enhanced-rtmp), where you can access detailed documentation, contribute to the project, and share insights to foster a vibrant ecosystem around enhanced E-RTMP.
+These strategic enhancements position RTMP as a robust, future-proof standard in the streaming technology arena. Veovera is committed to open collaboration and values community input, believing that protocols and standards should be open and free to foster innovation and create a thriving ecosystem. Companies can capitalize on solutions built around open standards; the more popular and accessible a protocol is, the stronger the foundation for developing compelling solutions. A standard’s popularity fuels adoption, allowing companies to leverage its widespread use. In contrast, fragmentation caused by proprietary protocols hampers industry growth, while open standards empower everyone to innovate freely, creating a healthier marketplace. E-RTMP’s shift toward openness aligns with the principles of open standards, emphasizing its potential to become a foundational technology. We encourage participation in the ongoing development process through our [GitHub repository](https://github.com/veovera/enhanced-rtmp), where you can access detailed documentation, contribute to the project, and share insights to foster a vibrant ecosystem around E-RTMP.
 
 ## Introduction
 
@@ -803,7 +811,7 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 ¦      // - 1 millisecond (ms) = 1,000,000 nanoseconds (ns).                         ¦                                                                                    ¦
 ¦      // - Maximum value representable with 20 bits is 1,048,575 ns                 ¦  //  3 - Reserved                                                                  ¦
 ¦      //   (just over 1 ms), allowing precise sub-millisecond adjustments.          ¦                                                                                    ¦
-¦      // - modExData must be at least 3 bytes, storing values up to 999,999 ns.     ¦  MultichannelConfig  = 4,                                                          ¦
+¦      // - modExData MUST be at least 3 bytes, storing values up to 999,999 ns.     ¦  MultichannelConfig  = 4,                                                          ¦
 ¦      audioTimestampNanoOffset = bytesToUI24(modExData)                             ¦                                                                                    ¦
 ¦                                                                                    ¦  // Turns on audio multitrack mode                                                 ¦
 ¦      // TODO: Integrate this nanosecond offset into timestamp management           ¦  Multitrack          = 5,                                                          ¦
@@ -898,7 +906,7 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 ¦    // the representation that the publisher expects most receivers to select       ¦  // The channel order does not correspond to any predefined                        ¦
 ¦    // when no additional selection logic is applied, for example the primary       ¦  // order and is stored as an explicit map.                                        ¦
 ¦    // or most broadly applicable presentation for the stream.                      ¦  //                                                                                ¦
-¦    //                                                                              ¦  Custom      = 2                                                                   ¦
+¦    //                                                                              ¦  Custom      = 2,                                                                  ¦
 ¦    // Additional variants, for example different bitrates, resolutions,            ¦                                                                                    ¦
 ¦    // codecs, languages, or camera angles, SHOULD use distinct positive            ¦  //  3 - Reserved                                                                  ¦
 ¦    // trackId values (1, 2, 3, ...). These values are identifiers only and do      ¦  // ...                                                                            ¦
@@ -1187,7 +1195,7 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 ¦      // - 1 millisecond (ms) = 1,000,000 nanoseconds (ns).                         ¦  //  8 - Reserved                                                                  ¦
 ¦      // - Maximum value representable with 20 bits is 1,048,575 ns                 ¦  // ...                                                                            ¦
 ¦      //   (just over 1 ms), allowing precise sub-millisecond adjustments.          ¦  // 14 - reserved                                                                  ¦
-¦      // - modExData must be at least 3 bytes, storing values up to 999,999 ns.     ¦  // 15 - reserved                                                                  ¦
+¦      // - modExData MUST be at least 3 bytes, storing values up to 999,999 ns.     ¦  // 15 - reserved                                                                  ¦
 ¦      videoTimestampNanoOffset = bytesToUI24(modExData)                             ¦}                                                                                   ¦
 ¦                                                                                    ¦                                                                                    ¦
 ¦      // TODO: Integrate this nanosecond offset into timestamp management           ¦enum VideoPacketModExType {                                                         ¦
@@ -1211,15 +1219,16 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 ¦    // Fetch VideoPacketType for all video tracks in the video message.             ¦  Av1         = makeFourCc("av01"),                                                 ¦
 ¦    // This fetch MUST not result in a VideoPacketType.Multitrack                   ¦  Avc         = makeFourCc("avc1"),                                                 ¦
 ¦    videoPacketType = UB[4] as VideoPacketType                                      ¦  Hevc        = makeFourCc("hvc1"),                                                 ¦
-¦                                                                                    ¦}                                                                                   ¦
-¦    if (videoMultitrackType != AvMultitrackType.ManyTracksManyCodecs) {             ¦                                                                                    ¦
-¦      // The tracks are encoded with the same codec. Fetch the FOURCC for them      ¦enum AvMultitrackType {                                                             ¦
-¦      videoFourCc = FOURCC as VideoFourCc                                           ¦  //                                                                                ¦
-¦    }                                                                               ¦  // Used by audio and video pipeline                                               ¦
-¦  } else {                                                                          ¦  //                                                                                ¦
-¦    videoFourCc = FOURCC as VideoFourCc                                             ¦                                                                                    ¦
-¦  }                                                                                 ¦  OneTrack              = 0,                                                        ¦
-¦}                                                                                   ¦  ManyTracks            = 1,                                                        ¦
+¦                                                                                    ¦  Vvc         = makeFourCc("vvc1"),                                                 ¦
+¦    if (videoMultitrackType != AvMultitrackType.ManyTracksManyCodecs) {             ¦}                                                                                   ¦
+¦      // The tracks are encoded with the same codec. Fetch the FOURCC for them      ¦                                                                                    ¦
+¦      videoFourCc = FOURCC as VideoFourCc                                           ¦enum AvMultitrackType {                                                             ¦
+¦    }                                                                               ¦  //                                                                                ¦
+¦  } else {                                                                          ¦  // Used by audio and video pipeline                                               ¦
+¦    videoFourCc = FOURCC as VideoFourCc                                             ¦  //                                                                                ¦
+¦  }                                                                                 ¦                                                                                    ¦
+¦}                                                                                   ¦  OneTrack              = 0,                                                        ¦
+¦                                                                                    ¦  ManyTracks            = 1,                                                        ¦
 ¦                                                                                    ¦  ManyTracksManyCodecs  = 2,                                                        ¦
 ¦                                                                                    ¦                                                                                    ¦
 ¦                                                                                    ¦  //  3 - Reserved                                                                  ¦
@@ -1337,6 +1346,14 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 ¦      // the HEVCDecoderConfigurationRecord.                                                                                                                             ¦
 ¦      hevcHeader = [HEVCDecoderConfigurationRecord]                                                                                                                      ¦
 ¦    }                                                                                                                                                                    ¦
+¦                                                                                                                                                                         ¦
+¦    if (videoFourCc == VideoFourCc.Vvc) {                                                                                                                                ¦
+¦      // body contains a configuration record to start the sequence.                                                                                                     ¦
+¦      // See ISO/IEC 14496-15:2022, 8.3.3.3 for the description of                                                                                                       ¦
+¦      // the VVCDecoderConfigurationRecord.                                                                                                                              ¦
+¦      vvcHeader = [VVCDecoderConfigurationRecord]                                                                                                                        ¦
+¦    }                                                                                                                                                                    ¦
+¦                                                                                                                                                                         ¦
 ¦  }                                                                                                                                                                      ¦
 ¦                                                                                                                                                                         ¦
 ¦  if (videoPacketType == VideoPacketType.MPEG2TSSequenceStart) {                                                                                                         ¦
@@ -1379,6 +1396,15 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 ¦      // Body contains one or more NALUs; full frames are required                                                                                                       ¦
 ¦      hevcData = [HevcCodedData]                                                                                                                                         ¦
 ¦    }                                                                                                                                                                    ¦
+¦                                                                                                                                                                         ¦
+¦    if (videoFourCc == VideoFourCc.Vvc) {                                                                                                                                ¦
+¦      // See ISO/IEC 14496-12:2015, 8.6.1 for the description of the composition                                                                                         ¦
+¦      // time offset. The offset in an FLV file is always in milliseconds.                                                                                               ¦
+¦      compositionTimeOffset = SI24                                                                                                                                       ¦
+¦                                                                                                                                                                         ¦
+¦      // Body contains one or more NALUs; full frames are required                                                                                                       ¦
+¦      vvcData = [VvcCodedData]                                                                                                                                           ¦
+¦    }                                                                                                                                                                    ¦
 ¦  }                                                                                                                                                                      ¦
 ¦                                                                                                                                                                         ¦
 ¦  if (videoPacketType == VideoPacketType.CodedFramesX) {                                                                                                                 ¦
@@ -1393,6 +1419,11 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 ¦    if (videoFourCc == VideoFourCc.Hevc) {                                                                                                                               ¦
 ¦      // Body contains one or more NALUs; full frames are required                                                                                                       ¦
 ¦      hevcData = [HevcCodedData]                                                                                                                                         ¦
+¦    }                                                                                                                                                                    ¦
+¦                                                                                                                                                                         ¦
+¦    if (videoFourCc == VideoFourCc.Vvc) {                                                                                                                                ¦
+¦      // Body contains one or more NALUs; full frames are required                                                                                                       ¦
+¦      vvcData = [VvcCodedData]                                                                                                                                           ¦
 ¦    }                                                                                                                                                                    ¦
 ¦  }                                                                                                                                                                      ¦
 ¦                                                                                                                                                                         ¦
@@ -1649,9 +1680,9 @@ When a client connects to an E-RTMP server, it sends a [**connect**](https://veo
 +---------------------+---------------------------+-------------------------------------------------------------------+------------------------------------------------------+
 ¦fourCcList           ¦Strict Array of strings    ¦Used to declare the enhanced list of supported codecs when         ¦e.g., 1                                               ¦
 ¦                     ¦                           ¦connecting to the server. The fourCcList property is a strict array¦[                                                     ¦
-¦                     ¦                           ¦of dense ordinal indices. Each entry in the array is of string     ¦  "av01", "vp09", "vp08", "Hvc1",                     ¦
-¦                     ¦                           ¦type, specifically a [FourCC] value (i.e., a string that is a      ¦  "Avc1", "ac-3", "ec-3", "Opus",                     ¦
-¦                     ¦                           ¦sequence of four bytes), representing a supported audio/video      ¦  ".mp3", "fLaC", "Aac"                               ¦
+¦                     ¦                           ¦of dense ordinal indices. Each entry in the array is of string     ¦  "av01", "vp09", "vp08", "hvc1",                     ¦
+¦                     ¦                           ¦type, specifically a [FourCC] value (i.e., a string that is a      ¦  "vvc1", "avc1", "ac-3", "ec-3",                     ¦
+¦                     ¦                           ¦sequence of four bytes), representing a supported audio/video      ¦  "Opus", ".mp3", "fLaC", "mp4a"                      ¦
 ¦                     ¦                           ¦codec.                                                             ¦]                                                     ¦
 ¦                     ¦                           ¦                                                                   ¦                                                      ¦
 ¦                     ¦                           ¦In the context of E-RTMP, clients capable of receiving any codec   ¦e.g., 2                                               ¦
