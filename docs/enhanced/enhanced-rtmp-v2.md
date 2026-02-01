@@ -36,7 +36,7 @@
 &nbsp; \
 **Contributors**: Adobe, Google, Twitch, Jean-Baptiste Kempf (FFmpeg, VideoLAN), pkv (OBS), Dennis Sädtler (OBS), Xavier Hallade (Intel Corporation), Luxoft, SplitmediaLabs Limited (XSplit), Meta, Michael Thornburgh, Veovera Software Organization \
 &nbsp; \
-**Document Version:** **v2-2026-01-24-r2** \
+**Document Version:** **v2-2026-01-31-r2** \
 &nbsp; \
 **General Disclaimer:** The features, enhancements, and specifications described in this document are intended for informational purposes only and may not reflect the final implementation. Veovera Software Organization (VSO) does not guarantee the accuracy, completeness, or suitability of this information for any specific purpose. Users are solely responsible for any decisions or implementations based on this document. \
 &nbsp; \
@@ -225,12 +225,13 @@ The additional audio and video codecs supported by enhanced RTMP (E-RTMP) are su
 ¦AV1                                           ¦                                                            ¦
 +----------------------------------------------+------------------------------------------------------------+
 ¦                                              ¦VVC is a next-generation video codec under active industry  ¦
-¦                                              ¦evaluation. Codec carriage is supported by E-RTMP; browser  ¦
-¦                                              ¦decode support via WebCodecs is not yet available. As an    ¦
-¦VVC (a.k.a., H.266)                           ¦ingest and contribution protocol, E-RTMP is intentionally   ¦
-¦                                              ¦codec-agnostic and well suited to carrying emerging codecs  ¦
-¦                                              ¦prior to widespread viability at the delivery or playback   ¦
-¦                                              ¦layer.                                                      ¦
+¦                                              ¦evaluation, with ecosystem deployment and client support    ¦
+¦                                              ¦still emerging. Codec carriage is supported by E-RTMP;      ¦
+¦VVC (a.k.a., H.266)                           ¦browser decode support via WebCodecs or MSE is not yet      ¦
+¦                                              ¦available. As an ingest and contribution protocol, E-RTMP is¦
+¦                                              ¦intentionally codec-agnostic and well suited to carrying    ¦
+¦                                              ¦emerging codecs prior to widespread viability at the        ¦
+¦                                              ¦delivery or playback layer.                                 ¦
 +----------------------------------------------+------------------------------------------------------------+
 ```
 
@@ -1349,7 +1350,7 @@ During the parsing process, the logic MUST handle unexpected or unknown elements
 ¦                                                                                                                                                                         ¦
 ¦    if (videoFourCc == VideoFourCc.Vvc) {                                                                                                                                ¦
 ¦      // body contains a configuration record to start the sequence.                                                                                                     ¦
-¦      // See ISO/IEC 14496-15:2022, 8.3.3.3 for the description of                                                                                                       ¦
+¦      // See ISO/IEC 14496-15:2024, 11.2.4.2 for the description of                                                                                                      ¦
 ¦      // the VVCDecoderConfigurationRecord.                                                                                                                              ¦
 ¦      vvcHeader = [VVCDecoderConfigurationRecord]                                                                                                                        ¦
 ¦    }                                                                                                                                                                    ¦
@@ -1681,8 +1682,8 @@ When a client connects to an E-RTMP server, it sends a [**connect**](https://veo
 ¦fourCcList           ¦Strict Array of strings    ¦Used to declare the enhanced list of supported codecs when         ¦e.g., 1                                               ¦
 ¦                     ¦                           ¦connecting to the server. The fourCcList property is a strict array¦[                                                     ¦
 ¦                     ¦                           ¦of dense ordinal indices. Each entry in the array is of string     ¦  "av01", "vp09", "vp08", "hvc1",                     ¦
-¦                     ¦                           ¦type, specifically a [FourCC] value (i.e., a string that is a      ¦  "vvc1", "avc1", "ac-3", "ec-3",                     ¦
-¦                     ¦                           ¦sequence of four bytes), representing a supported audio/video      ¦  "Opus", ".mp3", "fLaC", "mp4a"                      ¦
+¦                     ¦                           ¦type, specifically a [FourCC] value (i.e., a string that is a      ¦  "avc1", "ac-3", "ec-3", "Opus",                     ¦
+¦                     ¦                           ¦sequence of four bytes), representing a supported audio/video      ¦  ".mp3", "fLaC", "mp4a"                              ¦
 ¦                     ¦                           ¦codec.                                                             ¦]                                                     ¦
 ¦                     ¦                           ¦                                                                   ¦                                                      ¦
 ¦                     ¦                           ¦In the context of E-RTMP, clients capable of receiving any codec   ¦e.g., 2                                               ¦
