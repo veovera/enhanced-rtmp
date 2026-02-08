@@ -14,7 +14,7 @@ if (isDebug) {
 const mainOptions = {
   entryPoints: ['src/demo-app.ts'],
   bundle: true,
-  outfile: 'dist/bundle.js',
+  outfile: 'dist/e-flv-demo.js',
   sourcemap: true,
   target: 'es2022',
   minify: isMinify,
