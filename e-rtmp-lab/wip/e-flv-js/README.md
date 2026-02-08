@@ -16,9 +16,10 @@ Browse the live GitHub repository → [\<e-flv-js\>](https://github.com/veovera/
 ## Project layout
 
 - `src/` – Sources for the demo app (`demo-app.ts`) and the mux/demux/remux/player library in `mux-lib/`
-- `demo-assets/` – video clips auto‑discovered by the demo and shown in the picker
+- `../assets/` (`wip/assets/`) – shared test clips available to all projects under `wip/`; auto‑discovered by the demo picker
+- `assets/` – local test clips specific to this project; also auto‑discovered by the demo picker
 - `dist/` – build output for the demo app and the mux lib
-- `index.html` – static shell that bootstraps the demo UI
+- `demo-app.html` – static shell that bootstraps the demo UI
   
 ## Prerequisites
 
@@ -38,7 +39,7 @@ npm install
 3. Open `http://localhost:8080/index.html`
 4. Pick a source clip, adjust settings, and press **Create Player**
 
-The demo ships with AV1 and Opus samples. Reload the page after adding new `.flv` files to `demo-assets/`.
+The demo ships with AV1 and Opus samples. Reload the page after adding new `.flv` files to `wip/assets/` (shared) or `e-flv-js/assets/` (local).
 
 ## Production build
 

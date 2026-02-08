@@ -28,7 +28,7 @@ interface FileItem {
 // farther down we overrite this list and dynamically populate the dropdown with folder contents
 // this list is for reference/debugging
 let fileList: FileItem[] = [
-  { label: "bbb.flv", path: "./demo-assets/bbb.flv" },
+  { label: "bbb.flv", path: "/assets/bbb.flv" },
 ];
 let selectedFile = fileList[0].path; // Default selection
 
@@ -478,7 +478,7 @@ window.addEventListener('load', () => {
     return;
   }
   videoElement.controls = true;
-  videoElement.src = "./demo-assets/testsrc.webm"; // Default video source for native playback
+  videoElement.src = "/assets/testsrc.webm"; // Default video source for native playback
   initLayout();
 });
 
@@ -489,11 +489,11 @@ interface FlvListing {
 
 interface FlvFileLists {
   assets: FlvListing;
-  demoAssets: FlvListing;
+  localAssets: FlvListing;
 }
 
-const DEMO_ASSETS_DIR = './demo-assets';
-const ASSETS_DIR = './assets';
+const ASSETS_DIR = '/assets';
+const LOCAL_ASSETS_DIR = '/e-flv-js/assets';
 
 async function fetchAndExtractList(path: string): Promise<FlvListing> {
   const res = await fetch(path, { cache: 'no-cache' });
@@ -516,31 +516,31 @@ async function fetchAndExtractList(path: string): Promise<FlvListing> {
 }
 
 async function getFlvFileList(): Promise<FlvFileLists> {
-  const [demoAssets, assets]: [FlvListing, FlvListing] = await Promise.all([
-    fetchAndExtractList(DEMO_ASSETS_DIR),
+  const [assets, localAssets]: [FlvListing, FlvListing] = await Promise.all([
     fetchAndExtractList(ASSETS_DIR),
+    fetchAndExtractList(LOCAL_ASSETS_DIR),
   ]);
 
-  if (demoAssets.list.length === 0 && assets.list.length === 0) {
-    throw new Error('No FLV files found in demo-assets or assets folders.');
+  if (assets.list.length === 0 && localAssets.list.length === 0) {
+    throw new Error('No FLV files found in assets or local assets folders.');
   }
 
-  return { assets, demoAssets };
+  return { assets, localAssets };
 }
 
 getFlvFileList()
-  .then(({ assets, demoAssets }: FlvFileLists) => {
-    if (demoAssets.list.length > 0) {
-      fileList = demoAssets.list.map(filename => ({
+  .then(({ assets, localAssets }: FlvFileLists) => {
+    if (assets.list.length > 0) {
+      fileList = assets.list.map(filename => ({
         label: filename,
-        path: `${DEMO_ASSETS_DIR}/${filename}`
+        path: `${ASSETS_DIR}/${filename}`
       }));
     }
 
-    if (assets.list.length > 0) {
-      fileList = fileList.concat(assets.list.map(filename => ({
+    if (localAssets.list.length > 0) {
+      fileList = fileList.concat(localAssets.list.map(filename => ({
         label: filename,
-        path: `${ASSETS_DIR}/${filename}`
+        path: `${LOCAL_ASSETS_DIR}/${filename}`
       })));
     }
 
