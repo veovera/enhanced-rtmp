@@ -10,7 +10,7 @@ go build -o eflv .
 
 ## Usage
 
-```
+```txt
 eflv [command] [flags]
 ```
 
@@ -24,9 +24,9 @@ Dump structural information about an FLV / E-FLV file.
 eflv dump <input.flv> [--json] [--verbose]
 ```
 
-| Flag        | Description                                              |
-|-------------|----------------------------------------------------------|
-| `--json`    | Output machine-readable JSON instead of text             |
+| Flag        | Description                                                   |
+|-------------|---------------------------------------------------------------|
+| `--json`    | Output machine-readable JSON instead of text                  |
 | `--verbose` | Include lower-level details (offsets, timestamps, tag counts) |
 
 #### merge
@@ -44,7 +44,7 @@ eflv merge <a.flv> <b.flv> -o <out.flv> [--multitrack]
 
 ## Project Structure
 
-```
+```txt
 ├── main.go          # Entry point
 ├── cmd/
 │   ├── root.go      # Root CLI command (Cobra)
