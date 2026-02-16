@@ -1,9 +1,6 @@
 # Ignore all node_modules folders anywhere
 **/node_modules/
 
-# Ignore all dist/ folders
-**/dist/
-
 # Ignore lockfiles if you're not committing them
 **/package-lock.json
 **/yarn.lock
@@ -39,6 +36,10 @@
 # Build output
 **/build/
 **/out/
+**/bin/
+**/local/
+**/tmp/
+**/dist/
 
 # Coverage
 **/coverage/
