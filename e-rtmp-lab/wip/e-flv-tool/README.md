@@ -51,11 +51,10 @@ eflv merge <a.flv> <b.flv> -o <out.flv> [--multitrack]
 │   ├── dump.go      # dump subcommand
 │   └── merge.go     # merge subcommand
 ├── flv/
-│   ├── parser.go    # FLV file parsing
-│   ├── amf0.go      # AMF0 decoder
-│   └── merge.go     # FLV merge logic
-└── local/
-    └── eflv_cli_spec.txt  # CLI specification
+│   ├── parser.go        # FLV file parsing
+│   ├── amf0.go          # AMF0 decoder
+│   ├── codec_config.go  # Codec configuration record parsing
+│   └── merge.go         # FLV merge logic
 ```
 
 ## Status
@@ -65,6 +64,7 @@ eflv merge <a.flv> <b.flv> -o <out.flv> [--multitrack]
 - FLV header and tag counting are functional
 - onMetaData script tag parsing with AMF0 decoding is implemented
 - FourCC codec identification for E-RTMP is supported
+- Codec configuration record parsing for video (AVC, HEVC, AV1, VP9) and audio (AAC, Opus, FLAC)
 - JSON output, verbose mode, and merge logic are not yet implemented
 
 ## Dependencies

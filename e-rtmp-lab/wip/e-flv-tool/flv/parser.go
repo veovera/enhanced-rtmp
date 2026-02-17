@@ -100,7 +100,8 @@ func DumpFLV(inputPath string, jsonOutput bool, verbose bool) error {
 	var videoTags uint64
 	var scriptTags uint64
 	var otherTags uint64
-	var metadataProps []AMF0Property
+	var metadataBlocks [][]AMF0Property
+	var codecConfigs []CodecConfig
 	var tagHeader [11]byte
 	for {
 		_, err := io.ReadFull(r, tagHeader[:])
@@ -119,21 +120,36 @@ func DumpFLV(inputPath string, jsonOutput bool, verbose bool) error {
 		dataSize := int64(tagHeader[1])<<16 | int64(tagHeader[2])<<8 | int64(tagHeader[3])
 
 		switch tagType {
-		case TagTypeAudio:
-			audioTags++
 		case TagTypeVideo:
 			videoTags++
+			cfg, err := tryParseVideoConfig(r, int(dataSize))
+			if err != nil {
+				return fmt.Errorf("reading video tag payload: %w", err)
+			}
+			if cfg != nil {
+				codecConfigs = append(codecConfigs, *cfg)
+			}
+			goto readPrevTagSize
+		case TagTypeAudio:
+			audioTags++
+			cfg, err := tryParseAudioConfig(r, int(dataSize))
+			if err != nil {
+				return fmt.Errorf("reading audio tag payload: %w", err)
+			}
+			if cfg != nil {
+				codecConfigs = append(codecConfigs, *cfg)
+			}
+			goto readPrevTagSize
 		case TagTypeScript:
 			scriptTags++
-			if metadataProps == nil {
-				props, err := parseScriptTag(r, int(dataSize))
-				if err == nil && props != nil {
-					metadataProps = props
-				} else if err != nil {
-					return fmt.Errorf("reading script tag payload: %w", err)
-				}
-				goto readPrevTagSize
+			props, err := parseScriptTag(r, int(dataSize))
+			if err != nil {
+				return fmt.Errorf("reading script tag payload: %w", err)
 			}
+			if props != nil {
+				metadataBlocks = append(metadataBlocks, props)
+			}
+			goto readPrevTagSize
 		default:
 			otherTags++
 		}
@@ -162,16 +178,24 @@ func DumpFLV(inputPath string, jsonOutput bool, verbose bool) error {
 	fmt.Printf("  Script: %d\n", scriptTags)
 	fmt.Printf("  Other:  %d\n", otherTags)
 
-	if metadataProps != nil {
+	for i, props := range metadataBlocks {
 		fmt.Println()
-		fmt.Printf("onMetaData\n")
-		for _, p := range metadataProps {
+		if len(metadataBlocks) == 1 {
+			fmt.Printf("onMetaData\n")
+		} else {
+			fmt.Printf("onMetaData #%d\n", i+1)
+		}
+		for _, p := range props {
 			printAMF0Property(p, 1)
 		}
 	}
 
+	for _, cfg := range codecConfigs {
+		fmt.Println()
+		printCodecConfig(cfg)
+	}
+
 	// TODO: Parse tag headers for timestamps, stream IDs, data sizes
-	// TODO: Parse audio/video tag headers for codec information
 	// TODO: Detect and report E-FLV track information
 	// TODO: Output as text or JSON based on jsonOutput flag
 	// TODO: Include offsets, timestamps, tag counts when verbose is true
