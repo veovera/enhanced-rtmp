@@ -1,5 +1,3 @@
-<!-- THIS FILE IS GENERATED, DON'T EDIT -->
-
 # Veovera Software Organization (VSO)
 
 ![Veovera logo](https://veovera.github.io/enhanced-rtmp/vso_logo.png)
@@ -37,6 +35,10 @@ The lab provides a structured environment for developing and evaluating new idea
 Current projects include:
 
 - [wip/e-flv-js](https://github.com/veovera/enhanced-rtmp/tree/main/e-rtmp-lab/wip/e-flv-js) - A hybrid TypeScript/JavaScript implementation for playing **Enhanced FLV (E-FLV)** and **legacy FLV files** in the browser using **Media Source Extensions (MSE)**. Includes a demo app and sample video assets.
+
+- [wip/e-flv-tool](https://github.com/veovera/enhanced-rtmp/tree/main/e-rtmp-lab/wip/e-flv-tool) - A Go CLI tool for inspecting and manipulating FLV/E-FLV files. Parses FLV headers, tags, onMetaData script data (AMF0), and codec configuration records for video (AVC, HEVC, AV1, VP9) and audio (AAC, Opus, FLAC).
+
+- [wip/assets](https://github.com/veovera/enhanced-rtmp/tree/main/e-rtmp-lab/wip/assets) - Shared test video clips (FLV and WebM) used across experiments.
 
 Feedback and collaboration are welcome as the community helps refine and expand E-RTMP’s capabilities.
 
