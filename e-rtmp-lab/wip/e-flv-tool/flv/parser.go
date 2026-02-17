@@ -129,7 +129,6 @@ func DumpFLV(inputPath string, jsonOutput bool, verbose bool) error {
 			if cfg != nil {
 				codecConfigs = append(codecConfigs, *cfg)
 			}
-			goto readPrevTagSize
 		case TagTypeAudio:
 			audioTags++
 			cfg, err := tryParseAudioConfig(r, int(dataSize))
@@ -139,7 +138,6 @@ func DumpFLV(inputPath string, jsonOutput bool, verbose bool) error {
 			if cfg != nil {
 				codecConfigs = append(codecConfigs, *cfg)
 			}
-			goto readPrevTagSize
 		case TagTypeScript:
 			scriptTags++
 			props, err := parseScriptTag(r, int(dataSize))
@@ -149,19 +147,15 @@ func DumpFLV(inputPath string, jsonOutput bool, verbose bool) error {
 			if props != nil {
 				metadataBlocks = append(metadataBlocks, props)
 			}
-			goto readPrevTagSize
 		default:
 			otherTags++
-		}
-
-		if _, err := io.CopyN(io.Discard, r, dataSize); err != nil {
-			if err == io.EOF || err == io.ErrUnexpectedEOF {
-				return fmt.Errorf("reading tag payload: truncated file")
+			if _, err := io.CopyN(io.Discard, r, dataSize); err != nil {
+				if err == io.EOF || err == io.ErrUnexpectedEOF {
+					return fmt.Errorf("reading tag payload: truncated file")
+				}
+				return fmt.Errorf("reading tag payload: %w", err)
 			}
-			return fmt.Errorf("reading tag payload: %w", err)
 		}
-
-	readPrevTagSize:
 		if _, err := io.ReadFull(r, previousTagSize[:]); err != nil {
 			if err == io.EOF || err == io.ErrUnexpectedEOF {
 				return fmt.Errorf("reading previous tag size: truncated file")
