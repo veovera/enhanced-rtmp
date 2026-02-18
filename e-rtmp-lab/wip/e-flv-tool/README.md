@@ -5,13 +5,13 @@ A command-line tool for inspecting and manipulating FLV and E-FLV (Enhanced FLV)
 ## Build
 
 ```bash
-go build -o eflv .
+go build -o bin/
 ```
 
 ## Usage
 
 ```txt
-eflv [command] [flags]
+bin/eflv [command] [flags]
 ```
 
 ### Commands
@@ -21,7 +21,7 @@ eflv [command] [flags]
 Dump structural information about an FLV / E-FLV file.
 
 ```bash
-eflv dump <input.flv> [--json] [--verbose]
+bin/eflv dump <input.flv> [--json] [--verbose]
 ```
 
 | Flag        | Description                                                   |
@@ -34,7 +34,7 @@ eflv dump <input.flv> [--json] [--verbose]
 Merge two E-FLV inputs into a single output FLV.
 
 ```bash
-eflv merge <a.flv> <b.flv> -o <out.flv> [--multitrack]
+bin/eflv merge <a.flv> <b.flv> -o <out.flv> [--multitrack]
 ```
 
 | Flag           | Description                                        |
