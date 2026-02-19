@@ -177,13 +177,397 @@ func parseAudioConfigByFourCC(fourCC string, data []byte) []ConfigField {
 	}
 }
 
+// --- SPS bit reader (H.264 / H.265 RBSP parsing) ---
+
+type spsBitReader struct {
+	data   []byte
+	bitPos int // global bit index, MSB-first
+}
+
+func newSPSBitReader(data []byte) *spsBitReader {
+	return &spsBitReader{data: data}
+}
+
+func (r *spsBitReader) readBit() (uint64, bool) {
+	if r.bitPos >= len(r.data)*8 {
+		return 0, false
+	}
+	b := uint64((r.data[r.bitPos/8] >> (7 - uint(r.bitPos%8))) & 1)
+	r.bitPos++
+	return b, true
+}
+
+func (r *spsBitReader) readBits(n int) (uint64, bool) {
+	var v uint64
+	for i := 0; i < n; i++ {
+		b, ok := r.readBit()
+		if !ok {
+			return 0, false
+		}
+		v = (v << 1) | b
+	}
+	return v, true
+}
+
+func (r *spsBitReader) readUE() (uint64, bool) {
+	leadingZeros := 0
+	for {
+		b, ok := r.readBit()
+		if !ok {
+			return 0, false
+		}
+		if b == 1 {
+			break
+		}
+		leadingZeros++
+		if leadingZeros > 31 {
+			return 0, false
+		}
+	}
+	if leadingZeros == 0 {
+		return 0, true
+	}
+	suffix, ok := r.readBits(leadingZeros)
+	if !ok {
+		return 0, false
+	}
+	return (1<<uint(leadingZeros) - 1) + suffix, true
+}
+
+func (r *spsBitReader) readSE() (int64, bool) {
+	v, ok := r.readUE()
+	if !ok {
+		return 0, false
+	}
+	if v == 0 {
+		return 0, true
+	}
+	if v%2 == 1 {
+		return int64((v + 1) / 2), true
+	}
+	return -int64(v / 2), true
+}
+
+func (r *spsBitReader) skipUE() bool { _, ok := r.readUE(); return ok }
+func (r *spsBitReader) skipSE() bool { _, ok := r.readSE(); return ok }
+
+// removeEmulationPreventionBytes strips RBSP emulation prevention bytes
+// (0x00 0x00 0x03 → 0x00 0x00) per ISO 14496-10 / ISO 23008-2.
+func removeEmulationPreventionBytes(data []byte) []byte {
+	result := make([]byte, 0, len(data))
+	for i := 0; i < len(data); i++ {
+		if i+2 < len(data) && data[i] == 0x00 && data[i+1] == 0x00 && data[i+2] == 0x03 {
+			result = append(result, 0x00, 0x00)
+			i += 2
+			continue
+		}
+		result = append(result, data[i])
+	}
+	return result
+}
+
+// parseAVCSPSResolution extracts picture width and height from an AVC SPS NAL unit
+// (ISO 14496-10). nalUnit includes the 1-byte NAL header.
+func parseAVCSPSResolution(nalUnit []byte) (width, height int, ok bool) {
+	if len(nalUnit) < 4 {
+		return 0, 0, false
+	}
+	rbsp := removeEmulationPreventionBytes(nalUnit[1:]) // skip NAL header
+	if len(rbsp) < 3 {
+		return 0, 0, false
+	}
+	profileIDC := int(rbsp[0])
+	// rbsp[1] = constraint flags, rbsp[2] = level_idc
+	br := newSPSBitReader(rbsp[3:])
+
+	if !br.skipUE() { // seq_parameter_set_id
+		return 0, 0, false
+	}
+	chromaFormatIDC := uint64(1)
+	if profileIDC == 100 || profileIDC == 110 || profileIDC == 122 || profileIDC == 244 ||
+		profileIDC == 44 || profileIDC == 83 || profileIDC == 86 || profileIDC == 118 ||
+		profileIDC == 128 || profileIDC == 138 || profileIDC == 139 || profileIDC == 144 {
+		var ok2 bool
+		chromaFormatIDC, ok2 = br.readUE()
+		if !ok2 {
+			return 0, 0, false
+		}
+		if chromaFormatIDC == 3 {
+			if _, ok2 = br.readBit(); !ok2 { // separate_colour_plane_flag
+				return 0, 0, false
+			}
+		}
+		if !br.skipUE() { // bit_depth_luma_minus8
+			return 0, 0, false
+		}
+		if !br.skipUE() { // bit_depth_chroma_minus8
+			return 0, 0, false
+		}
+		if _, ok2 = br.readBit(); !ok2 { // qpprime_y_zero_transform_bypass_flag
+			return 0, 0, false
+		}
+		scalingMatrixPresent, ok2 := br.readBit()
+		if !ok2 {
+			return 0, 0, false
+		}
+		if scalingMatrixPresent == 1 {
+			numLists := 8
+			if chromaFormatIDC == 3 {
+				numLists = 12
+			}
+			for i := 0; i < numLists; i++ {
+				listPresent, ok3 := br.readBit()
+				if !ok3 {
+					return 0, 0, false
+				}
+				if listPresent == 1 {
+					size := 16
+					if i >= 6 {
+						size = 64
+					}
+					last, next := int64(8), int64(8)
+					for j := 0; j < size; j++ {
+						if next != 0 {
+							delta, ok4 := br.readSE()
+							if !ok4 {
+								return 0, 0, false
+							}
+							next = (last + delta + 256) % 256
+						}
+						if next != 0 {
+							last = next
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if !br.skipUE() { // log2_max_frame_num_minus4
+		return 0, 0, false
+	}
+	picOrderCntType, ok2 := br.readUE()
+	if !ok2 {
+		return 0, 0, false
+	}
+	switch picOrderCntType {
+	case 0:
+		if !br.skipUE() { // log2_max_pic_order_cnt_lsb_minus4
+			return 0, 0, false
+		}
+	case 1:
+		if _, ok3 := br.readBit(); !ok3 { // delta_pic_order_always_zero_flag
+			return 0, 0, false
+		}
+		if !br.skipSE() { // offset_for_non_ref_pic
+			return 0, 0, false
+		}
+		if !br.skipSE() { // offset_for_top_to_bottom_field
+			return 0, 0, false
+		}
+		n, ok3 := br.readUE() // num_ref_frames_in_pic_order_cnt_cycle
+		if !ok3 {
+			return 0, 0, false
+		}
+		for i := uint64(0); i < n; i++ {
+			if !br.skipSE() {
+				return 0, 0, false
+			}
+		}
+	}
+	if !br.skipUE() { // max_num_ref_frames
+		return 0, 0, false
+	}
+	if _, ok2 = br.readBit(); !ok2 { // gaps_in_frame_num_value_allowed_flag
+		return 0, 0, false
+	}
+
+	picWidthInMbsMinus1, ok2 := br.readUE()
+	if !ok2 {
+		return 0, 0, false
+	}
+	picHeightInMapUnitsMinus1, ok2 := br.readUE()
+	if !ok2 {
+		return 0, 0, false
+	}
+	frameMBSOnlyFlag, ok2 := br.readBit()
+	if !ok2 {
+		return 0, 0, false
+	}
+	if frameMBSOnlyFlag == 0 {
+		if _, ok3 := br.readBit(); !ok3 { // mb_adaptive_frame_field_flag
+			return 0, 0, false
+		}
+	}
+	if _, ok2 = br.readBit(); !ok2 { // direct_8x8_inference_flag
+		return 0, 0, false
+	}
+
+	var cropLeft, cropRight, cropTop, cropBottom uint64
+	frameCroppingFlag, ok2 := br.readBit()
+	if !ok2 {
+		return 0, 0, false
+	}
+	if frameCroppingFlag == 1 {
+		var ok3 bool
+		if cropLeft, ok3 = br.readUE(); !ok3 {
+			return 0, 0, false
+		}
+		if cropRight, ok3 = br.readUE(); !ok3 {
+			return 0, 0, false
+		}
+		if cropTop, ok3 = br.readUE(); !ok3 {
+			return 0, 0, false
+		}
+		if cropBottom, ok3 = br.readUE(); !ok3 {
+			return 0, 0, false
+		}
+	}
+
+	w := int(picWidthInMbsMinus1+1) * 16
+	h := int(2-frameMBSOnlyFlag) * int(picHeightInMapUnitsMinus1+1) * 16
+	cropUnitX, cropUnitY := 1, int(2-frameMBSOnlyFlag)
+	if chromaFormatIDC != 0 {
+		cropUnitX = 2
+		cropUnitY = 2 * int(2-frameMBSOnlyFlag)
+	}
+	w -= (int(cropLeft) + int(cropRight)) * cropUnitX
+	h -= (int(cropTop) + int(cropBottom)) * cropUnitY
+	return w, h, true
+}
+
+// skipHEVCProfileTierLevel skips the profile_tier_level() structure (H.265 / ISO 23008-2).
+func skipHEVCProfileTierLevel(br *spsBitReader, profilePresentFlag bool, maxNumSubLayersMinus1 int) bool {
+	if profilePresentFlag {
+		// profile_space(2) + tier(1) + profile_idc(5) + compat_flags(32) +
+		// progressive/interlaced/non_packed/frame_only flags(4) + reserved(44) = 88 bits
+		if _, ok := br.readBits(88); !ok {
+			return false
+		}
+	}
+	if _, ok := br.readBits(8); !ok { // general_level_idc
+		return false
+	}
+	subLayerProfilePresent := make([]bool, maxNumSubLayersMinus1)
+	subLayerLevelPresent := make([]bool, maxNumSubLayersMinus1)
+	for i := 0; i < maxNumSubLayersMinus1; i++ {
+		pp, ok := br.readBit()
+		if !ok {
+			return false
+		}
+		lp, ok := br.readBit()
+		if !ok {
+			return false
+		}
+		subLayerProfilePresent[i] = pp == 1
+		subLayerLevelPresent[i] = lp == 1
+	}
+	if maxNumSubLayersMinus1 > 0 {
+		for i := maxNumSubLayersMinus1; i < 8; i++ {
+			if _, ok := br.readBits(2); !ok { // reserved_zero_2bits padding
+				return false
+			}
+		}
+	}
+	for i := 0; i < maxNumSubLayersMinus1; i++ {
+		if subLayerProfilePresent[i] {
+			if _, ok := br.readBits(88); !ok {
+				return false
+			}
+		}
+		if subLayerLevelPresent[i] {
+			if _, ok := br.readBits(8); !ok {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// parseHEVCSPSResolution extracts picture width and height from an HEVC SPS NAL unit
+// (ISO 23008-2). nalUnit includes the 2-byte NAL header.
+func parseHEVCSPSResolution(nalUnit []byte) (width, height int, ok bool) {
+	if len(nalUnit) < 3 {
+		return 0, 0, false
+	}
+	rbsp := removeEmulationPreventionBytes(nalUnit[2:]) // skip 2-byte NAL header
+	br := newSPSBitReader(rbsp)
+
+	if _, ok2 := br.readBits(4); !ok2 { // sps_video_parameter_set_id
+		return 0, 0, false
+	}
+	maxSubLayersMinus1, ok2 := br.readBits(3) // sps_max_sub_layers_minus1
+	if !ok2 {
+		return 0, 0, false
+	}
+	if _, ok2 = br.readBit(); !ok2 { // sps_temporal_id_nesting_flag
+		return 0, 0, false
+	}
+	if !skipHEVCProfileTierLevel(br, true, int(maxSubLayersMinus1)) {
+		return 0, 0, false
+	}
+	if !br.skipUE() { // sps_seq_parameter_set_id
+		return 0, 0, false
+	}
+	chromaFormatIDC, ok2 := br.readUE()
+	if !ok2 {
+		return 0, 0, false
+	}
+	if chromaFormatIDC == 3 {
+		if _, ok3 := br.readBit(); !ok3 { // separate_colour_plane_flag
+			return 0, 0, false
+		}
+	}
+	picWidth, ok2 := br.readUE() // pic_width_in_luma_samples
+	if !ok2 {
+		return 0, 0, false
+	}
+	picHeight, ok2 := br.readUE() // pic_height_in_luma_samples
+	if !ok2 {
+		return 0, 0, false
+	}
+
+	var confWinLeft, confWinRight, confWinTop, confWinBottom uint64
+	confWinFlag, ok2 := br.readBit()
+	if !ok2 {
+		return 0, 0, false
+	}
+	if confWinFlag == 1 {
+		var ok3 bool
+		if confWinLeft, ok3 = br.readUE(); !ok3 {
+			return 0, 0, false
+		}
+		if confWinRight, ok3 = br.readUE(); !ok3 {
+			return 0, 0, false
+		}
+		if confWinTop, ok3 = br.readUE(); !ok3 {
+			return 0, 0, false
+		}
+		if confWinBottom, ok3 = br.readUE(); !ok3 {
+			return 0, 0, false
+		}
+	}
+
+	// Sub-sampling factors for conformance window offset scaling.
+	subWidthC, subHeightC := uint64(1), uint64(1)
+	switch chromaFormatIDC {
+	case 1: // 4:2:0
+		subWidthC, subHeightC = 2, 2
+	case 2: // 4:2:2
+		subWidthC = 2
+	}
+	w := int(picWidth - (confWinLeft+confWinRight)*subWidthC)
+	h := int(picHeight - (confWinTop+confWinBottom)*subHeightC)
+	return w, h, true
+}
+
 // --- AVC (H.264) ---
 
 func parseAVCConfig(data []byte) []ConfigField {
 	if len(data) < 6 {
 		return []ConfigField{{Name: "error", Value: "truncated"}}
 	}
-	return []ConfigField{
+	fields := []ConfigField{
 		{Name: "configurationVersion", Value: int(data[0])},
 		{Name: "AVCProfileIndication", Value: int(data[1])},
 		{Name: "profile_compatibility", Value: fmt.Sprintf("0x%02X", data[2])},
@@ -191,6 +575,22 @@ func parseAVCConfig(data []byte) []ConfigField {
 		{Name: "lengthSizeMinusOne", Value: int(data[4] & 0x03)},
 		{Name: "numOfSPS", Value: int(data[5] & 0x1F)},
 	}
+	// Extract resolution from the first SPS NAL unit.
+	numSPS := int(data[5] & 0x1F)
+	pos := 6
+	if numSPS > 0 && pos+2 <= len(data) {
+		spsLen := int(binary.BigEndian.Uint16(data[pos:]))
+		pos += 2
+		if pos+spsLen <= len(data) {
+			if w, h, ok := parseAVCSPSResolution(data[pos : pos+spsLen]); ok {
+				fields = append(fields,
+					ConfigField{Name: "width", Value: w},
+					ConfigField{Name: "height", Value: h},
+				)
+			}
+		}
+	}
+	return fields
 }
 
 // --- HEVC (H.265) ---
@@ -199,7 +599,7 @@ func parseHEVCConfig(data []byte) []ConfigField {
 	if len(data) < 23 {
 		return []ConfigField{{Name: "error", Value: "truncated"}}
 	}
-	return []ConfigField{
+	fields := []ConfigField{
 		{Name: "configurationVersion", Value: int(data[0])},
 		{Name: "general_profile_space", Value: int(data[1] >> 6)},
 		{Name: "general_tier_flag", Value: int((data[1] >> 5) & 0x01)},
@@ -213,6 +613,33 @@ func parseHEVCConfig(data []byte) []ConfigField {
 		{Name: "lengthSizeMinusOne", Value: int(data[21] & 0x03)},
 		{Name: "numOfArrays", Value: int(data[22])},
 	}
+	// Walk NAL unit arrays to find the SPS (NAL unit type 33 = SPS_NUT).
+	numArrays := int(data[22])
+	pos := 23
+	for i := 0; i < numArrays && pos+3 <= len(data); i++ {
+		nalUnitType := data[pos] & 0x3F
+		numNALUs := int(binary.BigEndian.Uint16(data[pos+1:]))
+		pos += 3
+		for j := 0; j < numNALUs && pos+2 <= len(data); j++ {
+			naluLen := int(binary.BigEndian.Uint16(data[pos:]))
+			pos += 2
+			if pos+naluLen > len(data) {
+				break
+			}
+			nalu := data[pos : pos+naluLen]
+			pos += naluLen
+			if nalUnitType == 33 {
+				if w, h, ok := parseHEVCSPSResolution(nalu); ok {
+					fields = append(fields,
+						ConfigField{Name: "width", Value: w},
+						ConfigField{Name: "height", Value: h},
+					)
+					return fields
+				}
+			}
+		}
+	}
+	return fields
 }
 
 // --- AV1 ---
