@@ -30,15 +30,15 @@ For the latest insights and updates on these exciting developments, we invite yo
 
 To advance and validate new capabilities of the Enhanced-RTMP (E-RTMP) specification, the Veovera Software Organization maintains an [E-RTMP Lab](https://github.com/veovera/enhanced-rtmp/tree/main/e-rtmp-lab) workspace within this repository.
 
-The lab provides a structured environment for developing and evaluating new ideas, tools, and reference implementations. Each project within the lab resides under the `wip/` directory, with dedicated documentation and tooling for efficient iteration.
+The lab provides a structured environment for developing and evaluating new ideas, tools, and reference implementations. Each project within the lab includes dedicated documentation and tooling for efficient iteration.
 
 Current projects include:
 
-- [wip/e-flv-js](https://github.com/veovera/enhanced-rtmp/tree/main/e-rtmp-lab/wip/e-flv-js) - A hybrid TypeScript/JavaScript implementation for playing **Enhanced FLV (E-FLV)** and **legacy FLV files** in the browser using **Media Source Extensions (MSE)**. Includes a demo app and sample video assets.
+- [e-flv-js](https://github.com/veovera/enhanced-rtmp/tree/main/e-rtmp-lab/e-flv-js) - A hybrid TypeScript/JavaScript implementation for playing **Enhanced FLV (E-FLV)** and **legacy FLV files** in the browser using **Media Source Extensions (MSE)**. Includes a demo app and sample video assets.
 
-- [wip/e-flv-tool](https://github.com/veovera/enhanced-rtmp/tree/main/e-rtmp-lab/wip/e-flv-tool) - A Go CLI tool for inspecting and manipulating FLV/E-FLV files. Parses FLV headers, tags, onMetaData script data (AMF0), and codec configuration records for video (AVC, HEVC, AV1, VP9) and audio (AAC, Opus, FLAC).
+- [e-flv-tool](https://github.com/veovera/enhanced-rtmp/tree/main/e-rtmp-lab/e-flv-tool) - A Go CLI tool for inspecting and manipulating FLV/E-FLV files. Parses FLV headers, tags, onMetaData script data (AMF0), and codec configuration records for video (AVC, HEVC, AV1, VP9) and audio (AAC, Opus, FLAC).
 
-- [wip/assets](https://github.com/veovera/enhanced-rtmp/tree/main/e-rtmp-lab/wip/assets) - Shared test video clips (FLV and WebM) used across experiments.
+- [assets](https://github.com/veovera/enhanced-rtmp/tree/main/e-rtmp-lab/assets) - Shared test video clips (FLV and WebM) used across experiments.
 
 Feedback and collaboration are welcome as the community helps refine and expand E-RTMP’s capabilities.
 

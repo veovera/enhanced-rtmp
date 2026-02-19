@@ -2,7 +2,7 @@
 
 Hybrid TypeScript/JavaScript implementation, with most core modules ported to TypeScript, for playing enhanced FLV (E‑FLV) and legacy FLV files in the browser via [Media Source Extensions (MSE)](https://developer.mozilla.org/docs/Web/API/Media_Source_Extensions_API). Bundles a reusable mux/demux/remux library with a demo app. Currently supports main‑thread only; the worker pipeline is disabled.
 
-Browse the live GitHub repository → [\<e-flv-js\>](https://github.com/veovera/enhanced-rtmp/tree/main/e-rtmp-lab/wip/e-flv-js)
+Browse the live GitHub repository → [\<e-flv-js\>](https://github.com/veovera/enhanced-rtmp/tree/main/e-rtmp-lab/e-flv-js)
 
 ## Background and scope
 
@@ -16,7 +16,7 @@ Browse the live GitHub repository → [\<e-flv-js\>](https://github.com/veovera/
 ## Project layout
 
 - `src/` – Sources for the demo app (`demo-app.ts`) and the mux/demux/remux/player library in `mux-lib/`
-- `../assets/` (`wip/assets/`) – shared test clips available to all projects under `wip/`; auto‑discovered by the demo picker
+- `../assets/` (`e-rtmp-lab/assets/`) – shared test clips available to all lab projects; auto‑discovered by the demo picker
 - `assets/` – local test clips specific to this project; also auto‑discovered by the demo picker
 - `dist/` – build output for the demo app and the mux lib
 - `demo-app.html` – static shell that bootstraps the demo UI
@@ -39,7 +39,7 @@ npm install
 3. Open `http://localhost:8080/index.html`
 4. Pick a source clip, adjust settings, and press **Create Player**
 
-The demo ships with AV1 and Opus samples. Reload the page after adding new `.flv` files to `wip/assets/` (shared) or `e-flv-js/assets/` (local).
+The demo ships with AV1 and Opus samples. Reload the page after adding new `.flv` files to `../assets/` (shared) or `assets/` (local).
 
 ## Production build
 

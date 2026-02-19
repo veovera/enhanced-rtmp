@@ -7,7 +7,7 @@ import globals from "globals";
 console.log("eslint.config.js loaded - turned off some rules for now");
 
 export default [
-  { ignores: ["**/*", "!src/**", "!wip/**/*.ts"] },
+  { ignores: ["**/*", "!src/**"] },
 
   // Base JS rules
   js.configs.recommended,

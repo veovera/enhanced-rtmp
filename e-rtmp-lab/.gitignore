@@ -47,7 +47,8 @@
 # Public
 **/public/
 **/assets/
-!wip/assets/
+!/assets/
+!/assets/**
 
 # Cache
 **/.cache/
