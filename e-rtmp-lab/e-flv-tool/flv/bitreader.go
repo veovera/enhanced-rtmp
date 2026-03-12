@@ -128,3 +128,39 @@ func readULEB128(data []byte) (value uint64, bytesRead int, ok bool) {
 	}
 	return 0, 0, false
 }
+
+// --- VP9 bit reader ---
+
+// vp9BitReader reads bits MSB-first in each byte for VP9 uncompressed header parsing.
+type vp9BitReader struct {
+	data   []byte
+	bitPos int
+}
+
+func newVP9BitReader(data []byte) *vp9BitReader {
+	return &vp9BitReader{data: data}
+}
+
+func (r *vp9BitReader) readBit() (uint64, bool) {
+	if r.bitPos >= len(r.data)*8 {
+		return 0, false
+	}
+	b := (r.data[r.bitPos/8] >> (7 - uint(r.bitPos%8))) & 0x01
+	r.bitPos++
+	return uint64(b), true
+}
+
+func (r *vp9BitReader) readBits(n int) (uint64, bool) {
+	if n < 0 || n > 64 {
+		return 0, false
+	}
+	var v uint64
+	for i := 0; i < n; i++ {
+		bit, ok := r.readBit()
+		if !ok {
+			return 0, false
+		}
+		v = (v << 1) | bit
+	}
+	return v, true
+}

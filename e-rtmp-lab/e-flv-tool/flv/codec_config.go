@@ -6,6 +6,13 @@ import (
 	"io"
 )
 
+// VideoResolution carries parsed frame dimensions for a video codec.
+type VideoResolution struct {
+	Codec  string
+	Width  int
+	Height int
+}
+
 // CodecConfig holds the parsed fields from a codec configuration record.
 type CodecConfig struct {
 	TrackType string        // "video" or "audio"
@@ -16,7 +23,7 @@ type CodecConfig struct {
 // ConfigField is a single named value from a config record.
 type ConfigField struct {
 	Name  string
-	Value interface{}
+	Value any
 }
 
 // Packet type for sequence start (same value for both video and audio in E-RTMP).
@@ -44,7 +51,7 @@ var aacSamplingFrequencies = [...]int{
 	96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350,
 }
 
-// parseVideoConfigIfPresent reads a video tag payload from r. If the tag contains
+// parseVideoConfig reads a video tag payload from r. If the tag contains
 // sequence header(s), it parses the codec configuration record(s) and returns
 // them. Otherwise it skips the payload. The full dataSize bytes are always
 // consumed from r.
@@ -53,14 +60,14 @@ var aacSamplingFrequencies = [...]int{
 //
 //	Non-multitrack: [IsEx(1)|FrameType(3)|PacketType(4)] [FourCC(4)] [payload...]
 //	Multitrack:     [IsEx(1)|FrameType(3)|PacketType=6(4)] [AvMultitrackType(4)|innerPacketType(4)] [...]
-func parseVideoConfigIfPresent(r io.Reader, dataSize int) ([]CodecConfig, error) {
+func parseVideoConfig(r io.Reader, dataSize int) ([]CodecConfig, *VideoResolution, error) {
 	if dataSize < 1 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	var first [1]byte
 	if _, err := io.ReadFull(r, first[:]); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	remaining := dataSize - 1
 
@@ -72,17 +79,18 @@ func parseVideoConfigIfPresent(r io.Reader, dataSize int) ([]CodecConfig, error)
 		if packetType == videoPacketTypeMultitrack {
 			// Multitrack: no FourCC in outer header.
 			// Next byte: [AvMultitrackType(4)][innerVideoPacketType(4)]
-			return parseVideoMultitrackConfigs(r, remaining)
+			cfgs, res, err := parseVideoMultitrackConfigs(r, remaining)
+			return cfgs, res, err
 		}
 
 		// Non-multitrack extended: next 4 bytes are the FourCC.
 		if remaining < 4 {
 			_, err := io.CopyN(io.Discard, r, int64(remaining))
-			return nil, err
+			return nil, nil, err
 		}
 		var fourCCBytes [4]byte
 		if _, err := io.ReadFull(r, fourCCBytes[:]); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		remaining -= 4
 		fourCC := string(fourCCBytes[:])
@@ -90,14 +98,26 @@ func parseVideoConfigIfPresent(r io.Reader, dataSize int) ([]CodecConfig, error)
 		if packetType == packetTypeSequenceStart {
 			configData, err := readRemaining(r, remaining)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			fields := parseVideoConfigByFourCC(fourCC, configData)
-			return []CodecConfig{{TrackType: "video", Codec: fourCC, Fields: fields}}, nil
+			return []CodecConfig{{TrackType: "video", Codec: fourCC, Fields: fields}}, nil, nil
+		}
+
+		if fourCC == "vp09" {
+			frameData, err := readRemaining(r, remaining)
+			if err != nil {
+				return nil, nil, err
+			}
+			if w, h, ok := parseVP9KeyframeResolution(frameData); ok {
+				res := &VideoResolution{Codec: "vp09", Width: w, Height: h}
+				return nil, res, nil
+			}
+			return nil, nil, nil
 		}
 
 		_, err := io.CopyN(io.Discard, r, int64(remaining))
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Legacy video: [FrameType(4)|CodecID(4)] [AvcPacketType(1)] [CTO(3)] [payload...]
@@ -106,25 +126,25 @@ func parseVideoConfigIfPresent(r io.Reader, dataSize int) ([]CodecConfig, error)
 		// Need AvcPacketType + CompositionTimeOffset (4 bytes total).
 		if remaining < 4 {
 			_, err := io.CopyN(io.Discard, r, int64(remaining))
-			return nil, err
+			return nil, nil, err
 		}
 		var avcHeader [4]byte
 		if _, err := io.ReadFull(r, avcHeader[:]); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		remaining -= 4
 		if avcHeader[0] == 0 { // AvcPacketType == 0 → sequence header
 			configData, err := readRemaining(r, remaining)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			fields := parseAVCConfig(configData)
-			return []CodecConfig{{TrackType: "video", Codec: "avc1", Fields: fields}}, nil
+			return []CodecConfig{{TrackType: "video", Codec: "avc1", Fields: fields}}, nil, nil
 		}
 	}
 
 	_, err := io.CopyN(io.Discard, r, int64(remaining))
-	return nil, err
+	return nil, nil, err
 }
 
 // parseVideoMultitrackConfigs parses a VideoPacketTypeMultitrack payload and
@@ -135,13 +155,13 @@ func parseVideoConfigIfPresent(r io.Reader, dataSize int) ([]CodecConfig, error)
 //	[AvMultitrackType(4)|innerVideoPacketType(4)]  — 1 byte
 //	if avType != ManyTracksManyCodecs: [shared FourCC (4)]
 //	then per-track: see inline comments below.
-func parseVideoMultitrackConfigs(r io.Reader, remaining int) ([]CodecConfig, error) {
+func parseVideoMultitrackConfigs(r io.Reader, remaining int) ([]CodecConfig, *VideoResolution, error) {
 	if remaining < 1 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	var typeByte [1]byte
 	if _, err := io.ReadFull(r, typeByte[:]); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	remaining--
 	avType := int(typeByte[0] >> 4)
@@ -156,11 +176,11 @@ func parseVideoMultitrackConfigs(r io.Reader, remaining int) ([]CodecConfig, err
 	case avMultitrackOneTrack, avMultitrackManyTracks:
 		// Shared codec: read FourCC once.
 		if remaining < 4 {
-			return nil, discard(remaining)
+			return nil, nil, discard(remaining)
 		}
 		var fourCCBytes [4]byte
 		if _, err := io.ReadFull(r, fourCCBytes[:]); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		remaining -= 4
 		fourCC := string(fourCCBytes[:])
@@ -168,91 +188,123 @@ func parseVideoMultitrackConfigs(r io.Reader, remaining int) ([]CodecConfig, err
 		if avType == avMultitrackOneTrack {
 			// OneTrack: [TrackID (1)] [payload (rest)]
 			if remaining < 1 {
-				return nil, nil
+				return nil, nil, nil
 			}
 			var trackID [1]byte
 			if _, err := io.ReadFull(r, trackID[:]); err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			remaining--
 			if innerPacketType != packetTypeSequenceStart {
-				return nil, discard(remaining)
+				if fourCC == "vp09" {
+					frameData, err := readRemaining(r, remaining)
+					if err != nil {
+						return nil, nil, err
+					}
+					if w, h, ok := parseVP9KeyframeResolution(frameData); ok {
+						return nil, &VideoResolution{Codec: "vp09", Width: w, Height: h}, nil
+					}
+					return nil, nil, nil
+				}
+				return nil, nil, discard(remaining)
 			}
 			configData, err := readRemaining(r, remaining)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			fields := parseVideoConfigByFourCC(fourCC, configData)
-			return []CodecConfig{{TrackType: "video", Codec: fourCC, Fields: fields}}, nil
+			return []CodecConfig{{TrackType: "video", Codec: fourCC, Fields: fields}}, nil, nil
 		}
 
 		// ManyTracks: repeated [TrackID (1)] [SizeOfVideoData (3)] [payload]
 		var configs []CodecConfig
+		var resolution *VideoResolution
 		for remaining >= 4 {
 			var chunk [4]byte
 			if _, err := io.ReadFull(r, chunk[:]); err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			remaining -= 4
 			chunkSize := int(chunk[1])<<16 | int(chunk[2])<<8 | int(chunk[3])
 			if chunkSize > remaining {
-				return configs, discard(remaining)
+				return configs, resolution, discard(remaining)
 			}
 			if innerPacketType == packetTypeSequenceStart {
 				configData, err := readRemaining(r, chunkSize)
 				if err != nil {
-					return nil, err
+					return nil, nil, err
 				}
 				fields := parseVideoConfigByFourCC(fourCC, configData)
 				configs = append(configs, CodecConfig{TrackType: "video", Codec: fourCC, Fields: fields})
+			} else if fourCC == "vp09" {
+				frameData, err := readRemaining(r, chunkSize)
+				if err != nil {
+					return nil, nil, err
+				}
+				if resolution == nil {
+					if w, h, ok := parseVP9KeyframeResolution(frameData); ok {
+						resolution = &VideoResolution{Codec: "vp09", Width: w, Height: h}
+					}
+				}
 			} else {
 				if err := discard(chunkSize); err != nil {
-					return nil, err
+					return nil, nil, err
 				}
 			}
 			remaining -= chunkSize
 		}
-		return configs, discard(remaining)
+		return configs, resolution, discard(remaining)
 
 	case avMultitrackManyTracksManyCodecs:
 		// Each track has its own FourCC: repeated [FourCC (4)] [TrackID (1)] [SizeOfVideoData (3)] [payload]
 		var configs []CodecConfig
+		var resolution *VideoResolution
 		for remaining >= 8 {
 			var chunk [8]byte
 			if _, err := io.ReadFull(r, chunk[:]); err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			remaining -= 8
 			fourCC := string(chunk[0:4])
 			chunkSize := int(chunk[5])<<16 | int(chunk[6])<<8 | int(chunk[7])
 			if chunkSize > remaining {
-				return configs, discard(remaining)
+				return configs, resolution, discard(remaining)
 			}
 			if innerPacketType == packetTypeSequenceStart {
 				configData, err := readRemaining(r, chunkSize)
 				if err != nil {
-					return nil, err
+					return nil, nil, err
 				}
 				fields := parseVideoConfigByFourCC(fourCC, configData)
 				configs = append(configs, CodecConfig{TrackType: "video", Codec: fourCC, Fields: fields})
+			} else if fourCC == "vp09" {
+				frameData, err := readRemaining(r, chunkSize)
+				if err != nil {
+					return nil, nil, err
+				}
+				if resolution == nil {
+					if w, h, ok := parseVP9KeyframeResolution(frameData); ok {
+						resolution = &VideoResolution{Codec: "vp09", Width: w, Height: h}
+					}
+				}
 			} else {
 				if err := discard(chunkSize); err != nil {
-					return nil, err
+					return nil, nil, err
 				}
 			}
 			remaining -= chunkSize
 		}
-		return configs, discard(remaining)
+		return configs, resolution, discard(remaining)
 
 	default:
-		return nil, discard(remaining)
+		return nil, nil, discard(remaining)
 	}
 }
 
-// parseAudioConfigIfPresent reads an audio tag payload from r. If the tag is a
+// parseAudioConfig reads an audio tag payload from r. If the tag is a
 // sequence header, it parses the codec configuration record and returns it.
 // Otherwise it skips the payload. The full dataSize bytes are always consumed.
-func parseAudioConfigIfPresent(r io.Reader, dataSize int) ([]CodecConfig, error) {
+func parseAudioConfig(r io.Reader, dataSize int) ([]CodecConfig, error) {
 	if dataSize < 2 {
 		return discardAndReturn(r, dataSize)
 	}
@@ -1017,6 +1069,100 @@ func parseVP9Config(data []byte) []ConfigField {
 		{Name: "matrix_coefficients", Value: matrixCoefficients},
 		{Name: "codec_initialization_data_size", Value: codecInitializationDataSize},
 	}
+}
+
+func parseVP9KeyframeResolution(data []byte) (width int, height int, ok bool) {
+	br := newVP9BitReader(data)
+
+	frameMarker, ok := br.readBits(2)
+	if !ok || frameMarker != 0x2 {
+		return 0, 0, false
+	}
+
+	profileLow, ok := br.readBit()
+	if !ok {
+		return 0, 0, false
+	}
+	profileHigh, ok := br.readBit()
+	if !ok {
+		return 0, 0, false
+	}
+	profile := int(profileLow | (profileHigh << 1))
+	if profile == 3 {
+		if _, ok = br.readBit(); !ok { // reserved_zero
+			return 0, 0, false
+		}
+	}
+
+	showExistingFrame, ok := br.readBit()
+	if !ok {
+		return 0, 0, false
+	}
+	if showExistingFrame == 1 {
+		return 0, 0, false
+	}
+
+	frameType, ok := br.readBit()
+	if !ok {
+		return 0, 0, false
+	}
+	if frameType != 0 {
+		return 0, 0, false // not a keyframe
+	}
+
+	if _, ok = br.readBit(); !ok { // show_frame
+		return 0, 0, false
+	}
+	if _, ok = br.readBit(); !ok { // error_resilient_mode
+		return 0, 0, false
+	}
+
+	syncCode, ok := br.readBits(24)
+	if !ok || syncCode != 0x498342 {
+		return 0, 0, false
+	}
+
+	// color_config() - we only need to consume bits before frame size fields.
+	if profile >= 2 {
+		if _, ok = br.readBit(); !ok { // ten_or_twelve_bit
+			return 0, 0, false
+		}
+	}
+	colorSpace, ok := br.readBits(3)
+	if !ok {
+		return 0, 0, false
+	}
+	if colorSpace != 7 {
+		if _, ok = br.readBit(); !ok { // color_range
+			return 0, 0, false
+		}
+		if profile == 1 || profile == 3 {
+			if _, ok = br.readBit(); !ok { // subsampling_x
+				return 0, 0, false
+			}
+			if _, ok = br.readBit(); !ok { // subsampling_y
+				return 0, 0, false
+			}
+			if _, ok = br.readBit(); !ok { // reserved_zero
+				return 0, 0, false
+			}
+		}
+	} else if profile == 1 || profile == 3 {
+		if _, ok = br.readBit(); !ok { // reserved_zero in RGB mode
+			return 0, 0, false
+		}
+	}
+
+	wMinus1, ok := br.readBits(16)
+	if !ok {
+		return 0, 0, false
+	}
+	hMinus1, ok := br.readBits(16)
+	if !ok {
+		return 0, 0, false
+	}
+
+	return int(wMinus1) + 1, int(hMinus1) + 1, true
 }
 
 // --- AAC ---

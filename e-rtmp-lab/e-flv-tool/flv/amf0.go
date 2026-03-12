@@ -23,12 +23,12 @@ const (
 // AMF0Property is a named value from an AMF0 object or ECMA array.
 type AMF0Property struct {
 	Name  string
-	Value interface{}
+	Value any
 }
 
 // parseAMF0Value reads one AMF0-encoded value from data[offset:] and returns
 // the decoded value and the new offset. Returns an error on malformed input.
-func parseAMF0Value(data []byte, offset int) (interface{}, int, error) {
+func parseAMF0Value(data []byte, offset int) (any, int, error) {
 	if offset >= len(data) {
 		return nil, offset, fmt.Errorf("AMF0: unexpected end of data")
 	}
@@ -80,7 +80,7 @@ func parseAMF0Value(data []byte, offset int) (interface{}, int, error) {
 		}
 		count := binary.BigEndian.Uint32(data[offset : offset+4])
 		offset += 4
-		arr := make([]interface{}, 0, count)
+		arr := make([]any, 0, count)
 		for i := uint32(0); i < count; i++ {
 			v, newOff, err := parseAMF0Value(data, offset)
 			if err != nil {

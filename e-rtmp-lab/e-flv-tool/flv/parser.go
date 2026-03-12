@@ -102,6 +102,7 @@ func InfoFLV(inputPath string, jsonOutput bool, verbose bool) error {
 	var otherTags uint64
 	var metadataBlocks [][]AMF0Property
 	var codecConfigs []CodecConfig
+	var vp9Resolution *VideoResolution
 	var tagHeader [11]byte
 	for {
 		_, err := io.ReadFull(r, tagHeader[:])
@@ -122,14 +123,17 @@ func InfoFLV(inputPath string, jsonOutput bool, verbose bool) error {
 		switch tagType {
 		case TagTypeVideo:
 			videoTags++
-			cfgs, err := parseVideoConfigIfPresent(r, int(dataSize))
+			cfgs, res, err := parseVideoConfig(r, int(dataSize))
 			if err != nil {
 				return fmt.Errorf("reading video tag payload: %w", err)
 			}
 			codecConfigs = append(codecConfigs, cfgs...)
+			if vp9Resolution == nil && res != nil {
+				vp9Resolution = res
+			}
 		case TagTypeAudio:
 			audioTags++
-			cfgs, err := parseAudioConfigIfPresent(r, int(dataSize))
+			cfgs, err := parseAudioConfig(r, int(dataSize))
 			if err != nil {
 				return fmt.Errorf("reading audio tag payload: %w", err)
 			}
@@ -181,6 +185,14 @@ func InfoFLV(inputPath string, jsonOutput bool, verbose bool) error {
 	for _, cfg := range codecConfigs {
 		fmt.Println()
 		printCodecConfig(cfg)
+	}
+
+	if vp9Resolution != nil {
+		fmt.Println()
+		fmt.Printf("VP9 First Keyframe Resolution\n")
+		fmt.Printf("  Codec:  %s\n", vp9Resolution.Codec)
+		fmt.Printf("  Width:  %d\n", vp9Resolution.Width)
+		fmt.Printf("  Height: %d\n", vp9Resolution.Height)
 	}
 
 	// TODO: Parse tag headers for timestamps, stream IDs, data sizes
