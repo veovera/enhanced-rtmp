@@ -6,24 +6,24 @@ import (
 	"io"
 )
 
-// VideoResolution carries parsed frame dimensions for a video codec.
-type VideoResolution struct {
-	Codec  string
-	Width  int
-	Height int
+// videoResolution carries parsed frame dimensions for a video codec.
+type videoResolution struct {
+	codec  string
+	width  int
+	height int
 }
 
-// CodecConfig holds the parsed fields from a codec configuration record.
-type CodecConfig struct {
-	TrackType string        // "video" or "audio"
-	Codec     string        // FourCC string, e.g. "hvc1", "mp4a", "avc1"
-	Fields    []ConfigField // parsed key/value pairs
+// codecConfig holds the parsed fields from a codec configuration record.
+type codecConfig struct {
+	trackType string        // "video" or "audio"
+	codec     string        // FourCC string, e.g. "hvc1", "mp4a", "avc1"
+	fields    []configField // parsed key/value pairs
 }
 
-// ConfigField is a single named value from a config record.
-type ConfigField struct {
-	Name  string
-	Value any
+// configField is a single named value from a config record.
+type configField struct {
+	name  string
+	value any
 }
 
 // Packet type for sequence start (same value for both video and audio in E-RTMP).
@@ -60,7 +60,7 @@ var aacSamplingFrequencies = [...]int{
 //
 //	Non-multitrack: [IsEx(1)|FrameType(3)|PacketType(4)] [FourCC(4)] [payload...]
 //	Multitrack:     [IsEx(1)|FrameType(3)|PacketType=6(4)] [AvMultitrackType(4)|innerPacketType(4)] [...]
-func parseVideoConfig(r io.Reader, dataSize int) ([]CodecConfig, *VideoResolution, error) {
+func parseVideoConfig(r io.Reader, dataSize int) ([]codecConfig, *videoResolution, error) {
 	if dataSize < 1 {
 		return nil, nil, nil
 	}
@@ -101,7 +101,7 @@ func parseVideoConfig(r io.Reader, dataSize int) ([]CodecConfig, *VideoResolutio
 				return nil, nil, err
 			}
 			fields := parseVideoConfigByFourCC(fourCC, configData)
-			return []CodecConfig{{TrackType: "video", Codec: fourCC, Fields: fields}}, nil, nil
+			return []codecConfig{{trackType: "video", codec: fourCC, fields: fields}}, nil, nil
 		}
 
 		if fourCC == "vp09" {
@@ -110,7 +110,7 @@ func parseVideoConfig(r io.Reader, dataSize int) ([]CodecConfig, *VideoResolutio
 				return nil, nil, err
 			}
 			if w, h, ok := parseVP9KeyframeResolution(frameData); ok {
-				res := &VideoResolution{Codec: "vp09", Width: w, Height: h}
+				res := &videoResolution{codec: "vp09", width: w, height: h}
 				return nil, res, nil
 			}
 			return nil, nil, nil
@@ -139,7 +139,7 @@ func parseVideoConfig(r io.Reader, dataSize int) ([]CodecConfig, *VideoResolutio
 				return nil, nil, err
 			}
 			fields := parseAVCConfig(configData)
-			return []CodecConfig{{TrackType: "video", Codec: "avc1", Fields: fields}}, nil, nil
+			return []codecConfig{{trackType: "video", codec: "avc1", fields: fields}}, nil, nil
 		}
 	}
 
@@ -155,7 +155,7 @@ func parseVideoConfig(r io.Reader, dataSize int) ([]CodecConfig, *VideoResolutio
 //	[AvMultitrackType(4)|innerVideoPacketType(4)]  — 1 byte
 //	if avType != ManyTracksManyCodecs: [shared FourCC (4)]
 //	then per-track: see inline comments below.
-func parseVideoMultitrackConfigs(r io.Reader, remaining int) ([]CodecConfig, *VideoResolution, error) {
+func parseVideoMultitrackConfigs(r io.Reader, remaining int) ([]codecConfig, *videoResolution, error) {
 	if remaining < 1 {
 		return nil, nil, nil
 	}
@@ -202,7 +202,7 @@ func parseVideoMultitrackConfigs(r io.Reader, remaining int) ([]CodecConfig, *Vi
 						return nil, nil, err
 					}
 					if w, h, ok := parseVP9KeyframeResolution(frameData); ok {
-						return nil, &VideoResolution{Codec: "vp09", Width: w, Height: h}, nil
+						return nil, &videoResolution{codec: "vp09", width: w, height: h}, nil
 					}
 					return nil, nil, nil
 				}
@@ -213,12 +213,12 @@ func parseVideoMultitrackConfigs(r io.Reader, remaining int) ([]CodecConfig, *Vi
 				return nil, nil, err
 			}
 			fields := parseVideoConfigByFourCC(fourCC, configData)
-			return []CodecConfig{{TrackType: "video", Codec: fourCC, Fields: fields}}, nil, nil
+			return []codecConfig{{trackType: "video", codec: fourCC, fields: fields}}, nil, nil
 		}
 
 		// ManyTracks: repeated [TrackID (1)] [SizeOfVideoData (3)] [payload]
-		var configs []CodecConfig
-		var resolution *VideoResolution
+		var configs []codecConfig
+		var resolution *videoResolution
 		for remaining >= 4 {
 			var chunk [4]byte
 			if _, err := io.ReadFull(r, chunk[:]); err != nil {
@@ -235,7 +235,7 @@ func parseVideoMultitrackConfigs(r io.Reader, remaining int) ([]CodecConfig, *Vi
 					return nil, nil, err
 				}
 				fields := parseVideoConfigByFourCC(fourCC, configData)
-				configs = append(configs, CodecConfig{TrackType: "video", Codec: fourCC, Fields: fields})
+				configs = append(configs, codecConfig{trackType: "video", codec: fourCC, fields: fields})
 			} else if fourCC == "vp09" {
 				frameData, err := readRemaining(r, chunkSize)
 				if err != nil {
@@ -243,7 +243,7 @@ func parseVideoMultitrackConfigs(r io.Reader, remaining int) ([]CodecConfig, *Vi
 				}
 				if resolution == nil {
 					if w, h, ok := parseVP9KeyframeResolution(frameData); ok {
-						resolution = &VideoResolution{Codec: "vp09", Width: w, Height: h}
+						resolution = &videoResolution{codec: "vp09", width: w, height: h}
 					}
 				}
 			} else {
@@ -257,8 +257,8 @@ func parseVideoMultitrackConfigs(r io.Reader, remaining int) ([]CodecConfig, *Vi
 
 	case avMultitrackManyTracksManyCodecs:
 		// Each track has its own FourCC: repeated [FourCC (4)] [TrackID (1)] [SizeOfVideoData (3)] [payload]
-		var configs []CodecConfig
-		var resolution *VideoResolution
+		var configs []codecConfig
+		var resolution *videoResolution
 		for remaining >= 8 {
 			var chunk [8]byte
 			if _, err := io.ReadFull(r, chunk[:]); err != nil {
@@ -276,7 +276,7 @@ func parseVideoMultitrackConfigs(r io.Reader, remaining int) ([]CodecConfig, *Vi
 					return nil, nil, err
 				}
 				fields := parseVideoConfigByFourCC(fourCC, configData)
-				configs = append(configs, CodecConfig{TrackType: "video", Codec: fourCC, Fields: fields})
+				configs = append(configs, codecConfig{trackType: "video", codec: fourCC, fields: fields})
 			} else if fourCC == "vp09" {
 				frameData, err := readRemaining(r, chunkSize)
 				if err != nil {
@@ -284,7 +284,7 @@ func parseVideoMultitrackConfigs(r io.Reader, remaining int) ([]CodecConfig, *Vi
 				}
 				if resolution == nil {
 					if w, h, ok := parseVP9KeyframeResolution(frameData); ok {
-						resolution = &VideoResolution{Codec: "vp09", Width: w, Height: h}
+						resolution = &videoResolution{codec: "vp09", width: w, height: h}
 					}
 				}
 			} else {
@@ -304,7 +304,7 @@ func parseVideoMultitrackConfigs(r io.Reader, remaining int) ([]CodecConfig, *Vi
 // parseAudioConfig reads an audio tag payload from r. If the tag is a
 // sequence header, it parses the codec configuration record and returns it.
 // Otherwise it skips the payload. The full dataSize bytes are always consumed.
-func parseAudioConfig(r io.Reader, dataSize int) ([]CodecConfig, error) {
+func parseAudioConfig(r io.Reader, dataSize int) ([]codecConfig, error) {
 	if dataSize < 2 {
 		return discardAndReturn(r, dataSize)
 	}
@@ -338,7 +338,7 @@ func parseAudioConfig(r io.Reader, dataSize int) ([]CodecConfig, error) {
 		}
 
 		fields := parseAudioConfigByFourCC(fourCC, configData)
-		return []CodecConfig{{TrackType: "audio", Codec: fourCC, Fields: fields}}, nil
+		return []codecConfig{{trackType: "audio", codec: fourCC, fields: fields}}, nil
 	}
 
 	if soundFormat == soundFormatAAC {
@@ -356,14 +356,14 @@ func parseAudioConfig(r io.Reader, dataSize int) ([]CodecConfig, error) {
 			configData = append(configData, header[2:headerSize]...)
 			configData = append(configData, extraData...)
 			fields := parseAACConfig(configData)
-			return []CodecConfig{{TrackType: "audio", Codec: "mp4a", Fields: fields}}, nil
+			return []codecConfig{{trackType: "audio", codec: "mp4a", fields: fields}}, nil
 		}
 	}
 
 	return discardAndReturn(r, remaining)
 }
 
-func parseVideoConfigByFourCC(fourCC string, data []byte) []ConfigField {
+func parseVideoConfigByFourCC(fourCC string, data []byte) []configField {
 	switch fourCC {
 	case "avc1":
 		return parseAVCConfig(data)
@@ -374,11 +374,11 @@ func parseVideoConfigByFourCC(fourCC string, data []byte) []ConfigField {
 	case "vp09":
 		return parseVP9Config(data)
 	default:
-		return []ConfigField{{Name: "size", Value: len(data)}}
+		return []configField{{name: "size", value: len(data)}}
 	}
 }
 
-func parseAudioConfigByFourCC(fourCC string, data []byte) []ConfigField {
+func parseAudioConfigByFourCC(fourCC string, data []byte) []configField {
 	switch fourCC {
 	case "mp4a":
 		return parseAACConfig(data)
@@ -387,7 +387,7 @@ func parseAudioConfigByFourCC(fourCC string, data []byte) []ConfigField {
 	case "fLaC":
 		return parseFLACConfig(data)
 	default:
-		return []ConfigField{{Name: "size", Value: len(data)}}
+		return []configField{{name: "size", value: len(data)}}
 	}
 }
 
@@ -418,7 +418,7 @@ func parseAVCSPSResolution(nalUnit []byte) (width, height int, ok bool) {
 	}
 	profileIDC := int(rbsp[0])
 	// rbsp[1] = constraint flags, rbsp[2] = level_idc
-	br := newH26xBitReader(rbsp[3:])
+	br := newBitReader(rbsp[3:])
 
 	if !br.skipUE() { // seq_parameter_set_id
 		return 0, 0, false
@@ -577,7 +577,7 @@ func parseAVCSPSResolution(nalUnit []byte) (width, height int, ok bool) {
 }
 
 // skipHEVCProfileTierLevel skips the profile_tier_level() structure (H.265 / ISO 23008-2).
-func skipHEVCProfileTierLevel(br *h26xBitReader, profilePresentFlag bool, maxNumSubLayersMinus1 int) bool {
+func skipHEVCProfileTierLevel(br *bitReader, profilePresentFlag bool, maxNumSubLayersMinus1 int) bool {
 	if profilePresentFlag {
 		// profile_space(2) + tier(1) + profile_idc(5) + compat_flags(32) +
 		// progressive/interlaced/non_packed/frame_only flags(4) + reserved(44) = 88 bits
@@ -631,7 +631,7 @@ func parseHEVCSPSResolution(nalUnit []byte) (width, height int, ok bool) {
 		return 0, 0, false
 	}
 	rbsp := removeEmulationPreventionBytes(nalUnit[2:]) // skip 2-byte NAL header
-	br := newH26xBitReader(rbsp)
+	br := newBitReader(rbsp)
 
 	if _, ok2 := br.readBits(4); !ok2 { // sps_video_parameter_set_id
 		return 0, 0, false
@@ -703,17 +703,17 @@ func parseHEVCSPSResolution(nalUnit []byte) (width, height int, ok bool) {
 
 // --- AVC (H.264) ---
 
-func parseAVCConfig(data []byte) []ConfigField {
+func parseAVCConfig(data []byte) []configField {
 	if len(data) < 6 {
-		return []ConfigField{{Name: "error", Value: "truncated"}}
+		return []configField{{name: "error", value: "truncated"}}
 	}
-	fields := []ConfigField{
-		{Name: "configurationVersion", Value: int(data[0])},
-		{Name: "AVCProfileIndication", Value: int(data[1])},
-		{Name: "profile_compatibility", Value: fmt.Sprintf("0x%02X", data[2])},
-		{Name: "AVCLevelIndication", Value: int(data[3])},
-		{Name: "lengthSizeMinusOne", Value: int(data[4] & 0x03)},
-		{Name: "numOfSPS", Value: int(data[5] & 0x1F)},
+	fields := []configField{
+		{name: "configurationVersion", value: int(data[0])},
+		{name: "AVCProfileIndication", value: int(data[1])},
+		{name: "profile_compatibility", value: fmt.Sprintf("0x%02X", data[2])},
+		{name: "AVCLevelIndication", value: int(data[3])},
+		{name: "lengthSizeMinusOne", value: int(data[4] & 0x03)},
+		{name: "numOfSPS", value: int(data[5] & 0x1F)},
 	}
 	// Extract resolution from the first SPS NAL unit.
 	numSPS := int(data[5] & 0x1F)
@@ -724,8 +724,8 @@ func parseAVCConfig(data []byte) []ConfigField {
 		if pos+spsLen <= len(data) {
 			if w, h, ok := parseAVCSPSResolution(data[pos : pos+spsLen]); ok {
 				fields = append(fields,
-					ConfigField{Name: "width", Value: w},
-					ConfigField{Name: "height", Value: h},
+					configField{name: "width", value: w},
+					configField{name: "height", value: h},
 				)
 			}
 		}
@@ -735,23 +735,23 @@ func parseAVCConfig(data []byte) []ConfigField {
 
 // --- HEVC (H.265) ---
 
-func parseHEVCConfig(data []byte) []ConfigField {
+func parseHEVCConfig(data []byte) []configField {
 	if len(data) < 23 {
-		return []ConfigField{{Name: "error", Value: "truncated"}}
+		return []configField{{name: "error", value: "truncated"}}
 	}
-	fields := []ConfigField{
-		{Name: "configurationVersion", Value: int(data[0])},
-		{Name: "general_profile_space", Value: int(data[1] >> 6)},
-		{Name: "general_tier_flag", Value: int((data[1] >> 5) & 0x01)},
-		{Name: "general_profile_idc", Value: int(data[1] & 0x1F)},
-		{Name: "general_level_idc", Value: int(data[12])},
-		{Name: "chroma_format_idc", Value: int(data[16] & 0x03)},
-		{Name: "bit_depth_luma", Value: int(data[17]&0x07) + 8},
-		{Name: "bit_depth_chroma", Value: int(data[18]&0x07) + 8},
-		{Name: "avgFrameRate", Value: int(binary.BigEndian.Uint16(data[19:21]))},
-		{Name: "numTemporalLayers", Value: int((data[21] >> 3) & 0x07)},
-		{Name: "lengthSizeMinusOne", Value: int(data[21] & 0x03)},
-		{Name: "numOfArrays", Value: int(data[22])},
+	fields := []configField{
+		{name: "configurationVersion", value: int(data[0])},
+		{name: "general_profile_space", value: int(data[1] >> 6)},
+		{name: "general_tier_flag", value: int((data[1] >> 5) & 0x01)},
+		{name: "general_profile_idc", value: int(data[1] & 0x1F)},
+		{name: "general_level_idc", value: int(data[12])},
+		{name: "chroma_format_idc", value: int(data[16] & 0x03)},
+		{name: "bit_depth_luma", value: int(data[17]&0x07) + 8},
+		{name: "bit_depth_chroma", value: int(data[18]&0x07) + 8},
+		{name: "avgFrameRate", value: int(binary.BigEndian.Uint16(data[19:21]))},
+		{name: "numTemporalLayers", value: int((data[21] >> 3) & 0x07)},
+		{name: "lengthSizeMinusOne", value: int(data[21] & 0x03)},
+		{name: "numOfArrays", value: int(data[22])},
 	}
 	// Walk NAL unit arrays to find the SPS (NAL unit type 33 = SPS_NUT).
 	numArrays := int(data[22])
@@ -771,8 +771,8 @@ func parseHEVCConfig(data []byte) []ConfigField {
 			if nalUnitType == 33 {
 				if w, h, ok := parseHEVCSPSResolution(nalu); ok {
 					fields = append(fields,
-						ConfigField{Name: "width", Value: w},
-						ConfigField{Name: "height", Value: h},
+						configField{name: "width", value: w},
+						configField{name: "height", value: h},
 					)
 					return fields
 				}
@@ -784,9 +784,9 @@ func parseHEVCConfig(data []byte) []ConfigField {
 
 // --- AV1 ---
 
-func parseAV1Config(data []byte) []ConfigField {
+func parseAV1Config(data []byte) []configField {
 	if len(data) < 4 {
-		return []ConfigField{{Name: "size", Value: len(data)}}
+		return []configField{{name: "size", value: len(data)}}
 	}
 	marker := int((data[0] >> 7) & 0x01)
 	version := int(data[0] & 0x7F)
@@ -809,29 +809,29 @@ func parseAV1Config(data []byte) []ConfigField {
 		bitDepth = 10
 	}
 
-	fields := []ConfigField{
-		{Name: "marker", Value: marker},
-		{Name: "version", Value: version},
-		{Name: "seq_profile", Value: seqProfile},
-		{Name: "seq_level_idx_0", Value: seqLevelIdx0},
-		{Name: "seq_tier_0", Value: seqTier0},
-		{Name: "bit_depth", Value: bitDepth},
-		{Name: "monochrome", Value: monochrome},
-		{Name: "chroma_subsampling_x", Value: chromaSubsamplingX},
-		{Name: "chroma_subsampling_y", Value: chromaSubsamplingY},
-		{Name: "chroma_sample_position", Value: chromaSamplePosition},
-		{Name: "initial_presentation_delay_present", Value: initialPresentationDelayPresent},
+	fields := []configField{
+		{name: "marker", value: marker},
+		{name: "version", value: version},
+		{name: "seq_profile", value: seqProfile},
+		{name: "seq_level_idx_0", value: seqLevelIdx0},
+		{name: "seq_tier_0", value: seqTier0},
+		{name: "bit_depth", value: bitDepth},
+		{name: "monochrome", value: monochrome},
+		{name: "chroma_subsampling_x", value: chromaSubsamplingX},
+		{name: "chroma_subsampling_y", value: chromaSubsamplingY},
+		{name: "chroma_sample_position", value: chromaSamplePosition},
+		{name: "initial_presentation_delay_present", value: initialPresentationDelayPresent},
 	}
 	if initialPresentationDelayPresent != 0 {
-		fields = append(fields, ConfigField{Name: "initial_presentation_delay_minus_one", Value: initialPresentationDelayMinusOne})
+		fields = append(fields, configField{name: "initial_presentation_delay_minus_one", value: initialPresentationDelayMinusOne})
 	}
 
 	configOBUs := data[4:]
-	fields = append(fields, ConfigField{Name: "config_obus_size", Value: len(configOBUs)})
+	fields = append(fields, configField{name: "config_obus_size", value: len(configOBUs)})
 	if w, h, ok := parseAV1MaxFrameSizeFromConfigOBUs(configOBUs); ok {
 		fields = append(fields,
-			ConfigField{Name: "max_frame_width", Value: w},
-			ConfigField{Name: "max_frame_height", Value: h},
+			configField{name: "max_frame_width", value: w},
+			configField{name: "max_frame_height", value: h},
 		)
 	}
 
@@ -892,7 +892,7 @@ func parseAV1MaxFrameSizeFromConfigOBUs(configOBUs []byte) (width int, height in
 }
 
 func parseAV1SequenceHeaderMaxFrameSize(payload []byte) (width int, height int, ok bool) {
-	br := newAV1BitReader(payload)
+	br := newBitReader(payload)
 
 	// seq_profile (3), still_picture (1), reduced_still_picture_header (1)
 	_, ok = br.readBits(3)
@@ -1035,14 +1035,14 @@ func parseAV1SequenceHeaderMaxFrameSize(payload []byte) (width int, height int, 
 
 // --- VP9 ---
 
-func parseVP9Config(data []byte) []ConfigField {
-	// VPCodecConfigurationRecord is carried in a FullBox payload:
+func parseVP9Config(data []byte) []configField {
+	// VPcodecConfigurationRecord is carried in a FullBox payload:
 	// [fullbox_version(1)][fullbox_flags(3)]
 	// [profile(1)][level(1)][bitDepth/chroma/fullRange(1)]
 	// [colourPrimaries(1)][transferCharacteristics(1)][matrixCoefficients(1)]
 	// [codecInitializationDataSize(2)][codecInitializationData(N)]
 	if len(data) < 12 {
-		return []ConfigField{{Name: "error", Value: "truncated"}}
+		return []configField{{name: "error", value: "truncated"}}
 	}
 	fullboxVersion := int(data[0])
 	vpcc := data[4:]
@@ -1057,22 +1057,22 @@ func parseVP9Config(data []byte) []ConfigField {
 	matrixCoefficients := int(vpcc[5])
 	codecInitializationDataSize := int(binary.BigEndian.Uint16(vpcc[6:8]))
 
-	return []ConfigField{
-		{Name: "fullbox_version", Value: fullboxVersion},
-		{Name: "profile", Value: profile},
-		{Name: "level", Value: level},
-		{Name: "bit_depth", Value: bitDepth},
-		{Name: "chroma_subsampling", Value: chromaSubsampling},
-		{Name: "videoFullRangeFlag", Value: videoFullRangeFlag},
-		{Name: "colour_primaries", Value: colourPrimaries},
-		{Name: "transfer_characteristics", Value: transferCharacteristics},
-		{Name: "matrix_coefficients", Value: matrixCoefficients},
-		{Name: "codec_initialization_data_size", Value: codecInitializationDataSize},
+	return []configField{
+		{name: "fullbox_version", value: fullboxVersion},
+		{name: "profile", value: profile},
+		{name: "level", value: level},
+		{name: "bit_depth", value: bitDepth},
+		{name: "chroma_subsampling", value: chromaSubsampling},
+		{name: "videoFullRangeFlag", value: videoFullRangeFlag},
+		{name: "colour_primaries", value: colourPrimaries},
+		{name: "transfer_characteristics", value: transferCharacteristics},
+		{name: "matrix_coefficients", value: matrixCoefficients},
+		{name: "codec_initialization_data_size", value: codecInitializationDataSize},
 	}
 }
 
 func parseVP9KeyframeResolution(data []byte) (width int, height int, ok bool) {
-	br := newVP9BitReader(data)
+	br := newBitReader(data)
 
 	frameMarker, ok := br.readBits(2)
 	if !ok || frameMarker != 0x2 {
@@ -1167,9 +1167,9 @@ func parseVP9KeyframeResolution(data []byte) (width int, height int, ok bool) {
 
 // --- AAC ---
 
-func parseAACConfig(data []byte) []ConfigField {
+func parseAACConfig(data []byte) []configField {
 	if len(data) < 2 {
-		return []ConfigField{{Name: "error", Value: "truncated"}}
+		return []configField{{name: "error", value: "truncated"}}
 	}
 	audioObjectType := int(data[0] >> 3)
 	samplingIndex := int((data[0]&0x07)<<1) | int(data[1]>>7)
@@ -1180,23 +1180,23 @@ func parseAACConfig(data []byte) []ConfigField {
 		samplingFreq = aacSamplingFrequencies[samplingIndex]
 	}
 
-	return []ConfigField{
-		{Name: "audioObjectType", Value: audioObjectType},
-		{Name: "samplingFrequency", Value: samplingFreq},
-		{Name: "channelConfiguration", Value: channelConfig},
+	return []configField{
+		{name: "audioObjectType", value: audioObjectType},
+		{name: "samplingFrequency", value: samplingFreq},
+		{name: "channelConfiguration", value: channelConfig},
 	}
 }
 
 // --- Opus (RFC 7845 OpusHead) ---
 
-func parseOpusConfig(data []byte) []ConfigField {
+func parseOpusConfig(data []byte) []configField {
 	// OpusHead: "OpusHead"(8) + version(1) + channels(1) + preSkip(2) + sampleRate(4) + outputGain(2) + mappingFamily(1) = 19 bytes min
 	if len(data) < 19 {
-		return []ConfigField{{Name: "size", Value: len(data)}}
+		return []configField{{name: "size", value: len(data)}}
 	}
 	magic := string(data[0:8])
 	if magic != "OpusHead" {
-		return []ConfigField{{Name: "size", Value: len(data)}}
+		return []configField{{name: "size", value: len(data)}}
 	}
 	version := int(data[8])
 	channels := int(data[9])
@@ -1205,25 +1205,25 @@ func parseOpusConfig(data []byte) []ConfigField {
 	outputGain := int(int16(binary.LittleEndian.Uint16(data[16:18])))
 	mappingFamily := int(data[18])
 
-	return []ConfigField{
-		{Name: "version", Value: version},
-		{Name: "channels", Value: channels},
-		{Name: "preSkip", Value: preSkip},
-		{Name: "inputSampleRate", Value: inputSampleRate},
-		{Name: "outputGain", Value: outputGain},
-		{Name: "mappingFamily", Value: mappingFamily},
+	return []configField{
+		{name: "version", value: version},
+		{name: "channels", value: channels},
+		{name: "preSkip", value: preSkip},
+		{name: "inputSampleRate", value: inputSampleRate},
+		{name: "outputGain", value: outputGain},
+		{name: "mappingFamily", value: mappingFamily},
 	}
 }
 
 // --- FLAC ---
 
-func parseFLACConfig(data []byte) []ConfigField {
+func parseFLACConfig(data []byte) []configField {
 	// FLAC STREAMINFO block: marker(1) + type/length(4) + STREAMINFO(34) = min ~39 bytes
 	// But the enhanced audio payload may just be the raw STREAMINFO.
 	// STREAMINFO: minBlockSize(2) + maxBlockSize(2) + minFrameSize(3) + maxFrameSize(3) +
 	//   sampleRate(20bits) + channels(3bits) + bitsPerSample(5bits) + totalSamples(36bits) + md5(16) = 34 bytes
 	if len(data) < 34 {
-		return []ConfigField{{Name: "size", Value: len(data)}}
+		return []configField{{name: "size", value: len(data)}}
 	}
 	// Try to detect if there's a fLaC marker or metadata block header before STREAMINFO.
 	offset := 0
@@ -1231,14 +1231,14 @@ func parseFLACConfig(data []byte) []ConfigField {
 		offset = 4 // skip the fLaC marker
 	}
 	if offset+34 > len(data) {
-		return []ConfigField{{Name: "size", Value: len(data)}}
+		return []configField{{name: "size", value: len(data)}}
 	}
 	// If next byte looks like a metadata block header (type in upper 7 bits), skip 4 bytes.
 	if offset+4+34 <= len(data) && (data[offset]&0x7F) == 0 {
 		offset += 4 // skip block header (type=0 STREAMINFO + 3 byte length)
 	}
 	if offset+34 > len(data) {
-		return []ConfigField{{Name: "size", Value: len(data)}}
+		return []configField{{name: "size", value: len(data)}}
 	}
 	d := data[offset:]
 	minBlockSize := int(binary.BigEndian.Uint16(d[0:2]))
@@ -1247,27 +1247,27 @@ func parseFLACConfig(data []byte) []ConfigField {
 	channels := int((d[12]>>1)&0x07) + 1
 	bitsPerSample := int(d[12]&0x01)<<4 | int(d[13]>>4) + 1
 
-	return []ConfigField{
-		{Name: "minBlockSize", Value: minBlockSize},
-		{Name: "maxBlockSize", Value: maxBlockSize},
-		{Name: "sampleRate", Value: sampleRate},
-		{Name: "channels", Value: channels},
-		{Name: "bitsPerSample", Value: bitsPerSample},
+	return []configField{
+		{name: "minBlockSize", value: minBlockSize},
+		{name: "maxBlockSize", value: maxBlockSize},
+		{name: "sampleRate", value: sampleRate},
+		{name: "channels", value: channels},
+		{name: "bitsPerSample", value: bitsPerSample},
 	}
 }
 
 // --- Printing ---
 
-func printCodecConfig(cfg CodecConfig) {
-	fmt.Printf("CodecConfigurationRecord (%s: %s)\n", cfg.TrackType, cfg.Codec)
-	for _, f := range cfg.Fields {
-		fmt.Printf("  %s: %v\n", f.Name, f.Value)
+func printCodecConfig(cfg codecConfig) {
+	fmt.Printf("codecConfigurationRecord (%s: %s)\n", cfg.trackType, cfg.codec)
+	for _, f := range cfg.fields {
+		fmt.Printf("  %s: %v\n", f.name, f.value)
 	}
 }
 
 // --- Helpers ---
 
-func discardAndReturn(r io.Reader, n int) ([]CodecConfig, error) {
+func discardAndReturn(r io.Reader, n int) ([]codecConfig, error) {
 	if n > 0 {
 		if _, err := io.CopyN(io.Discard, r, int64(n)); err != nil {
 			return nil, err

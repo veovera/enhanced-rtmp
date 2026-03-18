@@ -100,9 +100,9 @@ func InfoFLV(inputPath string, jsonOutput bool, verbose bool) error {
 	var videoTags uint64
 	var scriptTags uint64
 	var otherTags uint64
-	var metadataBlocks [][]AMF0Property
-	var codecConfigs []CodecConfig
-	var vp9Resolution *VideoResolution
+	var metadataBlocks [][]amf0Property
+	var codecConfigs []codecConfig
+	var vp9Resolutions []videoResolution
 	var tagHeader [11]byte
 	for {
 		_, err := io.ReadFull(r, tagHeader[:])
@@ -128,8 +128,11 @@ func InfoFLV(inputPath string, jsonOutput bool, verbose bool) error {
 				return fmt.Errorf("reading video tag payload: %w", err)
 			}
 			codecConfigs = append(codecConfigs, cfgs...)
-			if vp9Resolution == nil && res != nil {
-				vp9Resolution = res
+			if res != nil {
+				last := len(vp9Resolutions) - 1
+				if last < 0 || vp9Resolutions[last] != *res {
+					vp9Resolutions = append(vp9Resolutions, *res)
+				}
 			}
 		case TagTypeAudio:
 			audioTags++
@@ -147,6 +150,7 @@ func InfoFLV(inputPath string, jsonOutput bool, verbose bool) error {
 			metadataBlocks = append(metadataBlocks, props)
 		default:
 			otherTags++
+			fmt.Printf("warning: unknown tag type %d at tag #%d, skipping\n", tagType, totalTags)
 			if _, err := io.CopyN(io.Discard, r, dataSize); err != nil {
 				if err == io.EOF || err == io.ErrUnexpectedEOF {
 					return fmt.Errorf("reading tag payload: truncated file")
@@ -187,12 +191,16 @@ func InfoFLV(inputPath string, jsonOutput bool, verbose bool) error {
 		printCodecConfig(cfg)
 	}
 
-	if vp9Resolution != nil {
+	for i, res := range vp9Resolutions {
 		fmt.Println()
-		fmt.Printf("VP9 First Keyframe Resolution\n")
-		fmt.Printf("  Codec:  %s\n", vp9Resolution.Codec)
-		fmt.Printf("  Width:  %d\n", vp9Resolution.Width)
-		fmt.Printf("  Height: %d\n", vp9Resolution.Height)
+		if len(vp9Resolutions) == 1 {
+			fmt.Printf("VP9 Keyframe Resolution\n")
+		} else {
+			fmt.Printf("VP9 Keyframe Resolution #%d\n", i+1)
+		}
+		fmt.Printf("  Codec:  %s\n", res.codec)
+		fmt.Printf("  Width:  %d\n", res.width)
+		fmt.Printf("  Height: %d\n", res.height)
 	}
 
 	// TODO: Parse tag headers for timestamps, stream IDs, data sizes
@@ -206,7 +214,7 @@ func InfoFLV(inputPath string, jsonOutput bool, verbose bool) error {
 // parseScriptTag reads dataSize bytes from r and, if the first AMF0 value is
 // the string "onMetaData", returns the properties of the second AMF0 value.
 // Returns an empty slice (no error) if this is not an onMetaData tag.
-func parseScriptTag(r io.Reader, dataSize int) ([]AMF0Property, error) {
+func parseScriptTag(r io.Reader, dataSize int) ([]amf0Property, error) {
 	payload := make([]byte, dataSize)
 	if _, err := io.ReadFull(r, payload); err != nil {
 		return nil, err
@@ -215,58 +223,23 @@ func parseScriptTag(r io.Reader, dataSize int) ([]AMF0Property, error) {
 	// First AMF0 value should be a string.
 	name, offset, err := parseAMF0Value(payload, 0)
 	if err != nil {
-		return []AMF0Property{}, nil // not parseable, skip
+		return []amf0Property{}, nil // not parseable, skip
 	}
 
 	nameStr, ok := name.(string)
 	if !ok || nameStr != "onMetaData" {
-		return []AMF0Property{}, nil
+		return []amf0Property{}, nil
 	}
 
 	// Second AMF0 value should be an object or ECMA array.
 	value, _, err := parseAMF0Value(payload, offset)
 	if err != nil {
-		return []AMF0Property{}, nil
+		return []amf0Property{}, nil
 	}
 
-	props, ok := value.([]AMF0Property)
+	props, ok := value.([]amf0Property)
 	if !ok {
-		return []AMF0Property{}, nil
+		return []amf0Property{}, nil
 	}
 	return props, nil
-}
-
-func printAMF0Property(p AMF0Property, indent int) {
-	prefix := ""
-	for i := 0; i < indent; i++ {
-		prefix += "  "
-	}
-	switch v := p.Value.(type) {
-	case []AMF0Property:
-		fmt.Printf("%s%s:\n", prefix, p.Name)
-		for _, sub := range v {
-			printAMF0Property(sub, indent+1)
-		}
-	case float64:
-		n := int64(v)
-		if v == float64(n) {
-			if (p.Name == "videocodecid" || p.Name == "audiocodecid") && n > 15 {
-				// Values 0–15 are legacy CodecId's. Values > 15 are a FourCC from E-RTMP.
-				fourCC := [4]byte{byte(n >> 24), byte(n >> 16), byte(n >> 8), byte(n)}
-				fmt.Printf("%s%s: %d (%s)\n", prefix, p.Name, n, string(fourCC[:]))
-			} else {
-				fmt.Printf("%s%s: %d\n", prefix, p.Name, n)
-			}
-		} else {
-			fmt.Printf("%s%s: %g\n", prefix, p.Name, v)
-		}
-	case bool:
-		fmt.Printf("%s%s: %t\n", prefix, p.Name, v)
-	case string:
-		fmt.Printf("%s%s: %s\n", prefix, p.Name, v)
-	case nil:
-		fmt.Printf("%s%s: null\n", prefix, p.Name)
-	default:
-		fmt.Printf("%s%s: %v\n", prefix, p.Name, v)
-	}
 }

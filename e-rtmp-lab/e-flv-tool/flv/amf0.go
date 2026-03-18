@@ -20,10 +20,10 @@ const (
 	amf0LongString = 0x0C
 )
 
-// AMF0Property is a named value from an AMF0 object or ECMA array.
-type AMF0Property struct {
-	Name  string
-	Value any
+// amf0Property is a named value from an AMF0 object or ECMA array.
+type amf0Property struct {
+	name  string
+	value any
 }
 
 // parseAMF0Value reads one AMF0-encoded value from data[offset:] and returns
@@ -131,8 +131,8 @@ func readAMF0String(data []byte, offset int) (string, int, error) {
 	return s, offset, nil
 }
 
-func readAMF0Object(data []byte, offset int) ([]AMF0Property, int, error) {
-	var props []AMF0Property
+func readAMF0Object(data []byte, offset int) ([]amf0Property, int, error) {
+	var props []amf0Property
 	for {
 		if offset+3 > len(data) {
 			return props, offset, fmt.Errorf("AMF0: truncated object")
@@ -154,6 +154,41 @@ func readAMF0Object(data []byte, offset int) ([]AMF0Property, int, error) {
 		}
 		offset = newOff
 
-		props = append(props, AMF0Property{Name: name, Value: value})
+		props = append(props, amf0Property{name: name, value: value})
+	}
+}
+
+func printAMF0Property(p amf0Property, indent int) {
+	prefix := ""
+	for i := 0; i < indent; i++ {
+		prefix += "  "
+	}
+	switch v := p.value.(type) {
+	case []amf0Property:
+		fmt.Printf("%s%s:\n", prefix, p.name)
+		for _, sub := range v {
+			printAMF0Property(sub, indent+1)
+		}
+	case float64:
+		n := int64(v)
+		if v == float64(n) {
+			if (p.name == "videocodecid" || p.name == "audiocodecid") && n > 15 {
+				// Values 0–15 are legacy CodecId's. Values > 15 are a FourCC from E-RTMP.
+				fourCC := [4]byte{byte(n >> 24), byte(n >> 16), byte(n >> 8), byte(n)}
+				fmt.Printf("%s%s: %d (%s)\n", prefix, p.name, n, string(fourCC[:]))
+			} else {
+				fmt.Printf("%s%s: %d\n", prefix, p.name, n)
+			}
+		} else {
+			fmt.Printf("%s%s: %g\n", prefix, p.name, v)
+		}
+	case bool:
+		fmt.Printf("%s%s: %t\n", prefix, p.name, v)
+	case string:
+		fmt.Printf("%s%s: %s\n", prefix, p.name, v)
+	case nil:
+		fmt.Printf("%s%s: null\n", prefix, p.name)
+	default:
+		fmt.Printf("%s%s: %v\n", prefix, p.name, v)
 	}
 }
