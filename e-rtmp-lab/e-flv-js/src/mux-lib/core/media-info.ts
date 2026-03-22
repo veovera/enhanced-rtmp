@@ -16,6 +16,11 @@ export interface KeyframeInfo {
     fileposition: number;
 }
 
+export interface KeyframesIndex {
+    times: number[];         // keyframe timestamps in milliseconds
+    filepositions: number[]; // byte offsets in file, parallel to times
+}
+
 class MediaInfo {
 
     mimeType: string | null = null;
@@ -45,7 +50,7 @@ class MediaInfo {
     segments: MediaInfo[] | null = null;  // MediaInfo[]
     segmentCount: number | null = null;
     hasKeyframesIndex: boolean | null = null;
-    keyframesIndex: any = null;
+    keyframesIndex: KeyframesIndex | null = null;
 
     isComplete() {
         let audioInfoComplete = (this.hasAudio === false) ||
