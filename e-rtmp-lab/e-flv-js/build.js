@@ -10,6 +10,17 @@ if (isDebug) {
   isMinify = false; // Disable minification in debug mode
 }
 
+let finishedCount = 0;
+const buildFinishedPlugin = (label) => ({
+  name: 'build-finished',
+  setup(build) {
+    build.onEnd(() => {
+      console.log(`✅ Build finished [${label}]: ${new Date().toLocaleString()}`);
+      if (++finishedCount % 2 === 0) console.log(`─`.repeat(54) + ` #${finishedCount / 2}`);
+    });
+  }
+});
+
 // Main bundle
 const mainOptions = {
   entryPoints: ['src/demo-app.ts'],
@@ -19,7 +30,8 @@ const mainOptions = {
   target: 'es2022',
   minify: isMinify,
   format: 'esm',
-  logLevel: 'info',  // Add this to see more detailed build information
+  logLevel: 'warning',  // Add this to see more detailed build information
+  plugins: [buildFinishedPlugin('main')],
   define: {
     '__VERSION__': JSON.stringify(process.env.npm_package_version),
     '__DEBUG__': JSON.stringify(isDebug),
@@ -35,7 +47,8 @@ const workerOptions = {
   target: 'es2022',
   minify: isMinify,
   format: 'esm',
-  logLevel: 'info'
+  logLevel: 'warning',
+  plugins: [buildFinishedPlugin('worker')],
 };
 
 const mainCtx = await context(mainOptions);
@@ -48,6 +61,5 @@ if (isWatch) {
 } else {
   await mainCtx.rebuild();
   await workerCtx.rebuild();
-  console.log('✅ Build complete.');
   process.exit(0);
 }
