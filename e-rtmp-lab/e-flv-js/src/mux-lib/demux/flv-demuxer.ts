@@ -2054,6 +2054,7 @@ export class FLVDemuxer {
         }
         // notify new metadata
         this._onTrackMetadata(meta);
+        this._onVideoTracksDiscovered([...this._videoMetadataByTrackId.values()]);
         Log.v(FLVDemuxer.TAG, `Parsed AV1 metadata: ${JSON.stringify(config)}`);
     }
 
