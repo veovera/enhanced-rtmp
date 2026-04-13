@@ -22,7 +22,7 @@ import buffersAreEqual from '../utils/typedarray-equality.js';
 import AV1OBUParser from './av1-parser.js';
 import ExpGolomb from './exp-golomb.js';
 import { assertCallback, Callback, noopCallback } from '../utils/common';
-import { AV1OBUType, AV1Metadata } from './av1-parser.js';
+import { Av1ObuType, AV1Metadata } from './av1-parser.js';
 import { Remuxer, TrackType } from '../remux/remuxer.js';
 import { H264NaluType } from './h264.js';
 import { H265NaluType } from './h265.js';
@@ -166,12 +166,12 @@ enum AvMultitrackType {
 }
 
 //!!@ move to proper file
-enum VP8FrameType {
+enum Vp8FrameType {
     KEY_FRAME   = 0,
     INTER_FRAME = 1
 }
 
-enum VP9FrameType {
+enum Vp9FrameType {
     KEY_FRAME           = 0,
     INTER_FRAME         = 1,
     INTRA_ONLY_FRAME    = 2,
@@ -222,7 +222,7 @@ export interface AudioMetadata {
     refFrameDuration: number;
 }
 
-const AudioMetadataDefault: AudioMetadata = {
+const audioMetadataDefault: AudioMetadata = {
     type: TrackType.Audio,
     codecType: AudioCodecType.Unknown,
     codec: 'Unknown',
@@ -273,7 +273,7 @@ export interface VideoMetadata {
     refFrameDuration: number;
 }
 
-const VideoMetadataDefault: VideoMetadata = {
+const videoMetadataDefault: VideoMetadata = {
     type: TrackType.Video,
     codecType: VideoCodecType.Unknown,
     codec: 'Unknown',
@@ -313,35 +313,41 @@ export interface VideoTrack {
     length: number;
 }
 
-export interface VideoUnit {
-    type: AV1OBUType | H264NaluType | H265NaluType | VP8FrameType | VP9FrameType | number,
+interface VideoUnit {
+    type: Av1ObuType | H264NaluType | H265NaluType | Vp8FrameType | Vp9FrameType | number,
     data: Uint8Array,
 }
 
-export interface AudioSample {
+interface AudioSample {
     unit: Uint8Array,
     length: number,
     dts: number,
     pts: number,
 }
 
-function Swap16(src: number) {
+function swap16(src: number) {
     return (((src >>> 8) & 0xFF) |
             ((src & 0xFF) << 8));
 }
 
-function Swap32(src: number) {
+function swap32(src: number) {
     return (((src & 0xFF000000) >>> 24) |
             ((src & 0x00FF0000) >>> 8)  |
             ((src & 0x0000FF00) << 8)   |
             ((src & 0x000000FF) << 24));
 }
 
-function ReadBig32(array: Uint8Array, index: number) {
+function readBig32(array: Uint8Array, index: number) {
     return ((array[index] << 24)     |
             (array[index + 1] << 16) |
             (array[index + 2] << 8)  |
             (array[index + 3]));
+}
+
+function readSignedInt24(v: DataView, offset: number) {
+    return (v.getInt8(offset) << 16)
+        | (v.getUint8(offset + 1) << 8)
+        | v.getUint8(offset + 2);
 }
 
 export class FLVDemuxer {
@@ -443,7 +449,7 @@ export class FLVDemuxer {
         let hasAudio = ((data[4] & 4) >>> 2) !== 0;
         let hasVideo = (data[4] & 1) !== 0;
 
-        let offset = ReadBig32(data, 5);
+        let offset = readBig32(data, 5);
 
         if (offset < 9) {
             return mismatch;
@@ -678,7 +684,7 @@ export class FLVDemuxer {
         return offset;  // consumed bytes, just equals latest offset index
     }
 
-    _parseScriptData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number) {
+    private _parseScriptData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number) {
         let scriptData = AMF.parseScriptData(arrayBuffer, dataOffset, dataSize) as any; // !!@ fix any
 
         if (scriptData.hasOwnProperty('onMetaData')) {
@@ -763,7 +769,7 @@ export class FLVDemuxer {
         }
     }
 
-    _parseKeyframesIndex(keyframes: KeyframesIndex): KeyframesIndex {
+    private _parseKeyframesIndex(keyframes: KeyframesIndex): KeyframesIndex {
         let times = [];
         let filepositions = [];
 
@@ -780,7 +786,7 @@ export class FLVDemuxer {
         };
     }
 
-    _parseAudioData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number) {
+    private _parseAudioData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number) {
         if (dataSize <= 1) {
             Log.w(FLVDemuxer.TAG, 'Flv: Invalid audio packet, missing SoundData payload!');
             return;
@@ -848,7 +854,7 @@ export class FLVDemuxer {
 
             // initial metadata
             meta = this._audioMetadata = {
-                ...AudioMetadataDefault,
+                ...audioMetadataDefault,
                 type: TrackType.Audio,
                 trackId: track.id,
                 timescale: this._timescale,
@@ -994,7 +1000,7 @@ export class FLVDemuxer {
     }
 
     // !!@todo: switch to retrun a type instead of any
-    _parseAACAudioData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number): any {
+    private _parseAACAudioData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number): any {
         if (dataSize <= 1) {
             Log.w(FLVDemuxer.TAG, 'Flv: Invalid AAC packet, missing AACPacketType or/and Data!');
             return;
@@ -1014,7 +1020,7 @@ export class FLVDemuxer {
         return result;
     }
 
-    _parseAACAudioSpecificConfig(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number) {
+    private _parseAACAudioSpecificConfig(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number) {
         let array = new Uint8Array(arrayBuffer, dataOffset, dataSize);
         let config = null;
 
@@ -1118,7 +1124,7 @@ export class FLVDemuxer {
     }
 
     // !!@todo: switch to retrun a type instead of any
-    _parseMP3AudioData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, requestHeader: boolean) : any {
+    private _parseMP3AudioData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, requestHeader: boolean) : any {
         if (dataSize < 4) {
             Log.w(FLVDemuxer.TAG, 'Flv: Invalid MP3 packet, header missing!');
             return;
@@ -1193,7 +1199,7 @@ export class FLVDemuxer {
         return result;
     }
 
-    _parseOpusAudioPacket(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, packetType: AudioPacketType) {
+    private _parseOpusAudioPacket(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, packetType: AudioPacketType) {
        if (packetType === AudioPacketType.SequenceStart) {
             this._parseOpusSequenceHeader(arrayBuffer, dataOffset, dataSize);
         } else if (packetType === AudioPacketType.CodedFrames) {
@@ -1206,7 +1212,7 @@ export class FLVDemuxer {
         }
     }
 
-    _parseOpusSequenceHeader(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number) {
+    private _parseOpusSequenceHeader(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number) {
         // Validate minimal OpusHead identification header length (RFC 7845)
         if (dataSize < 19) {
             Log.e(FLVDemuxer.TAG, '_parseOpusSequenceHeader(): Invalid OpusSequenceHeader, lack of data!');
@@ -1246,7 +1252,7 @@ export class FLVDemuxer {
 
             // initial metadata
             meta = this._audioMetadata = {
-                ...AudioMetadataDefault,
+                ...audioMetadataDefault,
                 type: TrackType.Audio,
                 trackId: track.id,
                 timescale: this._timescale,
@@ -1298,7 +1304,7 @@ export class FLVDemuxer {
         }
     }
 
-    _parseOpusAudioData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number) {
+    private _parseOpusAudioData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number) {
         let track = this._audioTrack;
 
         let data = new Uint8Array(arrayBuffer, dataOffset, dataSize);
@@ -1309,7 +1315,7 @@ export class FLVDemuxer {
         track.length += data.length;
     }
 
-    _parseFlacAudioPacket(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, packetType: AudioPacketType) {
+    private _parseFlacAudioPacket(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, packetType: AudioPacketType) {
         if (packetType === AudioPacketType.SequenceStart) {
             this._parseFlacSequenceHeader(arrayBuffer, dataOffset, dataSize);
         } else if (packetType === AudioPacketType.CodedFrames) {
@@ -1322,7 +1328,7 @@ export class FLVDemuxer {
         }
     }
 
-    _parseFlacSequenceHeader(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number) {
+    private _parseFlacSequenceHeader(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number) {
         let meta = this._audioMetadata;
         const track = this._audioTrack;
 
@@ -1334,7 +1340,7 @@ export class FLVDemuxer {
 
             // initial metadata
             meta = this._audioMetadata = {
-                ...AudioMetadataDefault,
+                ...audioMetadataDefault,
                 type: TrackType.Audio,
                 trackId: track.id,
                 timescale: this._timescale,
@@ -1412,7 +1418,7 @@ export class FLVDemuxer {
         }
     }
 
-    _parseFlacAudioData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number) {
+    private _parseFlacAudioData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number) {
         let track = this._audioTrack;
 
         let data = new Uint8Array(arrayBuffer, dataOffset, dataSize);
@@ -1423,7 +1429,7 @@ export class FLVDemuxer {
         track.length += data.length;
     }
 
-    _parseVideoData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number) {
+    private _parseVideoData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number) {
         if (dataSize <= 1) {
             Log.w(FLVDemuxer.TAG, 'Flv: Invalid video packet, missing VideoData payload!');
             return;
@@ -1459,13 +1465,13 @@ export class FLVDemuxer {
                 let fourcc = String.fromCharCode(... (new Uint8Array(arrayBuffer, dataOffset, dataSize)).slice(1, 5));
 
                 if (fourcc === 'avc1') { // AVC
-                    this._parseEnhancedAVCVideoPacket(arrayBuffer, dataOffset + 5, dataSize - 5, tagTimestamp, tagPosition, frameType, packetType, this._getOrCreateVideoTrack(0));
+                    this._parseEnhancedAvcVideoPacket(arrayBuffer, dataOffset + 5, dataSize - 5, tagTimestamp, tagPosition, frameType, packetType, this._getOrCreateVideoTrack(0));
                 } else if (fourcc === 'hvc1') { // HEVC
-                    this._parseEnhancedHEVCVideoPacket(arrayBuffer, dataOffset + 5, dataSize - 5, tagTimestamp, tagPosition, frameType, packetType, this._getOrCreateVideoTrack(0));
+                    this._parseEnhancedHevcVideoPacket(arrayBuffer, dataOffset + 5, dataSize - 5, tagTimestamp, tagPosition, frameType, packetType, this._getOrCreateVideoTrack(0));
                 } else if (fourcc === 'av01') { // AV1
-                    this._parseEnhancedAV1VideoPacket(arrayBuffer, dataOffset + 5, dataSize - 5, tagTimestamp, tagPosition, frameType, packetType, this._getOrCreateVideoTrack(0));
+                    this._parseEnhancedAv1VideoPacket(arrayBuffer, dataOffset + 5, dataSize - 5, tagTimestamp, tagPosition, frameType, packetType, this._getOrCreateVideoTrack(0));
                 } else if (fourcc === 'vp09') { // VP9
-                    this._parseEnhancedVP9VideoPacket(arrayBuffer, dataOffset + 5, dataSize - 5, tagTimestamp, tagPosition, frameType, packetType, this._getOrCreateVideoTrack(0));
+                    this._parseEnhancedVp9VideoPacket(arrayBuffer, dataOffset + 5, dataSize - 5, tagTimestamp, tagPosition, frameType, packetType, this._getOrCreateVideoTrack(0));
                 } else {
                     this._onError(DemuxErrors.CODEC_UNSUPPORTED, `Flv: Unsupported codec in video frame: ${fourcc}`);
                     return;
@@ -1474,7 +1480,7 @@ export class FLVDemuxer {
         }
     }
 
-    _parseMultitrackVideoPacket(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: number) {
+    private _parseMultitrackVideoPacket(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: number) {
         if (dataSize < 2) {
             Log.w(FLVDemuxer.TAG, 'Flv: Invalid multitrack video packet, too short');
             return;
@@ -1539,13 +1545,13 @@ export class FLVDemuxer {
             const trackDataSize = trackPayloadSize;
 
             if (fourcc === 'avc1') {
-                this._parseEnhancedAVCVideoPacket(arrayBuffer, trackDataOffset, trackDataSize, tagTimestamp, tagPosition, frameType, innerPacketType, track);
+                this._parseEnhancedAvcVideoPacket(arrayBuffer, trackDataOffset, trackDataSize, tagTimestamp, tagPosition, frameType, innerPacketType, track);
             } else if (fourcc === 'hvc1') {
-                this._parseEnhancedHEVCVideoPacket(arrayBuffer, trackDataOffset, trackDataSize, tagTimestamp, tagPosition, frameType, innerPacketType, track);
+                this._parseEnhancedHevcVideoPacket(arrayBuffer, trackDataOffset, trackDataSize, tagTimestamp, tagPosition, frameType, innerPacketType, track);
             } else if (fourcc === 'av01') {
-                this._parseEnhancedAV1VideoPacket(arrayBuffer, trackDataOffset, trackDataSize, tagTimestamp, tagPosition, frameType, innerPacketType, track);
+                this._parseEnhancedAv1VideoPacket(arrayBuffer, trackDataOffset, trackDataSize, tagTimestamp, tagPosition, frameType, innerPacketType, track);
             } else if (fourcc === 'vp09') {
-                this._parseEnhancedVP9VideoPacket(arrayBuffer, trackDataOffset, trackDataSize, tagTimestamp, tagPosition, frameType, innerPacketType, track);
+                this._parseEnhancedVp9VideoPacket(arrayBuffer, trackDataOffset, trackDataSize, tagTimestamp, tagPosition, frameType, innerPacketType, track);
             } else {
                 Log.w(FLVDemuxer.TAG, `Flv: Unsupported codec in multitrack video packet: ${fourcc}, trackId=${videoTrackId}, action=skip`);
             }
@@ -1558,21 +1564,22 @@ export class FLVDemuxer {
         }
     }
 
-    _parseAVCVideoPacket(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: number, track: VideoTrack) {
+    private _parseAVCVideoPacket(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: number, track: VideoTrack) {
         if (dataSize < 4) {
             Log.w(FLVDemuxer.TAG, 'Flv: Invalid AVC packet, missing AVCPacketType or/and CompositionTime');
             return;
         }
 
-        let v = new DataView(arrayBuffer, dataOffset, dataSize);
-        let packetType = v.getUint8(0);
-        let cts_unsigned = v.getUint32(0, false) & 0x00FFFFFF;
-        let cts = (cts_unsigned << 8) >> 8;  // convert to 24-bit signed int
+        const v = new DataView(arrayBuffer, dataOffset, dataSize);
+        const packetType = v.getUint8(0);
+        const cts = readSignedInt24(v, 1);
+        dataOffset += 4;
+        dataSize -= 4;
 
         if (packetType === VideoPacketType.SequenceStart) {  // AVCDecoderConfigurationRecord
-            this._parseAVCDecoderConfigurationRecord(arrayBuffer, dataOffset + 4, dataSize - 4, track);
+            this._parseAvcConfig(arrayBuffer, dataOffset, dataSize, track);
         } else if (packetType === VideoPacketType.CodedFrames) {  // One or more Nalus
-            this._parseAVCVideoData(arrayBuffer, dataOffset + 4, dataSize - 4, tagTimestamp, tagPosition, frameType, cts, track);
+            this._parseAvcVideoData(arrayBuffer, dataOffset, dataSize, tagTimestamp, tagPosition, frameType, cts, track);
         } else if (packetType === VideoPacketType.SequenceEnd) {
             // empty, AVC end of sequence
         } else {
@@ -1581,21 +1588,22 @@ export class FLVDemuxer {
         }
     }
 
-    _parseHEVCVideoPacket(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: number, track: VideoTrack) {
+    private _parseHEVCVideoPacket(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: number, track: VideoTrack) {
         if (dataSize < 4) {
             Log.w(FLVDemuxer.TAG, 'Flv: Invalid HEVC packet, missing HEVCPacketType or/and CompositionTime');
             return;
         }
 
-        let v = new DataView(arrayBuffer, dataOffset, dataSize);
-        let packetType = v.getUint8(0);
-        let cts_unsigned = v.getUint32(0, false) & 0x00FFFFFF;
-        let cts = (cts_unsigned << 8) >> 8;  // convert to 24-bit signed int
+        const v = new DataView(arrayBuffer, dataOffset, dataSize);
+        const packetType = v.getUint8(0);
+        const cts = readSignedInt24(v, 0);
+        dataOffset += 4;
+        dataSize -= 4;
 
         if (packetType === VideoPacketType.SequenceStart) {  // HEVCDecoderConfigurationRecord
-            this._parseHEVCDecoderConfigurationRecord(arrayBuffer, dataOffset + 4, dataSize - 4, track);
+            this._parseHevcConfig(arrayBuffer, dataOffset, dataSize, track);
         } else if (packetType === VideoPacketType.CodedFrames) {  // One or more Nalus
-            this._parseHEVCVideoData(arrayBuffer, dataOffset + 4, dataSize - 4, tagTimestamp, tagPosition, frameType, cts, track);
+            this._parseHevcVideoData(arrayBuffer, dataOffset, dataSize, tagTimestamp, tagPosition, frameType, cts, track);
         } else if (packetType === VideoPacketType.SequenceEnd) {
             // empty, HEVC end of sequence
         } else {
@@ -1604,18 +1612,24 @@ export class FLVDemuxer {
         }
     }
 
-    _parseEnhancedHEVCVideoPacket(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: number, packetType: VideoPacketType, track: VideoTrack) {
-        let v = new DataView(arrayBuffer, dataOffset, dataSize);
+    private _parseEnhancedHevcVideoPacket(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: number, packetType: VideoPacketType, track: VideoTrack) {
+        const v = new DataView(arrayBuffer, dataOffset, dataSize);
 
         if (packetType === VideoPacketType.SequenceStart) {  // HEVCDecoderConfigurationRecord
-            this._parseHEVCDecoderConfigurationRecord(arrayBuffer, dataOffset, dataSize, track);
+            this._parseHevcConfig(arrayBuffer, dataOffset, dataSize, track);
         } else if (packetType === VideoPacketType.CodedFrames) {  // One or more Nalus
-            let cts_unsigned = v.getUint32(0, false) & 0xFFFFFF00;
-            let cts = cts_unsigned >> 8;  // convert to 24-bit signed int
+            if (dataSize < 3) {
+                Log.w(FLVDemuxer.TAG, '_parseEnhancedHevcVideoPacket(): Invalid HEVC packet, missing CompositionTime');
+                return;
+            }
+            
+            const cts = readSignedInt24(v, 0);
+            dataOffset += 3;
+            dataSize -= 3;
 
-            this._parseHEVCVideoData(arrayBuffer, dataOffset + 3, dataSize - 3, tagTimestamp, tagPosition, frameType, cts, track);
+            this._parseHevcVideoData(arrayBuffer, dataOffset, dataSize, tagTimestamp, tagPosition, frameType, cts, track);
         } else if (packetType === VideoPacketType.CodedFramesX) {
-            this._parseHEVCVideoData(arrayBuffer, dataOffset, dataSize, tagTimestamp, tagPosition, frameType, 0, track);
+            this._parseHevcVideoData(arrayBuffer, dataOffset, dataSize, tagTimestamp, tagPosition, frameType, 0, track);
         } else if (packetType === VideoPacketType.SequenceEnd) {
             // empty, HEVC end of sequence
         } else {
@@ -1624,18 +1638,24 @@ export class FLVDemuxer {
         }
     }
 
-    _parseEnhancedAVCVideoPacket(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: number, packetType: VideoPacketType, track: VideoTrack) {
+    private _parseEnhancedAvcVideoPacket(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: number, packetType: VideoPacketType, track: VideoTrack) {
         let v = new DataView(arrayBuffer, dataOffset, dataSize);
 
         if (packetType === VideoPacketType.SequenceStart) {  // AVCDecoderConfigurationRecord
-            this._parseAVCDecoderConfigurationRecord(arrayBuffer, dataOffset, dataSize, track);
+            this._parseAvcConfig(arrayBuffer, dataOffset, dataSize, track);
         } else if (packetType === VideoPacketType.CodedFrames) {  // One or more Nalus
-            let cts_unsigned = v.getUint32(0, false) & 0xFFFFFF00;
-            let cts = cts_unsigned >> 8;  // convert to 24-bit signed int
+            if (dataSize < 3) {
+                Log.w(FLVDemuxer.TAG, '_parseEnhancedAvcVideoPacket(): Invalid AVC packet, missing CompositionTime');
+                return;
+            }
 
-            this._parseAVCVideoData(arrayBuffer, dataOffset + 3, dataSize - 3, tagTimestamp, tagPosition, frameType as VideoFrameType, cts, track);
+            const cts = readSignedInt24(v, 0);
+            dataOffset += 3;
+            dataSize -= 3;
+
+            this._parseAvcVideoData(arrayBuffer, dataOffset, dataSize, tagTimestamp, tagPosition, frameType as VideoFrameType, cts, track);
         } else if (packetType === VideoPacketType.CodedFramesX) {
-            this._parseAVCVideoData(arrayBuffer, dataOffset, dataSize, tagTimestamp, tagPosition, frameType as VideoFrameType, 0, track);
+            this._parseAvcVideoData(arrayBuffer, dataOffset, dataSize, tagTimestamp, tagPosition, frameType as VideoFrameType, 0, track);
         } else if (packetType === VideoPacketType.SequenceEnd) {
             // empty, AVC end of sequence
         } else {
@@ -1644,15 +1664,15 @@ export class FLVDemuxer {
         }
     }
 
-    _parseEnhancedAV1VideoPacket(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: number, packetType: VideoPacketType, track: VideoTrack) {
+    private _parseEnhancedAv1VideoPacket(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: number, packetType: VideoPacketType, track: VideoTrack) {
         let v = new DataView(arrayBuffer, dataOffset, dataSize);
 
         switch (packetType) {
             case VideoPacketType.SequenceStart:
-                this._parseAV1CodecConfigurationRecord(arrayBuffer, dataOffset, dataSize, track);
+                this._parseAv1Config(arrayBuffer, dataOffset, dataSize, track);
                 break;
             case VideoPacketType.CodedFrames:
-                this._parseAV1VideoData(arrayBuffer, dataOffset, dataSize, tagTimestamp, tagPosition, frameType, 0, track);
+                this._parseAv1VideoData(arrayBuffer, dataOffset, dataSize, tagTimestamp, tagPosition, frameType, 0, track);
                 break;
             case VideoPacketType.SequenceEnd:
                 // empty, AV1 end of sequence
@@ -1668,7 +1688,10 @@ export class FLVDemuxer {
         }
     }
 
-    _parseAVCDecoderConfigurationRecord(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, track: VideoTrack) {
+    // AVCDecoderConfigurationRecord must precede AVC coded frames.
+    // A changed record replaces the previous configuration and causes
+    // regeneration of the initialization segment.
+    private _parseAvcConfig(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, track: VideoTrack) {
         if (dataSize < 7) {
             Log.w(FLVDemuxer.TAG, 'Flv: Invalid AVCDecoderConfigurationRecord, lack of data!');
             return;
@@ -1684,7 +1707,7 @@ export class FLVDemuxer {
             }
 
             meta = {
-                ...VideoMetadataDefault,
+                ...videoMetadataDefault,
                 type: TrackType.Video,
                 trackId: track.id,
                 timescale: this._timescale,
@@ -1840,7 +1863,10 @@ export class FLVDemuxer {
         this._onVideoTracksDiscovered([...this._videoMetadataByTrackId.values()]);
     }
 
-    _parseHEVCDecoderConfigurationRecord(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, track: VideoTrack) {
+    // HEVCDecoderConfigurationRecord must precede HEVC coded frames.
+    // A changed record replaces the previous configuration and causes
+    // regeneration of the initialization segment.
+    private _parseHevcConfig(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, track: VideoTrack) {
         if (dataSize < 22) {
             Log.w(FLVDemuxer.TAG, 'Flv: Invalid HEVCDecoderConfigurationRecord, lack of data!');
             return;
@@ -1856,7 +1882,7 @@ export class FLVDemuxer {
             }
 
             meta = {
-                ...VideoMetadataDefault,
+                ...videoMetadataDefault,
                 type: TrackType.Video,
                 trackId: track.id,
                 timescale: this._timescale,
@@ -1972,7 +1998,10 @@ export class FLVDemuxer {
         this._onVideoTracksDiscovered([...this._videoMetadataByTrackId.values()]);
     }
 
-    _parseAV1CodecConfigurationRecord(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, track: VideoTrack) {
+    // AV1CodecConfigurationRecord must precede AV1 coded frames.
+    // A changed record replaces the previous configuration and causes
+    // regeneration of the initialization segment.
+    private _parseAv1Config(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, track: VideoTrack) {
         if (dataSize < 4) {
             Log.w(FLVDemuxer.TAG, 'Flv: Invalid AV1CodecConfigurationRecord, lack of data!');
             return;
@@ -1989,7 +2018,7 @@ export class FLVDemuxer {
             }
 
             meta = {
-                ...VideoMetadataDefault,
+                ...videoMetadataDefault,
                 type: TrackType.Video,
                 trackId: track.id,
                 timescale: this._timescale,
@@ -2077,7 +2106,7 @@ export class FLVDemuxer {
         Log.v(FLVDemuxer.TAG, `Parsed AV1 metadata: ${JSON.stringify(config)}`);
     }
 
-    _parseAVCVideoData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: VideoFrameType, cts: number, track: VideoTrack) {
+    private _parseAvcVideoData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: VideoFrameType, cts: number, track: VideoTrack) {
         let v = new DataView(arrayBuffer, dataOffset, dataSize);
 
         let units: VideoUnit[] = [], length = 0;
@@ -2131,7 +2160,7 @@ export class FLVDemuxer {
         }
     }
 
-    _parseHEVCVideoData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: number, cts: number, track: VideoTrack) {
+    private _parseHevcVideoData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: number, cts: number, track: VideoTrack) {
         let v = new DataView(arrayBuffer, dataOffset, dataSize);
 
         let units: VideoUnit[] = [], length = 0;
@@ -2186,7 +2215,7 @@ export class FLVDemuxer {
         }
     }
 
-    _parseAV1VideoData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: VideoFrameType, cts: number, track: VideoTrack) {
+    private _parseAv1VideoData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: VideoFrameType, cts: number, track: VideoTrack) {
         let units: VideoUnit[] = [];
         let length = 0;
         let dts = this._timestampBase + tagTimestamp;
@@ -2221,7 +2250,7 @@ export class FLVDemuxer {
         // !!@ why are we pushing frame raw data into units? 
         length = dataSize;
         units.push({
-            type: AV1OBUType.OBU_RESERVED_0,
+            type: Av1ObuType.OBU_RESERVED_0,
             data: new Uint8Array(arrayBuffer, dataOffset, dataSize)
         });
 
@@ -2240,13 +2269,13 @@ export class FLVDemuxer {
         track.length += length;
     }
 
-    _parseEnhancedVP9VideoPacket(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: number, packetType: VideoPacketType, track: VideoTrack) {
+    private _parseEnhancedVp9VideoPacket(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: number, packetType: VideoPacketType, track: VideoTrack) {
         switch (packetType) {
             case VideoPacketType.SequenceStart:
-                this._parseVP9CodecConfigurationRecord(arrayBuffer, dataOffset, dataSize, track);
+                this._parseVp9Config(arrayBuffer, dataOffset, dataSize, track);
                 break;
             case VideoPacketType.CodedFrames:
-                this._parseVP9VideoData(arrayBuffer, dataOffset, dataSize, tagTimestamp, tagPosition, frameType, 0, track);
+                this._parseVp9VideoData(arrayBuffer, dataOffset, dataSize, tagTimestamp, tagPosition, frameType, 0, track);
                 break;
             case VideoPacketType.SequenceEnd:
                 // empty, VP9 end of sequence
@@ -2261,7 +2290,10 @@ export class FLVDemuxer {
         }
     }
 
-    _parseVP9CodecConfigurationRecord(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, track: VideoTrack) {
+    // VP9CodecConfigurationRecord must precede VP9 coded frames.
+    // A changed record replaces the previous configuration and causes
+    // regeneration of the initialization segment.
+    private _parseVp9Config(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, track: VideoTrack) {
         /*
             From ISO/IEC 14496-15:2020(E) -
 
@@ -2282,7 +2314,7 @@ export class FLVDemuxer {
         */
 
         if (dataSize < 9) {
-            Log.w(FLVDemuxer.TAG, '_parseVP9CodecConfigurationRecord(): Invalid VP9CodecConfigurationRecord, lack of data!');
+            Log.w(FLVDemuxer.TAG, '_parseVp9Config(): Invalid VP9CodecConfigurationRecord, lack of data!');
             return;
         }
 
@@ -2296,7 +2328,7 @@ export class FLVDemuxer {
                 this._mediaInfo.hasVideo = true;
             }
             meta = {
-                ...VideoMetadataDefault,
+                ...videoMetadataDefault,
                 type: TrackType.Video,
                 trackId: track.id,
                 timescale: this._timescale,
@@ -2310,7 +2342,7 @@ export class FLVDemuxer {
                     // VP9CodecConfigurationRecord not changed, ignore it
                     return;
                 } else {
-                    Log.w(FLVDemuxer.TAG, '_parseVP9CodecConfigurationRecord(): VP9CodecConfigurationRecord has been changed, re-generate initialization segment');
+                    Log.w(FLVDemuxer.TAG, '_parseVp9Config(): VP9CodecConfigurationRecord has been changed, re-generate initialization segment');
                 }
             }
             meta = existingMeta;
@@ -2395,7 +2427,7 @@ export class FLVDemuxer {
         Log.v(FLVDemuxer.TAG, `Parsed VP9 codec configuration record: profile=${meta.profile} level=${meta.level}`);
     }
 
-    _parseVP9VideoData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: VideoFrameType, cts: number, track: VideoTrack) {
+    private _parseVp9VideoData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: VideoFrameType, cts: number, track: VideoTrack) {
         let length = 0;
         let units: VideoUnit[] = [];
         let dts = this._timestampBase + tagTimestamp;
@@ -2427,7 +2459,7 @@ export class FLVDemuxer {
         // !!@ why are we pushing frame raw data into units? 
         length = dataSize;
         units.push({
-            type: isKeyFrame ? VP9FrameType.KEY_FRAME : VP9FrameType.INTER_FRAME,
+            type: isKeyFrame ? Vp9FrameType.KEY_FRAME : Vp9FrameType.INTER_FRAME,
             data: new Uint8Array(arrayBuffer, dataOffset, dataSize)
         });
 

@@ -14,7 +14,7 @@ import ExpGolomb from './exp-golomb.js';
 import Log from '../utils/logger.js';
 const TAG = 'av1-parser';
 
-export enum AV1OBUType {
+export enum Av1ObuType {
     OBU_RESERVED_0              =  0,
     OBU_SEQUENCE_HEADER         =  1,
     OBU_TEMPORAL_DELIMITER      =  2,
@@ -124,7 +124,7 @@ class AV1OBUParser {
         for (let i = 0; i < uint8array.byteLength; ) {
             let first = i;
             let forbidden_bit = (uint8array[i] & 0x80) >> 7;
-            let type = (uint8array[i] & 0x78) >> 3 as AV1OBUType;
+            let type = (uint8array[i] & 0x78) >> 3 as Av1ObuType;
             let extension_flag = (uint8array[i] & 0x04) !== 0;
             let has_size_field = (uint8array[i] & 0x02) !== 0;
             let reserved_1bit = (uint8array[i] & 0x01) !== 0;
@@ -143,14 +143,14 @@ class AV1OBUParser {
                 }
             }
 
-            if (type === AV1OBUType.OBU_SEQUENCE_HEADER) {
+            if (type === Av1ObuType.OBU_SEQUENCE_HEADER) {
                 meta = {
                     ... AV1OBUParser.parseSeuqneceHeader(uint8array.subarray(i, i + size)),
                     sequence_header_data: uint8array.subarray(first, i + size),
                 }
-            } else if (type == AV1OBUType.OBU_FRAME_HEADER && meta) {
+            } else if (type == Av1ObuType.OBU_FRAME_HEADER && meta) {
                 meta = AV1OBUParser.parseOBUFrameHeader(uint8array.subarray(i, i + size), temporal_id, spatial_id, meta);
-            } else if (type == AV1OBUType.OBU_FRAME && meta) {
+            } else if (type == Av1ObuType.OBU_FRAME && meta) {
                 meta = AV1OBUParser.parseOBUFrameHeader(uint8array.subarray(i, i + size), temporal_id, spatial_id, meta);
             }
 
@@ -169,7 +169,7 @@ class AV1OBUParser {
         function skipFrameBoundaryMarkers(obuData: Uint8Array): Uint8Array {
             let i = 0;
             let obu_forbidden_bit = ((obuData[i] & 0x80) >> 7) !== 0;
-            let obu_type = (obuData[i] & 0x78) >> 3 as AV1OBUType;
+            let obu_type = (obuData[i] & 0x78) >> 3 as Av1ObuType;
             let extension_flag = (obuData[i] & 0x04) !== 0;
             let has_size_field = (obuData[i] & 0x02) !== 0;
             let reserved_bit = (obuData[i] & 0x01) !== 0;
@@ -215,19 +215,19 @@ class AV1OBUParser {
 
         }
 
-        let obu_type = (obuData[0] & 0x78) >> 3 as AV1OBUType;
+        let obu_type = (obuData[0] & 0x78) >> 3 as Av1ObuType;
         let result = obuData
         switch (obu_type) {
-            case AV1OBUType.OBU_TEMPORAL_DELIMITER:
+            case Av1ObuType.OBU_TEMPORAL_DELIMITER:
                 result = skipFrameBoundaryMarkers(obuData);
                 break;
-            case AV1OBUType.OBU_REDUNDANT_FRAME_HEADER:
+            case Av1ObuType.OBU_REDUNDANT_FRAME_HEADER:
                 Log.e(TAG, 'OBU_REDUNDANT_FRAME_HEADER is not supported');
                 break;
-            case AV1OBUType.OBU_TILE_LIST:
+            case Av1ObuType.OBU_TILE_LIST:
                 Log.e(TAG, 'OBU_TILE_LIST is not supported');
                 break;
-            case AV1OBUType.OBU_PADDING:
+            case Av1ObuType.OBU_PADDING:
                 Log.e(TAG, 'OBU_PADDING is not supported');
                 break;
             default:
