@@ -1596,7 +1596,7 @@ export class FLVDemuxer {
 
         const v = new DataView(arrayBuffer, dataOffset, dataSize);
         const packetType = v.getUint8(0);
-        const cts = readSignedInt24(v, 0);
+        const cts = readSignedInt24(v, 1);
         dataOffset += 4;
         dataSize -= 4;
 
