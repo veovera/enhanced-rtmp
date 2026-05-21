@@ -268,6 +268,10 @@ export interface VideoMetadata {
     level: string;
     bitDepth: number;
     chromaFormat: number;
+    colorRange: number;
+    colourPrimaries: number;
+    transferCharacteristics: number;
+    matrixCoefficients: number;
     sarRatio: { width: number, height: number };
     frameRate: { fixed: boolean, fps: number, fps_num: number, fps_den: number };
     refFrameDuration: number;
@@ -289,6 +293,10 @@ const videoMetadataDefault: VideoMetadata = {
     level: '',
     bitDepth: NaN,
     chromaFormat: NaN,
+    colorRange: NaN,
+    colourPrimaries: NaN,
+    transferCharacteristics: NaN,
+    matrixCoefficients: NaN,
     sarRatio: { width: NaN, height: NaN },
     frameRate: { fixed: false, fps: NaN, fps_num: NaN, fps_den: NaN },
     refFrameDuration: NaN,
@@ -2364,27 +2372,35 @@ export class FLVDemuxer {
         }
         meta.codecType = VideoCodecType.Vp9;
 
-        const version = v.getUint8(0);
+        // Detect format:
+        //   12-byte FullBox format: version(1) + flags(3) + profile(1) + level(1) + ...
+        //   9-byte ISO format:      configurationVersion(1) + profile(1) + level(1) + ...
+        // If bytes 1-3 are zero it's FullBox (fields start at byte 4), otherwise ISO (fields start at byte 1).
         const fullboxFlags = (v.getUint8(1) << 16) | (v.getUint8(2) << 8) | v.getUint8(3);
-        if (version !== 1 || fullboxFlags !== 0) {
-            Log.w(FLVDemuxer.TAG, '_parseVP9CodecConfigurationRecord: Invalid VP9CodecConfigurationRecord');
+        const isFullBox = fullboxFlags === 0 && dataSize >= 12;
+        const o = isFullBox ? 4 : 1;  // offset to profile field
+
+        if (!isFullBox && dataSize < 9) {
+            Log.w(FLVDemuxer.TAG, '_parseVp9Config(): record too short');
+            return;
         }
 
-        // Read but currently unused; kept for advancing the parser in the future
-        const profile = v.getUint8(4);
-        const level = v.getUint8(5);
-        const bitDepth = (v.getUint8(6) & 0xF0) >> 4;
-        const chromaSubsampling = (v.getUint8(6) & 0x0E) >> 1;
-        const _videoFullRangeFlag = v.getUint8(6) & 0x01;
-        const _colourPrimaries = v.getUint8(7);
-        const _transferCharacteristics = v.getUint8(8);
+        const profile = v.getUint8(o);
+        const level = v.getUint8(o + 1);
+        const bitDepth = (v.getUint8(o + 2) & 0xF0) >> 4;
+        const chromaSubsampling = (v.getUint8(o + 2) & 0x0E) >> 1;
+        const videoFullRangeFlag = v.getUint8(o + 2) & 0x01;
+        const colourPrimaries = v.getUint8(o + 3);
+        const transferCharacteristics = v.getUint8(o + 4);
+        let matrixCoefficients = 2;  // 2 = Unspecified (safe default)
 
-        if (dataSize > 11) {
-            const _matrixCoefficients = v.getUint8(9);
-            const codecInitDataSize = v.getUint16(10, false);
-
-            if (codecInitDataSize !== 0) {
-                Log.w(FLVDemuxer.TAG, `_parseVP9CodecConfigurationRecord: Strange VP9CodecConfigurationRecord, codecInitializationDataSize = ${codecInitDataSize}`);
+        if (dataSize >= o + 6) {
+            matrixCoefficients = v.getUint8(o + 5);
+            if (dataSize >= o + 8) {
+                const codecInitDataSize = v.getUint16(o + 6, false);
+                if (codecInitDataSize !== 0) {
+                    Log.w(FLVDemuxer.TAG, `_parseVp9Config(): Strange VP9CodecConfigurationRecord, codecInitializationDataSize = ${codecInitDataSize}`);
+                }
             }
         }
 
@@ -2392,7 +2408,11 @@ export class FLVDemuxer {
         meta.level = `${level}`;
         meta.bitDepth = bitDepth;
         meta.chromaFormat = chromaSubsampling;
-        meta.codec = `vp09.${profile}.${level}.${bitDepth}`;
+        meta.colorRange = videoFullRangeFlag;
+        meta.colourPrimaries = colourPrimaries;
+        meta.transferCharacteristics = transferCharacteristics;
+        meta.matrixCoefficients = matrixCoefficients;
+        meta.codec = `vp09.${`${profile}`.padStart(2, '0')}.${`${level}`.padStart(2, '0')}.${`${bitDepth}`.padStart(2, '0')}`;
 
         const mi = this._mediaInfo;
         mi.fps = meta.frameRate.fps;

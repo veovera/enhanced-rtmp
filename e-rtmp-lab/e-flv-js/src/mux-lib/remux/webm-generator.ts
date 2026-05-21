@@ -58,46 +58,52 @@ enum ClusterBlockMode {
 const clusterBlockMode: ClusterBlockMode = ClusterBlockMode.SimpleBlock; // Most compatible with MSE
 
 enum EbmlId {
-  Ebml                = 0x1A45DFA3,
-  EbmlVersion         = 0x4286,
-  EbmlReadVersion     = 0x42F7,
-  EbmlMaxIdLength     = 0x42F2,
-  EbmlMaxSizeLength   = 0x42F3,
-  CodecId             = 0x00000086,
-  CodecPrivate        = 0x000063A2,
-  CodecDelay          = 0x56AA,
-  SeekPreRoll         = 0x56BB,
-  Segment             = 0x18538067,
-  Info                = 0x1549A966,
-  TimecodeScale       = 0x002AD7B1,
-  MuxingApp           = 0x00004D80,
-  WritingApp          = 0x00005741,
-  Tracks              = 0x1654AE6B,
-  TrackEntry          = 0x000000AE,
-  TrackNumber         = 0x000000D7,     // 1-based index of the track in the stream 
-  TrackUid            = 0x000073C5,     // unique identifier, not used for MSE playback
-  TrackType           = 0x00000083,     // 1 = video, 2 = audio
-  DefaultDuration     = 0x0023E383,
-  Video               = 0x000000E0,
-  VideoPixelWidth     = 0x000000B0,
-  VideoPixelHeight    = 0x000000BA,
-  Audio               = 0x000000E1,
-  AudioChannels       = 0x0000009F,
-  AudioSamplingFreq   = 0x000000B5,
-  DocType             = 0x4282,
-  DocTypeVersion      = 0x4287,
-  DocTypeReadVersion  = 0x4285,
-  Cluster             = 0x1F43B675,
-  Timecode            = 0xE7,
-  SimpleBlock         = 0xA3,
-  BlockGroup          = 0xA0,
-  Block               = 0xA1,
-  BlockDuration       = 0x9B,
-  BlockAdditions      = 0x75A1,
-  BlockMore           = 0xA6,
-  BlockAddID          = 0xEE,
-  BlockAdditional     = 0xA5,
-  ReferenceBlock      = 0xFB,
+  Ebml                      = 0x1A45DFA3,
+  EbmlVersion               = 0x4286,
+  EbmlReadVersion           = 0x42F7,
+  EbmlMaxIdLength           = 0x42F2,
+  EbmlMaxSizeLength         = 0x42F3,
+  CodecId                   = 0x00000086,
+  CodecPrivate              = 0x000063A2,
+  CodecDelay                = 0x56AA,
+  SeekPreRoll               = 0x56BB,
+  Segment                   = 0x18538067,
+  Info                      = 0x1549A966,
+  TimecodeScale             = 0x002AD7B1,
+  MuxingApp                 = 0x00004D80,
+  WritingApp                = 0x00005741,
+  Tracks                    = 0x1654AE6B,
+  TrackEntry                = 0x000000AE,
+  TrackNumber               = 0x000000D7,     // 1-based index of the track in the stream 
+  TrackUid                  = 0x000073C5,     // unique identifier, not used for MSE playback
+  TrackType                 = 0x00000083,     // 1 = video, 2 = audio
+  DefaultDuration           = 0x0023E383,
+  Video                     = 0x000000E0,
+  VideoPixelWidth           = 0x000000B0,
+  VideoPixelHeight          = 0x000000BA,
+  Colour                    = 0x000055B0,     // Video color information (matrix coefficients, bit depth, color range, etc.)
+  MatrixCoefficients        = 0x000055B1,     // Color matrix coefficients (e.g. BT.709, BT.601)
+  BitsPerChannel            = 0x000055B2,     // Bit depth per color channel (e.g. 8, 10, 12)
+  Range                     = 0x000055B9,     // Color range (e.g. full, limited)
+  TransferCharacteristics   = 0x000055BA,     // Transfer characteristics (e.g. gamma, PQ)
+  Primaries                 = 0x000055BB,     // Color primaries (e.g. BT.709, BT.2020)
+  Audio                     = 0x000000E1,
+  AudioChannels             = 0x0000009F,
+  AudioSamplingFreq         = 0x000000B5,
+  DocType                   = 0x4282,
+  DocTypeVersion            = 0x4287,
+  DocTypeReadVersion        = 0x4285,
+  Cluster                   = 0x1F43B675,
+  Timecode                  = 0xE7,
+  SimpleBlock               = 0xA3,
+  BlockGroup                = 0xA0,
+  Block                     = 0xA1,
+  BlockDuration             = 0x9B,
+  BlockAdditions            = 0x75A1,
+  BlockMore                 = 0xA6,
+  BlockAddID                = 0xEE,
+  BlockAdditional           = 0xA5,
+  ReferenceBlock            = 0xFB,
 }
 
 enum TrackNumber {
@@ -217,6 +223,49 @@ function GetCodecId(codecType: VideoCodecType): string {
   }
 }
 
+function buildVp9CodecPrivate(videoMetadata: VideoMetadata): Uint8Array {
+  const profile = Number(videoMetadata.profile);
+  const level = Number(videoMetadata.level);
+  const bitDepth = videoMetadata.bitDepth;
+  const chromaSubsampling = videoMetadata.chromaFormat;
+
+  const fields = [
+    [1, profile],
+    [2, level],
+    [3, bitDepth],
+    [4, chromaSubsampling],
+  ] as const;
+
+  return concatUint8Arrays(fields.map(([id, value]) => new Uint8Array([id, 1, value & 0xFF])));
+}
+
+function buildVideoColourElement(videoMetadata: VideoMetadata): Uint8Array | null {
+  const elements: Uint8Array[] = [];
+
+  if (Number.isFinite(videoMetadata.matrixCoefficients)) {
+    elements.push(encodeElement(EbmlId.MatrixCoefficients, writeUIntAuto(videoMetadata.matrixCoefficients)));
+  }
+  if (Number.isFinite(videoMetadata.bitDepth)) {
+    elements.push(encodeElement(EbmlId.BitsPerChannel, writeUIntAuto(videoMetadata.bitDepth)));
+  }
+  if (Number.isFinite(videoMetadata.colorRange)) {
+    const range = videoMetadata.colorRange > 0 ? 2 : 1;
+    elements.push(encodeElement(EbmlId.Range, writeUIntAuto(range)));
+  }
+  if (Number.isFinite(videoMetadata.transferCharacteristics)) {
+    elements.push(encodeElement(EbmlId.TransferCharacteristics, writeUIntAuto(videoMetadata.transferCharacteristics)));
+  }
+  if (Number.isFinite(videoMetadata.colourPrimaries)) {
+    elements.push(encodeElement(EbmlId.Primaries, writeUIntAuto(videoMetadata.colourPrimaries)));
+  }
+
+  if (elements.length === 0) {
+    return null;
+  }
+
+  return encodeElement(EbmlId.Colour, concatUint8Arrays(elements));
+}
+
 /**
  * Generates a minimal WebM initialization segment containing AV1, VP9 codec config.
  */
@@ -253,8 +302,10 @@ export class WebMGenerator {
     const width = videoMetadata.codecWidth;
     const height = videoMetadata.codecHeight;
     const codecConfig = videoMetadata.codecConfig;
+    const codecPrivate = videoMetadata.codecType === VideoCodecType.Vp9 ? buildVp9CodecPrivate(videoMetadata) : codecConfig;
+    const colourElement = buildVideoColourElement(videoMetadata);
 
-    if (!codecConfig) {
+    if (!codecPrivate) {
       Log.e(WebMGenerator.TAG, 'generateVideoInitSegment(): Missing codec configuration for video track');
       return new Uint8Array(0);
     }
@@ -282,19 +333,20 @@ export class WebMGenerator {
     );
 
     // TrackEntry for video stream
+    const videoElements = [
+      encodeElement(EbmlId.VideoPixelWidth, writeUInt(width, 2)),
+      encodeElement(EbmlId.VideoPixelHeight, writeUInt(height, 2)),
+      ...(colourElement ? [colourElement] : []),
+    ];
+
     const videoTrack = encodeElement(EbmlId.TrackEntry,
       concatUint8Arrays([
         encodeElement(EbmlId.TrackNumber, writeUInt(1, 1)),         // Track ID (index)
         encodeElement(EbmlId.TrackUid, writeUInt(1, 1)),            // Globally unique ID
         encodeElement(EbmlId.TrackType, writeUInt(1, 1)),           // 1 = video track
         encodeElement(EbmlId.CodecId, writeString(GetCodecId(videoMetadata.codecType))),        // Codec string
-        encodeElement(EbmlId.CodecPrivate, codecConfig),            // Codec config OBUs (seq_header)
-        encodeElement(EbmlId.Video,
-          concatUint8Arrays([
-            encodeElement(EbmlId.VideoPixelWidth, writeUInt(width, 2)),  // e.g., 1920
-            encodeElement(EbmlId.VideoPixelHeight, writeUInt(height, 2)),// e.g., 1080
-          ])
-        ),
+        encodeElement(EbmlId.CodecPrivate, codecPrivate),
+        encodeElement(EbmlId.Video, concatUint8Arrays(videoElements)),
       ])
     );
 
