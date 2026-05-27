@@ -15,7 +15,6 @@ import MP4 from './mp4-generator.js';
 import AAC from './aac-silent.js';
 import Browser from '../utils/browser.js';
 import { FrameInfo as FrameInfo, MediaSegmentInfo, MediaSegmentInfoList } from '../core/media-segment-info.js';
-import { IllegalStateException } from '../utils/exception.js';
 import { MSEInitSegment, MSEMediaSegment, Remuxer, SegmentKind, TrackType } from './remuxer.js';
 import { Callback, assertCallback } from '../utils/common.js';
 import { AudioMetadata, AudioTrack, AudioFrame, VideoMetadata, VideoTrack, VideoFrame, VideoCodecType } from '../demux/flv-demuxer.js';
@@ -23,7 +22,7 @@ import AV1OBUParser from '../demux/av1-parser.js';
 import { ConfigOptions } from '../config.js';
 
 export class MP4Remuxer extends Remuxer {
-        static TAG = 'MP4Remuxer';
+        static readonly TAG = 'MP4Remuxer';
 
         private _dtsBase = Infinity;
         private _audioDtsBase = Infinity;
@@ -38,6 +37,9 @@ export class MP4Remuxer extends Remuxer {
 
         private _onInitSegment: Callback = assertCallback;
         private _onMediaSegment: Callback = assertCallback;
+
+        private _pendingAudioInitSegment: MSEInitSegment | null = null;
+        private _pendingVideoInitSegment: MSEInitSegment | null = null;
 
         private _forceFirstIDR: boolean;
         private _fillSilentAfterSeek: boolean;
@@ -81,6 +83,8 @@ export class MP4Remuxer extends Remuxer {
         this._videoMeta = null;
         this._audioSegmentInfoList.clear();
         this._videoSegmentInfoList.clear();
+        this._pendingAudioInitSegment = null;
+        this._pendingVideoInitSegment = null;
         this._onInitSegment = assertCallback;
         this._onMediaSegment = assertCallback;
     }
@@ -116,6 +120,8 @@ export class MP4Remuxer extends Remuxer {
         this._videoStashedLastFrame = null;
         this._videoSegmentInfoList.clear();
         this._audioSegmentInfoList.clear();
+        this._pendingAudioInitSegment = null;
+        this._pendingVideoInitSegment = null;
     }
 
     _getMp4TrackId(type: TrackType, trackId: number) {
@@ -133,12 +139,19 @@ export class MP4Remuxer extends Remuxer {
     }
 
     _onTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack) {
-        if (!this._onMediaSegment) {
-            throw new IllegalStateException('MP4Remuxer: onMediaSegment callback must be specificed!');
-        }
         if (this._dtsBase === Infinity) {
 
             this._calculateDtsBase(audioTrack, videoTrack);
+        }
+        // Flush all pending init segments before any data so both SourceBuffers
+        // are created while updating=false, avoiding InvalidStateError on mediaSource.duration.
+        if (this._pendingVideoInitSegment) {
+            this._onInitSegment(TrackType.Video, this._pendingVideoInitSegment);
+            this._pendingVideoInitSegment = null;
+        }
+        if (this._pendingAudioInitSegment) {
+            this._onInitSegment(TrackType.Audio, this._pendingAudioInitSegment);
+            this._pendingAudioInitSegment = null;
         }
         this._remuxVideo(videoTrack, false);
         this._remuxAudio(audioTrack, false);
@@ -169,11 +182,8 @@ export class MP4Remuxer extends Remuxer {
             metabox = MP4.generateInitSegment(this._getMp4Metadata(metadata));
         }
 
-        // dispatch metabox (Initialization Segment)
-        if (!this._onInitSegment) {
-            throw new IllegalStateException('MP4Remuxer: onInitSegment callback must be specified!');
-        }
-
+        // Stash init segment; dispatched lazily in _remuxAudio/_remuxVideo so that
+        // multiple metadata updates only result in one init segment per data batch.
         const initSegment: MSEInitSegment = {
             kind: SegmentKind.Init,
             type: type,
@@ -181,9 +191,13 @@ export class MP4Remuxer extends Remuxer {
             codec: codec,
             container: `${type}/${container}`,
             mediaDuration: metadata.duration  // in timescale 1000 (milliseconds)
-        }
+        };
 
-        this._onInitSegment(type, initSegment);
+        if (type === TrackType.Audio) {
+            this._pendingAudioInitSegment = initSegment;
+        } else {
+            this._pendingVideoInitSegment = initSegment;
+        }
     }
 
     _calculateDtsBase(audioTrack: AudioTrack, videoTrack: VideoTrack) {
@@ -248,6 +262,11 @@ export class MP4Remuxer extends Remuxer {
     _remuxAudio(audioTrack: AudioTrack, force: boolean) {
         if (!this._audioMeta || audioTrack.frames.length === 0) {
             return;
+        }
+
+        if (this._pendingAudioInitSegment) {
+            this._onInitSegment(TrackType.Audio, this._pendingAudioInitSegment);
+            this._pendingAudioInitSegment = null;
         }
 
         let track = audioTrack;
@@ -585,6 +604,11 @@ export class MP4Remuxer extends Remuxer {
         if (!this._videoMeta) {
             Log.w(MP4Remuxer.TAG, '_remuxVideo: VideoData received before CodecConfigurationRecord');
             return;
+        }
+
+        if (this._pendingVideoInitSegment) {
+            this._onInitSegment(TrackType.Video, this._pendingVideoInitSegment);
+            this._pendingVideoInitSegment = null;
         }
 
         let track: VideoTrack = videoTrack;
