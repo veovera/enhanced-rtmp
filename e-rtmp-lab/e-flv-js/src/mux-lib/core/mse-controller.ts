@@ -32,6 +32,20 @@ interface TimeRange {
 }
 
 const TRACK_TYPES: readonly TrackType[] = [TrackType.Video, TrackType.Audio];
+
+function formatSegmentPrefix(data: Uint8Array, length = 16): string {
+    if (!data || data.byteLength === 0) {
+        return 'empty';
+    }
+    return Array.from(data.subarray(0, Math.min(length, data.byteLength)))
+        .map((value) => value.toString(16).padStart(2, '0'))
+        .join(' ');
+}
+
+function describeInitSegment(initSegment: MSEInitSegment): string {
+    return `type=${initSegment.type} codec=${initSegment.codec || 'none'} container=${initSegment.container} bytes=${initSegment.data.byteLength} head=${formatSegmentPrefix(initSegment.data)}`;
+}
+
 class MSEController {
     private static readonly TRACE = false;                  // Set to true to enable detailed trace logs for debugging
     private readonly TAG = 'MSEController';
@@ -235,9 +249,10 @@ class MSEController {
     }
 
     appendInitSegment(initSegment: MSEInitSegment, deferred: boolean = false) {
-        if (!this._mediaSource || this._mediaSource.readyState !== 'open' || (this._useManagedMediaSource && (this._mediaSource as any).streaming === false)) {
+        if (this._mediaSource?.readyState !== 'open' || (this._useManagedMediaSource && (this._mediaSource as any).streaming === false)) {
             // sourcebuffer creation requires mediaSource.readyState === 'open'
             // so we defer the sourcebuffer creation, until sourceopen event triggered
+            Log.v(this.TAG, `appendInitSegment: deferring because MediaSource is not ready, deferred=${deferred} ${describeInitSegment(initSegment)}`);
             this._deferInitSegment(initSegment, deferred);
             return;
         }
@@ -256,11 +271,11 @@ class MSEController {
         const audioUpdating = this._sourceBuffers['audio']?.updating;
 
         if (videoUpdating || audioUpdating) {
-            Log.v(this.TAG, `appendInitSegment: Now ${Date.now()} - Deferring Initialization Segment for ${is.type}, mimeType: ${mimeType}, updating video: ${videoUpdating} audio: ${audioUpdating}`);
+            Log.v(this.TAG, `appendInitSegment: deferring because SourceBuffer is updating, deferred=${deferred} mimeType=${mimeType} updatingVideo=${videoUpdating} updatingAudio=${audioUpdating} ${describeInitSegment(is)}`);
             this._deferInitSegment(initSegment, deferred);
             return;
         }
-        Log.v(this.TAG, `appendInitSegment: Now ${Date.now()} - Received Initialization Segment for ${is.type}, mimeType: ${mimeType}, updating video: ${videoUpdating} audio: ${audioUpdating}`);
+        Log.v(this.TAG, `appendInitSegment: accepting mimeType=${mimeType} deferred=${deferred} updatingVideo=${videoUpdating} updatingAudio=${audioUpdating} ${describeInitSegment(is)}`);
 
 
         this._lastInitSegments[is.type] = is;
@@ -550,6 +565,9 @@ class MSEController {
                 }
 
                 try {
+                    if (segment.kind === SegmentKind.Init) {
+                        Log.v(this.TAG, `_doAppendSegments: append init ${describeInitSegment(segment as MSEInitSegment)} pendingAudio=${pendingSegments.audio.length} pendingVideo=${pendingSegments.video.length}`);
+                    }
                     // Log buffer info for debugging
                     if (MSEController.TRACE) {
                         const audioUpdating = this._sourceBuffers['audio']?.updating;
@@ -639,6 +657,7 @@ class MSEController {
             }
 
             const segment = this._pendingSourceBufferInit.shift()!;
+            Log.v(this.TAG, `_flushPendingInitSegments: dispatching queued init, remaining=${this._pendingSourceBufferInit.length} ${describeInitSegment(segment)}`);
             this.appendInitSegment(segment, true);
         }
     }
@@ -680,6 +699,11 @@ class MSEController {
     private _onSourceClose() {
         // fired on detaching from media element
         Log.v(this.TAG, 'MediaSource onSourceClose');
+        for (const type of TRACK_TYPES) {
+            this._sourceBuffers[type] = null;
+            this._mimeTypes[type] = null;
+            this._pendingRemoveRanges[type].splice(0);
+        }
         if (this._mediaSource && this.events != null) {
             this._mediaSource.removeEventListener('sourceopen', this.events.onSourceOpen);
             this._mediaSource.removeEventListener('sourceended', this.events.onSourceEnded);
