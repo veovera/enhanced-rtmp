@@ -583,7 +583,7 @@ class MSEController {
                         const audioUpdating = this._sourceBuffers['audio']?.updating;
                         const videoUpdating = this._sourceBuffers['video']?.updating;
                         if (info) {
-                            Log.v(this.TAG, `_doAppendSegments: Now ${Date.now()} - Appending media segment for ${type} SourceBuffer - frameCount: ${frameCount} beginDts: ${info.beginDts} dstEnd: ${info.endDts}} size: ${segment.data.byteLength} audioUpdating ${audioUpdating} videoUpdating ${videoUpdating}`);
+                            Log.v(this.TAG, `_doAppendSegments: Now ${Date.now()} - Appending media segment for ${type} SourceBuffer - frameCount: ${frameCount} beginDts: ${info.beginDts} endDts: ${info.endDts} size: ${segment.data.byteLength} audioUpdating ${audioUpdating} videoUpdating ${videoUpdating}`);
                             //Log.v(this.TAG, `\n${Log.dumpArrayBuffer(segment.data, 512)}`);
                         } else {
                             Log.v(this.TAG, `_doAppendSegments: Now ${Date.now()} - Appending init segment for ${type} SourceBuffer - size: ${segment.data.byteLength} audioUpdating ${audioUpdating} videoUpdating ${videoUpdating}`);
@@ -722,10 +722,17 @@ class MSEController {
         // fired on detaching from media element
         Log.v(this.TAG, 'MediaSource onSourceClose');
         for (const type of TRACK_TYPES) {
+            const sb = this._sourceBuffers[type];
+            if (sb) {
+                sb.removeEventListener('error', this.events.onSourceBufferError);
+                sb.removeEventListener('updateend', this.events.onSourceBufferUpdateEnd);
+            }
             this._sourceBuffers[type] = null;
             this._mimeTypes[type] = null;
             this._pendingRemoveRanges[type].splice(0);
+            this._pendingSegments[type].splice(0);
         }
+        this._pendingSourceBufferInit = [];
         if (this._mediaSource && this.events != null) {
             this._mediaSource.removeEventListener('sourceopen', this.events.onSourceOpen);
             this._mediaSource.removeEventListener('sourceended', this.events.onSourceEnded);
@@ -780,7 +787,14 @@ class MSEController {
             : 'target=unknown';
 
         Log.e(this.TAG, `SourceBuffer Error: eventType=${e?.type ?? 'unknown'} ${targetState} mediaSourceReadyState=${this._mediaSource?.readyState ?? 'null'} mediaElementReadyState=${this._mediaElementProxy?.getReadyState?.() ?? 'unknown'} mediaError=${describeMediaError(mediaError)}`);
-        // this error might not always be fatal, just ignore it
+
+        const mediaErr = this._mediaElementProxy?.getError?.();
+        if (mediaErr) {
+            // A MediaError on the element means the browser considers the error fatal
+            this._emitter.emit(MSEEvents.ERROR, { code: mediaErr.code, msg: mediaErr.message });
+        }
+        // If there is no MediaError the SourceBuffer error may be transient (e.g. a stale
+        // updateend race); log it but do not surface it as a fatal player error.
     }
 
 }
