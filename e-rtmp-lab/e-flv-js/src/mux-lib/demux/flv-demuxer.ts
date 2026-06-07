@@ -29,6 +29,8 @@ import { H265NaluType } from './h265.js';
 import { ConfigOptions } from '../config.js';
 import IOController from '../io/io-controller.js';
 import { VpxParser, Vp9HeaderInfo } from './vpx-parser.js';
+import { AudioSpecificConfig, AACFrame } from './aac.js';
+import { MPEG4AudioObjectTypes, MPEG4SamplingRates, MPEG4SamplingRateIndex } from './mpeg4-audio.js';
 
 //
 // you can find enhanced flv specification here: https://veovera.org/docs/enhanced/enhanced-rtmp-v2
@@ -118,6 +120,84 @@ enum AudioChannelOrder {
     Native      = 1,
     /** Channel order is arbitrary; an explicit per-channel speaker map is present. */
     Custom      = 2,
+}
+
+function describeAacSyntaxElement(elementId: number): string {
+    switch (elementId) {
+        case 0: return 'SCE';
+        case 1: return 'CPE';
+        case 2: return 'CCE';
+        case 3: return 'LFE';
+        case 4: return 'DSE';
+        case 5: return 'PCE';
+        case 6: return 'FIL';
+        case 7: return 'END';
+        default: return `unknown(${elementId})`;
+    }
+}
+
+function describeAacProgramConfigElement(gb: ExpGolomb): string {
+    const instanceTag = gb.readBits(4);
+    const objectType = gb.readBits(2);
+    const samplingIndex = gb.readBits(4);
+    const numFront = gb.readBits(4);
+    const numSide = gb.readBits(4);
+    const numBack = gb.readBits(4);
+    const numLfe = gb.readBits(2);
+    const numAssoc = gb.readBits(3);
+    const numCc = gb.readBits(4);
+
+    return `PCE instanceTag=${instanceTag} objectType=${objectType} samplingIndex=${samplingIndex} front=${numFront} side=${numSide} back=${numBack} lfe=${numLfe} assoc=${numAssoc} cc=${numCc}`;
+}
+
+function skipAacProbeBits(gb: ExpGolomb, bits: number): void {
+    let bitsRemaining = bits;
+
+    while (bitsRemaining > 0) {
+        const chunkSize = Math.min(bitsRemaining, 32);
+        gb.readBits(chunkSize);
+        bitsRemaining -= chunkSize;
+    }
+}
+
+function describeFirstAacPayload(data: Uint8Array): string {
+    if (!data || data.byteLength === 0) {
+        return 'empty-payload';
+    }
+
+    const gb = new ExpGolomb(data);
+    try {
+        const elementId = gb.readBits(3);
+        const elementName = describeAacSyntaxElement(elementId);
+
+        if (elementId === 5) {
+            return `firstElement=${describeAacProgramConfigElement(gb)}`;
+        }
+
+        if (elementId !== 6) {
+            return `firstElement=${elementName}`;
+        }
+
+        let fillCount = gb.readBits(4);
+        if (fillCount === 15) {
+            fillCount += gb.readBits(8) - 1;
+        }
+        if (fillCount > 0) {
+            skipAacProbeBits(gb, fillCount * 8);
+        }
+
+        const nextElementId = gb.readBits(3);
+        const nextElementName = describeAacSyntaxElement(nextElementId);
+        if (nextElementId === 5) {
+            return `firstElement=FIL fillBytes=${fillCount} nextElement=${describeAacProgramConfigElement(gb)}`;
+        }
+
+        return `firstElement=FIL fillBytes=${fillCount} nextElement=${nextElementName}`;
+    } catch (error: any) {
+        return `probeError=${error?.message || String(error)}`;
+    } finally {
+        gb.destroy();
+    }
 }
 
 enum AudioFourCc {
@@ -453,11 +533,6 @@ export class FLVDemuxer {
 
     private static readonly _flvSoundRateTable = [5500, 11025, 22050, 44100, 48000] as const;
 
-    private static readonly _mpegSamplingRates = [
-        96000, 88200, 64000, 48000, 44100, 32000,
-        24000, 22050, 16000, 12000, 11025, 8000, 7350
-    ] as const;
-
     private static readonly _mpegAudioV10SampleRateTable = [44100, 48000, 32000, 0] as const;
     private static readonly _mpegAudioV20SampleRateTable = [22050, 24000, 16000, 0] as const;
     private static readonly _mpegAudioV25SampleRateTable = [11025, 12000, 8000, 0] as const;
@@ -469,6 +544,9 @@ export class FLVDemuxer {
     private _videoTracksById: Map<number, VideoTrack> = new Map();
     private _currentVideoTrackId: number | undefined = undefined;
     private _audioTrack: AudioTrack = { type: TrackType.Audio, id: 2, sequenceNumber: 0, frames: [], length: 0 };
+    private _hasLoggedFirstAacPayloadProbe = false;
+    private _hasLoggedAacPceDetection = false;
+    private _aacPayloadProbeFrameIndex = 0;
 
     constructor(probeData: FlvProbeSuccess, config: ConfigOptions, remuxer: Remuxer) {
         this._config = config;
@@ -492,6 +570,31 @@ export class FLVDemuxer {
         this._onTrackMetadata = noopCallback;
         this._onTrackData = noopCallback;
         this._onVideoTracksDiscovered = noopCallback;
+        this._hasLoggedFirstAacPayloadProbe = false;
+        this._hasLoggedAacPceDetection = false;
+        this._aacPayloadProbeFrameIndex = 0;
+    }
+
+    private _probeAacPayload(data: Uint8Array): void {
+        if (!data || data.byteLength === 0) {
+            return;
+        }
+
+        this._aacPayloadProbeFrameIndex++;
+        const payloadDescription = describeFirstAacPayload(data);
+        const hex = Array.from(data.subarray(0, Math.min(8, data.byteLength)))
+            .map((b) => b.toString(16).padStart(2, '0'))
+            .join(' ');
+
+        if (!this._hasLoggedFirstAacPayloadProbe) {
+            Log.v(FLVDemuxer.TAG, `First AAC CodedFrame: size=${data.byteLength} bytes[0..7]=${hex} ${payloadDescription}`);
+            this._hasLoggedFirstAacPayloadProbe = true;
+        }
+
+        if (!this._hasLoggedAacPceDetection && payloadDescription.includes('PCE')) {
+            Log.v(FLVDemuxer.TAG, `AAC CodedFrame[${this._aacPayloadProbeFrameIndex}] contains visible ${payloadDescription}`);
+            this._hasLoggedAacPceDetection = true;
+        }
     }
 
     static probe(buffer: ArrayBuffer): ProbeResult | FlvProbeSuccess {
@@ -651,6 +754,16 @@ export class FLVDemuxer {
         return { type: TrackType.Video, id: -1, sequenceNumber: 0, frames: [], length: 0 };
     }
 
+    private _flushPendingTrackDataBeforeMetadataRefresh(): void {
+        const currentVideoTrack = this._getCurrentVideoTrack();
+
+        if (this._audioTrack.frames.length === 0 && currentVideoTrack.frames.length === 0) {
+            return;
+        }
+
+        this._onTrackData(this._audioTrack, currentVideoTrack);
+    }
+
     private _dispatchVideoTrackMetadata(meta: VideoMetadata): void {
         if (this._currentVideoTrackId === undefined) {
             this._currentVideoTrackId = meta.trackId;
@@ -658,7 +771,7 @@ export class FLVDemuxer {
         if (meta.trackId === this._currentVideoTrackId) {
             if (this._remuxer.isVideoMetadataDispatched) {
                 // Non-initial metadata, force dispatch (or flush) parsed frames to remuxer
-                this._onTrackData(this._audioTrack, this._getCurrentVideoTrack());
+                this._flushPendingTrackDataBeforeMetadataRefresh();
             }
             // notify new metadata
             this._onTrackMetadata(meta);
@@ -971,15 +1084,20 @@ export class FLVDemuxer {
                 meta.codec = misc.codec;
                 meta.originalCodec = misc.originalCodec;
                 meta.codecConfig = misc.config;
+                this._hasLoggedFirstAacPayloadProbe = false;
+                this._hasLoggedAacPceDetection = false;
+                this._aacPayloadProbeFrameIndex = 0;
                 // The decode result of an aac sample is 1024 PCM samples
                 meta.refFrameDuration = 1024 / meta.audioSampleRate * meta.timescale;
                 Log.v(FLVDemuxer.TAG, 'Parsed AudioSpecificConfig');
 
                 if (this._remuxer.isAudioMetadataDispatched) {
                     // Non-initial metadata, force dispatch (or flush) parsed frames to remuxer
-                    this._onTrackData(this._audioTrack, this._getCurrentVideoTrack());
+                    Log.v(FLVDemuxer.TAG, 'Dispatching regular AAC track data before metadata refresh');
+                    this._flushPendingTrackDataBeforeMetadataRefresh();
                 } 
                 // notify new metadata
+                Log.v(FLVDemuxer.TAG, `Dispatching regular AAC track metadata codec=${meta.codec} channels=${meta.channelCount} sampleRate=${meta.audioSampleRate}`);
                 this._onTrackMetadata(meta);
 
                 let mi = this._mediaInfo;
@@ -994,9 +1112,11 @@ export class FLVDemuxer {
                     mi.mimeType = 'video/x-flv; codecs="' + mi.audioCodec + '"';
                 }
                 if (mi.isComplete()) {
+                    Log.v(FLVDemuxer.TAG, `Dispatching regular AAC media info codec=${mi.audioCodec} channels=${mi.audioChannelCount} mimeType=${mi.mimeType}`);
                     this._onMediaInfo(mi);
                 }
             } else if (aacData.packetType === 1) {  // AAC raw frame data
+                this._probeAacPayload(aacData.data);
                 let dts = this._timestampBase + tagTimestamp;
                 let aacSample = {unit: aacData.data, length: aacData.data.byteLength, dts: dts, pts: dts};
                 track.frames.push(aacSample);
@@ -1106,113 +1226,60 @@ export class FLVDemuxer {
     }
 
     private _parseAACAudioSpecificConfig(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number) {
-        let array = new Uint8Array(arrayBuffer, dataOffset, dataSize);
-        let config = null;
+        const asc = new Uint8Array(arrayBuffer, dataOffset, dataSize);
+        const audioObjectType = asc[0] >>> 3 as MPEG4AudioObjectTypes;
+        const samplingRateIndex = ((asc[0] & 0x07) << 1) | (asc[1] >>> 7) as MPEG4SamplingRateIndex;
 
-        /* Audio Object Type:
-           0: Null
-           1: AAC Main
-           2: AAC LC
-           3: AAC SSR (Scalable Sample Rate)
-           4: AAC LTP (Long Term Prediction)
-           5: HE-AAC / SBR (Spectral Band Replication)
-           6: AAC Scalable
-        */
-
-        let audioObjectType = 0;
-        let originalAudioObjectType = 0;
-        let audioExtensionObjectType = null;
-        let samplingIndex = 0;
-        let extensionSamplingIndex = null;
-
-        // 5 bits
-        audioObjectType = originalAudioObjectType = array[0] >>> 3;
-        // 4 bits
-        samplingIndex = ((array[0] & 0x07) << 1) | (array[1] >>> 7);
-        if (samplingIndex < 0 || samplingIndex >= FLVDemuxer._mpegSamplingRates.length) {
+        if (samplingRateIndex >= MPEG4SamplingRates.length) {
             this._onError(DemuxErrors.FORMAT_ERROR, 'Flv: AAC invalid sampling frequency index!');
             return;
         }
 
-        let samplingFrequence = FLVDemuxer._mpegSamplingRates[samplingIndex];
+        const samplingRate = MPEG4SamplingRates[samplingRateIndex];
+        const aacConfig = new AudioSpecificConfig(new AACFrame(new Uint8Array(arrayBuffer, dataOffset, dataSize)));
 
         // 4 bits — ISO 14496-3 Table 1.19 channel_configuration
         // 0=in-band, 1=C, 2=L+R, 3=C+L+R, 4=C+L+R+Cs, 5=C+L+R+Ls+Rs, 6=5.1, 7=7.1(8ch)
         const aacChannelCountTable = [0, 1, 2, 3, 4, 5, 6, 8] as const;
-        let channelConfig = (array[1] & 0x78) >>> 3;
+        const channelConfig = (asc[1] & 0x78) >>> 3;
         if (channelConfig < 0 || channelConfig >= aacChannelCountTable.length) {
             this._onError(DemuxErrors.FORMAT_ERROR, 'Flv: AAC invalid channel configuration');
             return;
         }
+
         if (channelConfig === 0) {
-            // channel config is sent in-band (program_config_element); not supported
-            Log.w(FLVDemuxer.TAG, 'Flv: AAC channel config 0 (in-band) is not supported, defaulting to 2 channels');
-            channelConfig = 2;
-        }
-        const channelCount = aacChannelCountTable[channelConfig];
-
-        if (audioObjectType === 5) {  // HE-AAC?
-            // 4 bits
-            extensionSamplingIndex = ((array[1] & 0x07) << 1) | (array[2] >>> 7);
-            // 5 bits
-            audioExtensionObjectType = (array[2] & 0x7C) >>> 2;
-        }
-
-        // workarounds for various browsers
-        let userAgent = self.navigator.userAgent.toLowerCase();
-
-        if (userAgent.indexOf('firefox') !== -1) {
-            // firefox: use SBR (HE-AAC) if freq less than 24kHz
-            if (samplingIndex >= 6) {
-                audioObjectType = 5;
-                config = new Array(4);
-                extensionSamplingIndex = samplingIndex - 3;
-            } else {  // use LC-AAC
-                audioObjectType = 2;
-                config = new Array(2);
-                extensionSamplingIndex = samplingIndex;
-            }
-        } else if (userAgent.indexOf('android') !== -1) {
-            // android: always use LC-AAC
-            audioObjectType = 2;
-            config = new Array(2);
-            extensionSamplingIndex = samplingIndex;
-        } else {
-            // not sure why we need to set audioObjectType to 5
-            // so comment out
-            // for other browsers, e.g. chrome...
-            // Always use HE-AAC to make it easier to switch aac codec profile
-            // audioObjectType = 5;
-            extensionSamplingIndex = samplingIndex;
-            config = new Array(4);
-
-            if (samplingIndex >= 6) {
-                extensionSamplingIndex = samplingIndex - 3;
-            } else if (channelConfig === 1) {  // Mono channel
-                audioObjectType = 2;
-                config = new Array(2);
-                extensionSamplingIndex = samplingIndex;
-            }
-        }
-
-        config[0]  = audioObjectType << 3;
-        config[0] |= (samplingIndex & 0x0F) >>> 1;
-        config[1]  = (samplingIndex & 0x0F) << 7;
-        config[1] |= (channelConfig & 0x0F) << 3;
-        if (audioObjectType === 5) {
-            config[1] |= ((extensionSamplingIndex & 0x0F) >>> 1);
-            config[2]  = (extensionSamplingIndex & 0x01) << 7;
-            // extended audio object type: force to 2 (LC-AAC)
-            config[2] |= (2 << 2);
-            config[3]  = 0;
+            // channelConfig=0 means the channel layout is signalled either by a PCE inside
+            // the bitstream or via an E-RTMP MultichannelConfig packet.  The raw buffer may
+            // contain garbage beyond the first two meaningful bytes (e.g. FFmpeg embeds its
+            // version string "Lavc62" as trailing extradata), which Chrome's MSE parser
+            // rejects inside the esds DecoderSpecificInfo box.  Synthesise a clean 2-byte
+            // AudioSpecificConfig preserving audioObjectType and samplingIndex.
+            //
+            // Default channelCount=2 (stereo): channelConfig=0 with no PCE means we cannot
+            // determine the layout from the AudioSpecificConfig alone.  Stereo is the safest
+            // default — it matches the mp4a box so Chrome sets up a stereo decoder that can
+            // successfully decode HE-AAC stereo frames.  MultichannelConfig is intentionally
+            // ignored for the mp4a channel count when channelConfig=0 (see _parseMultichannelConfig).
+            Log.w(FLVDemuxer.TAG, 'Flv: AAC channel config 0 (in-band) detected, synthesising clean 2-ch AudioSpecificConfig');
+            const cleanConfig = [
+                (audioObjectType << 3) | ((samplingRateIndex & 0x0E) >>> 1),
+                ((samplingRateIndex & 0x01) << 7)  // channelConfig=0, GASpecificConfig flags=0
+            ];
+            return {
+                config: cleanConfig,
+                samplingRate: samplingRate,
+                channelCount: 2,  // default stereo; MultichannelConfig will not override this for channelConfig=0
+                codec: 'mp4a.40.' + audioObjectType,
+                originalCodec: 'mp4a.40.' + audioObjectType
+            };
         }
 
         return {
-            config: config,
-            samplingRate: samplingFrequence,
-            channelCount: channelCount,
-            codec: 'mp4a.40.' + audioObjectType,
-            originalCodec: 'mp4a.40.' + originalAudioObjectType
+            config: aacConfig.config,
+            samplingRate: aacConfig.sampling_rate,
+            channelCount: aacConfig.channel_count,
+            codec: aacConfig.codec_mimetype,
+            originalCodec: aacConfig.original_codec_mimetype
         };
     }
 
@@ -1329,20 +1396,43 @@ export class FLVDemuxer {
 
         const meta = this._audioMetadata;
         if (meta && channelCount > 0 && meta.channelCount !== channelCount) {
+            if (meta.codecType === AudioCodecType.Aac && meta.codecConfig && meta.codecConfig.length >= 2) {
+                const channelConfig = (meta.codecConfig[1] & 0x78) >>> 3;
+                if (channelConfig === 0) {
+                    // channelConfig=0: the element layout is in-band (PCE or HE-AAC implicit).
+                    // We already defaulted channelCount=2 in _parseAACAudioSpecificConfig.
+                    // Do NOT apply MultichannelConfig's channel count here — doing so would
+                    // set up a 5.1 decoder for what are actually stereo HE-AAC frames, causing
+                    // a PIPELINE_ERROR_DECODE on the first packet.
+                    Log.v(FLVDemuxer.TAG, `_parseMultichannelConfig(): channelConfig=0 (in-band), ignoring MultichannelConfig channelCount=${channelCount}, keeping channelCount=2`);
+                    return;
+                } else {
+                    // Standard channel config: the channelConfiguration field in the
+                    // AudioSpecificConfig must be kept consistent with the channelCount
+                    // reported by MultichannelConfig, otherwise the mp4a box and the esds
+                    // DecoderSpecificInfo disagree and browsers fire a SourceBuffer decode error.
+                    const aacChannelCountTable = [0, 1, 2, 3, 4, 5, 6, 8];
+                    const newChannelConfig = aacChannelCountTable.indexOf(channelCount);
+                    if (newChannelConfig > 0) {
+                        // bits 6:3 of byte 1 = channelConfiguration; mask 0x87 keeps
+                        // samplingFrequencyIndex[0] (bit 7) and the GASpecificConfig flags
+                        // (bits 2:0) while clearing the 4 channelConfig bits.
+                        const rewritten = Uint8Array.from(meta.codecConfig);
+                        rewritten[1] = (rewritten[1] & 0x87) | ((newChannelConfig & 0x0F) << 3);
+                        meta.codecConfig = rewritten;
+                        Log.v(FLVDemuxer.TAG, `_parseMultichannelConfig(): updated AAC AudioSpecificConfig channelConfig ${channelConfig}→${newChannelConfig} for channelCount=${channelCount}`);
+                    } else {
+                        Log.w(FLVDemuxer.TAG, `_parseMultichannelConfig(): channelCount=${channelCount} has no standard AAC channelConfig mapping, AudioSpecificConfig unchanged`);
+                    }
+                }
+            }
+
             meta.channelCount = channelCount;
             this._mediaInfo.audioChannelCount = channelCount;
 
-            // AAC-only: clear the channelConfig field (bits 6-3) in the AudioSpecificConfig
-            // so Chrome's decoder reads each frame's program_config_element (PCE) for the
-            // actual channel layout.  This must NOT be applied to Opus or FLAC, whose
-            // codecConfig bytes have a completely different layout.
-            if (meta.codecType === AudioCodecType.Aac && meta.codecConfig && meta.codecConfig.length >= 2) {
-                meta.codecConfig[1] = meta.codecConfig[1] & 0x87;  // clear bits 6-3 → channelConfig=0
-            }
-
             Log.v(FLVDemuxer.TAG, `_parseMultichannelConfig(): updated audioMetadata.channelCount → ${channelCount}, re-dispatching metadata`);
             if (this._remuxer.isAudioMetadataDispatched) {
-                this._onTrackData(this._audioTrack, this._getCurrentVideoTrack());
+                this._flushPendingTrackDataBeforeMetadataRefresh();
             }
             this._onTrackMetadata(meta);
         }
@@ -1386,12 +1476,17 @@ export class FLVDemuxer {
             meta.codec = misc.codec;
             meta.originalCodec = misc.originalCodec;
             meta.codecConfig = configBytes;
+            this._hasLoggedFirstAacPayloadProbe = false;
+            this._hasLoggedAacPceDetection = false;
+            this._aacPayloadProbeFrameIndex = 0;
             meta.refFrameDuration = 1024 / meta.audioSampleRate * meta.timescale;
             Log.v(FLVDemuxer.TAG, 'Parsed Enhanced FLV AAC AudioSpecificConfig');
 
             if (this._remuxer.isAudioMetadataDispatched) {
-                this._onTrackData(this._audioTrack, this._getCurrentVideoTrack());
+                Log.v(FLVDemuxer.TAG, 'Dispatching enhanced AAC track data before metadata refresh');
+                this._flushPendingTrackDataBeforeMetadataRefresh();
             }
+            Log.v(FLVDemuxer.TAG, `Dispatching enhanced AAC track metadata codec=${meta.codec} channels=${meta.channelCount} sampleRate=${meta.audioSampleRate}`);
             this._onTrackMetadata(meta);
 
             let mi = this._mediaInfo;
@@ -1406,19 +1501,13 @@ export class FLVDemuxer {
                 mi.mimeType = 'video/x-flv; codecs="' + mi.audioCodec + '"';
             }
             if (mi.isComplete()) {
+                Log.v(FLVDemuxer.TAG, `Dispatching enhanced AAC media info codec=${mi.audioCodec} channels=${mi.audioChannelCount} mimeType=${mi.mimeType}`);
                 this._onMediaInfo(mi);
             }
         } else if (packetType === AudioPacketType.CodedFrames) {
             // Enhanced FLV: payload is raw AAC frame data (no leading AACPacketType byte)
             let data = new Uint8Array(arrayBuffer, dataOffset, dataSize);
-            // Diagnostic: log first frame bytes once to detect PCE (program_config_element).
-            // PCE starts with element_id bits 101 → first byte ≥ 0xA0.
-            // Standard 5.1 SCE(center) starts with bits 000 → first byte ~0x00.
-            if (track.frames.length === 0) {
-                const hex = Array.from(data.subarray(0, Math.min(8, data.byteLength)))
-                    .map(b => b.toString(16).padStart(2, '0')).join(' ');
-                Log.v(FLVDemuxer.TAG, `First AAC CodedFrame: size=${data.byteLength} bytes[0..7]=${hex}  (0xA0 prefix → PCE present; 0x00 prefix → standard 5.1)`);
-            }
+            this._probeAacPayload(data);
             let dts = this._timestampBase + tagTimestamp;
             let aacSample: AudioFrame = {unit: data, length: data.byteLength, dts: dts, pts: dts};
             track.frames.push(aacSample);
@@ -1518,7 +1607,7 @@ export class FLVDemuxer {
 
         if (this._remuxer.isAudioMetadataDispatched) {
             // Non-initial metadata, force dispatch (or flush) parsed frames to remuxer
-            this._onTrackData(this._audioTrack, this._getCurrentVideoTrack());
+            this._flushPendingTrackDataBeforeMetadataRefresh();
         }
 
         // notify new metadata
@@ -1635,7 +1724,7 @@ export class FLVDemuxer {
 
         if (this._remuxer.isAudioMetadataDispatched) {
             // Non-initial metadata, force dispatch (or flush) parsed frames to remuxer
-            this._onTrackData(this._audioTrack, this._getCurrentVideoTrack());
+            this._flushPendingTrackDataBeforeMetadataRefresh();
         }
         // notify new metadata
         this._onTrackMetadata(meta);
