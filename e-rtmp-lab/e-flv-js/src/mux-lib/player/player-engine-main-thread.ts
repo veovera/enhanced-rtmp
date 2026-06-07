@@ -114,6 +114,7 @@ class PlayerEngineMainThread implements PlayerEngine {
         const mediaElementProxy: MediaElementProxy = {
             getCurrentTime: () => mediaElement.currentTime,
             getReadyState: () => mediaElement.readyState,
+            getError: () => mediaElement.error,
             setOnMediaTimeUpdate: (listener: (ev: Event) => void): void => {
                 mediaElement.ontimeupdate = listener;
             },

@@ -22,6 +22,7 @@ import { ConfigOptions } from '../config';
 export interface MediaElementProxy {
     getCurrentTime(): number;
     getReadyState(): number;
+    getError(): MediaError | null;
     setOnMediaTimeUpdate(listener: ((ev: Event) => void) | null): void;
     // Add other methods you use on this object
 }
@@ -44,6 +45,18 @@ function formatSegmentPrefix(data: Uint8Array, length = 16): string {
 
 function describeInitSegment(initSegment: MSEInitSegment): string {
     return `type=${initSegment.type} codec=${initSegment.codec || 'none'} container=${initSegment.container} bytes=${initSegment.data.byteLength} head=${formatSegmentPrefix(initSegment.data)}`;
+}
+
+function describeMediaError(error: MediaError | null): string {
+    if (!error) {
+        return 'none';
+    }
+
+    const details = [`code=${error.code}`];
+    if ('message' in error && typeof error.message === 'string' && error.message.length > 0) {
+        details.push(`message=${error.message}`);
+    }
+    return details.join(' ');
 }
 
 class MSEController {
@@ -414,13 +427,10 @@ class MSEController {
         let currentTime = this._mediaElementProxy.getCurrentTime();
 
         for (const type of TRACK_TYPES) {
-            let sb = this._sourceBuffers[type];
-            if (sb) {
-                let buffered = sb.buffered;
-                if (buffered.length >= 1) {
-                    if (currentTime - buffered.start(0) >= this._config.autoCleanupMaxBackwardDuration) {
-                        return true;
-                    }
+            let buffered = this._getBufferedRanges(type);
+            if (buffered && buffered.length >= 1) {
+                if (currentTime - buffered.start(0) >= this._config.autoCleanupMaxBackwardDuration) {
+                    return true;
                 }
             }
         }
@@ -433,8 +443,8 @@ class MSEController {
 
         for (const type of TRACK_TYPES) {
             let sb = this._sourceBuffers[type];
-            if (sb) {
-                let buffered = sb.buffered;
+            let buffered = this._getBufferedRanges(type);
+            if (sb && buffered) {
                 let doRemove = false;
 
                 for (let i = 0; i < buffered.length; i++) {
@@ -632,10 +642,14 @@ class MSEController {
     }
 
     private _deferInitSegment(initSegment: MSEInitSegment, deferred: boolean) {
+        this._pendingSourceBufferInit = this._pendingSourceBufferInit.filter((segment) => segment.type !== initSegment.type);
         this._pendingSourceBufferInit.push(initSegment);
+        Log.v(this.TAG, `_deferInitSegment: queued deferred=${deferred} pendingSourceBufferInit=${this._pendingSourceBufferInit.length} pendingAudio=${this._pendingSegments.audio.length} pendingVideo=${this._pendingSegments.video.length} ${describeInitSegment(initSegment)}`);
 
         if (!deferred) {
+            this._pendingSegments[initSegment.type] = this._pendingSegments[initSegment.type].filter((segment) => segment.kind !== SegmentKind.Init);
             this._pendingSegments[initSegment.type].push(initSegment);
+            Log.v(this.TAG, `_deferInitSegment: also queued into pendingSegments[${initSegment.type}] size=${this._pendingSegments[initSegment.type].length} ${describeInitSegment(initSegment)}`);
         }
     }
 
@@ -696,6 +710,14 @@ class MSEController {
         Log.v(this.TAG, 'MediaSource onSourceEnded');
     }
 
+    private _getBufferedRanges(type: TrackType): TimeRanges | null {
+        const sb = this._sourceBuffers[type];
+        if (!sb) {
+            return null;
+        }
+        return sb.buffered;
+    }
+
     private _onSourceClose() {
         // fired on detaching from media element
         Log.v(this.TAG, 'MediaSource onSourceClose');
@@ -751,7 +773,13 @@ class MSEController {
     }
 
     private _onSourceBufferError(e: any) {
-        Log.e(this.TAG, `SourceBuffer Error: ${e}`);
+        const target = e?.target as SourceBuffer | undefined;
+        const mediaError = this._mediaElementProxy?.getError?.() ?? null;
+        const targetState = target
+            ? `updating=${target.updating}`
+            : 'target=unknown';
+
+        Log.e(this.TAG, `SourceBuffer Error: eventType=${e?.type ?? 'unknown'} ${targetState} mediaSourceReadyState=${this._mediaSource?.readyState ?? 'null'} mediaElementReadyState=${this._mediaElementProxy?.getReadyState?.() ?? 'unknown'} mediaError=${describeMediaError(mediaError)}`);
         // this error might not always be fatal, just ignore it
     }
 

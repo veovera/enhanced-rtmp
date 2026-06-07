@@ -145,6 +145,7 @@ const PlayerEngineWorker = (self: DedicatedWorkerGlobalScope) => {
         const mediaElementProxy: MediaElementProxy = {
             getCurrentTime: () => media_element_current_time,
             getReadyState: () => media_element_ready_state,
+            getError: () => null,
             setOnMediaTimeUpdate(listener: ((ev: Event) => void) | null) {
                 Log.w(TAG, 'setOnMediaTimeUpdate is not implemented in worker');
             },
