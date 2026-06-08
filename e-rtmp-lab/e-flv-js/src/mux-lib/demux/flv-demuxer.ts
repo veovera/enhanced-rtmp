@@ -46,6 +46,18 @@ export interface FlvProbeSuccess {
 
 type ProbeResult = { needMoreData: true } | { match: false } | FlvProbeSuccess;
 
+export interface AACConfig {
+    config: Uint8Array;
+    samplingRate: number;
+    channelCount: number;
+    codec: string;
+    originalCodec: string;
+}
+
+type AACPacketData =
+    | { packetType: AudioPacketType.SequenceStart; data: AACConfig }                                      // sequence header
+    | { packetType: Exclude<AudioPacketType, AudioPacketType.SequenceStart>; data: Uint8Array };          // coded frames or other packet types (e.g., CodedFrames, SequenceEnd, Multitrack, ModEx, etc.)
+
 /**
  * AudioPacketType defines the types of audio packets
  * used within our streaming and remuxing pipeline.
@@ -1069,16 +1081,16 @@ export class FLVDemuxer {
                 return;
             }
 
-            if (aacData.packetType === 0) {  // AAC sequence header (AudioSpecificConfig)
+            if (aacData.packetType === AudioPacketType.SequenceStart) {  // AAC sequence header (AudioSpecificConfig)
+                const misc = aacData.data;
                 if (meta.codecConfig) {
-                    if (buffersAreEqual(aacData.data.config, meta.codecConfig)) {
+                    if (buffersAreEqual(misc.config, meta.codecConfig)) {
                         // If AudioSpecificConfig is not changed, ignore it to avoid generating initialization segment repeatedly
                         return;
                     } else {
                         Log.w(FLVDemuxer.TAG, 'AudioSpecificConfig has been changed, re-generate initialization segment');
                     }
                 }
-                let misc = aacData.data;
                 meta.audioSampleRate = misc.samplingRate;
                 meta.channelCount = misc.channelCount;
                 meta.codec = misc.codec;
@@ -1115,12 +1127,13 @@ export class FLVDemuxer {
                     Log.v(FLVDemuxer.TAG, `Dispatching regular AAC media info codec=${mi.audioCodec} channels=${mi.audioChannelCount} mimeType=${mi.mimeType}`);
                     this._onMediaInfo(mi);
                 }
-            } else if (aacData.packetType === 1) {  // AAC raw frame data
-                this._probeAacPayload(aacData.data);
+            } else if (aacData.packetType === AudioPacketType.CodedFrames) {  // AAC raw frame data
+                const frameData = aacData.data;
+                this._probeAacPayload(frameData);
                 let dts = this._timestampBase + tagTimestamp;
-                let aacSample = {unit: aacData.data, length: aacData.data.byteLength, dts: dts, pts: dts};
+                let aacSample = {unit: frameData, length: frameData.byteLength, dts: dts, pts: dts};
                 track.frames.push(aacSample);
-                track.length += aacData.data.length;
+                track.length += frameData.length;
             } else {
                 Log.e(FLVDemuxer.TAG, `Flv: Unsupported AAC data type ${aacData.packetType}`);
             }
@@ -1204,35 +1217,32 @@ export class FLVDemuxer {
         }
     }
 
-    // !!@todo: switch to retrun a type instead of any
-    private _parseAACAudioData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number): any {
+    private _parseAACAudioData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number): AACPacketData | undefined {
         if (dataSize <= 1) {
             Log.w(FLVDemuxer.TAG, 'Flv: Invalid AAC packet, missing AACPacketType or/and Data!');
-            return;
+            return undefined;
         }
 
-        let result = {} as any;
-        let array = new Uint8Array(arrayBuffer, dataOffset, dataSize);
+        const array = new Uint8Array(arrayBuffer, dataOffset, dataSize);
+        const packetType = array[0] as AudioPacketType;
 
-        result.packetType = array[0];
-
-        if (array[0] === 0) {
-            result.data = this._parseAACAudioSpecificConfig(arrayBuffer, dataOffset + 1, dataSize - 1);
+        if (packetType === AudioPacketType.SequenceStart) {
+            const config = this._parseAACAudioSpecificConfig(arrayBuffer, dataOffset + 1, dataSize - 1);
+            if (config === undefined) return undefined;  // propagate failure up
+            return { packetType: AudioPacketType.SequenceStart, data: config };
         } else {
-            result.data = array.subarray(1);
+            return { packetType, data: array.subarray(1) };
         }
-
-        return result;
     }
 
-    private _parseAACAudioSpecificConfig(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number) {
+    private _parseAACAudioSpecificConfig(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number): AACConfig | undefined {
         const asc = new Uint8Array(arrayBuffer, dataOffset, dataSize);
         const audioObjectType = asc[0] >>> 3 as MPEG4AudioObjectTypes;
         const samplingRateIndex = ((asc[0] & 0x07) << 1) | (asc[1] >>> 7) as MPEG4SamplingRateIndex;
 
         if (samplingRateIndex >= MPEG4SamplingRates.length) {
             this._onError(DemuxErrors.FORMAT_ERROR, 'Flv: AAC invalid sampling frequency index!');
-            return;
+            return undefined;
         }
 
         const samplingRate = MPEG4SamplingRates[samplingRateIndex];
@@ -1244,7 +1254,7 @@ export class FLVDemuxer {
         const channelConfig = (asc[1] & 0x78) >>> 3;
         if (channelConfig < 0 || channelConfig >= aacChannelCountTable.length) {
             this._onError(DemuxErrors.FORMAT_ERROR, 'Flv: AAC invalid channel configuration');
-            return;
+            return undefined;
         }
 
         if (channelConfig === 0) {
@@ -1261,10 +1271,10 @@ export class FLVDemuxer {
             // successfully decode HE-AAC stereo frames.  MultichannelConfig is intentionally
             // ignored for the mp4a channel count when channelConfig=0 (see _parseMultichannelConfig).
             Log.w(FLVDemuxer.TAG, 'Flv: AAC channel config 0 (in-band) detected, synthesising clean 2-ch AudioSpecificConfig');
-            const cleanConfig = [
+            const cleanConfig = new Uint8Array([
                 (audioObjectType << 3) | ((samplingRateIndex & 0x0E) >>> 1),
                 ((samplingRateIndex & 0x01) << 7)  // channelConfig=0, GASpecificConfig flags=0
-            ];
+            ]);
             return {
                 config: cleanConfig,
                 samplingRate: samplingRate,
@@ -1275,7 +1285,7 @@ export class FLVDemuxer {
         }
 
         return {
-            config: aacConfig.config,
+            config: Uint8Array.from(aacConfig.config),
             samplingRate: aacConfig.sampling_rate,
             channelCount: aacConfig.channel_count,
             codec: aacConfig.codec_mimetype,
