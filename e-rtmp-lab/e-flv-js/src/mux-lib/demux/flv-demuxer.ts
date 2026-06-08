@@ -134,6 +134,64 @@ enum AudioChannelOrder {
     Custom      = 2,
 }
 
+/** Bitmask flags indicating which speaker positions are present (Native order). */
+enum AudioChannelMask {
+    FrontLeft         = 0x000001,
+    FrontRight        = 0x000002,
+    FrontCenter       = 0x000004,
+    LowFrequency1     = 0x000008,
+    BackLeft          = 0x000010,
+    BackRight         = 0x000020,
+    FrontLeftCenter   = 0x000040,
+    FrontRightCenter  = 0x000080,
+    BackCenter        = 0x000100,
+    SideLeft          = 0x000200,
+    SideRight         = 0x000400,
+    TopCenter         = 0x000800,
+    TopFrontLeft      = 0x001000,
+    TopFrontCenter    = 0x002000,
+    TopFrontRight     = 0x004000,
+    TopBackLeft       = 0x008000,
+    TopBackCenter     = 0x010000,
+    TopBackRight      = 0x020000,
+    LowFrequency2     = 0x040000,
+    TopSideLeft       = 0x080000,
+    TopSideRight      = 0x100000,
+    BottomFrontCenter = 0x200000,
+    BottomFrontLeft   = 0x400000,
+    BottomFrontRight  = 0x800000,
+}
+
+/** Speaker position indices used in Custom channel mappings. */
+enum AudioChannel {
+    FrontLeft         = 0,
+    FrontRight        = 1,
+    FrontCenter       = 2,
+    LowFrequency1     = 3,
+    BackLeft          = 4,
+    BackRight         = 5,
+    FrontLeftCenter   = 6,
+    FrontRightCenter  = 7,
+    BackCenter        = 8,
+    SideLeft          = 9,
+    SideRight         = 10,
+    TopCenter         = 11,
+    TopFrontLeft      = 12,
+    TopFrontCenter    = 13,
+    TopFrontRight     = 14,
+    TopBackLeft       = 15,
+    TopBackCenter     = 16,
+    TopBackRight      = 17,
+    LowFrequency2     = 18,
+    TopSideLeft       = 19,
+    TopSideRight      = 20,
+    BottomFrontCenter = 21,
+    BottomFrontLeft   = 22,
+    BottomFrontRight  = 23,
+    Unused            = 0xfe,
+    Unknown           = 0xff,
+}
+
 function describeAacSyntaxElement(elementId: number): string {
     switch (elementId) {
         case 0: return 'SCE';
@@ -1246,7 +1304,6 @@ export class FLVDemuxer {
         }
 
         const samplingRate = MPEG4SamplingRates[samplingRateIndex];
-        const aacConfig = new AudioSpecificConfig(new AACFrame(new Uint8Array(arrayBuffer, dataOffset, dataSize)));
 
         // 4 bits — ISO 14496-3 Table 1.19 channel_configuration
         // 0=in-band, 1=C, 2=L+R, 3=C+L+R, 4=C+L+R+Cs, 5=C+L+R+Ls+Rs, 6=5.1, 7=7.1(8ch)
@@ -1284,6 +1341,7 @@ export class FLVDemuxer {
             };
         }
 
+        const aacConfig = new AudioSpecificConfig(new AACFrame(new Uint8Array(arrayBuffer, dataOffset, dataSize)));
         return {
             config: Uint8Array.from(aacConfig.config),
             samplingRate: aacConfig.sampling_rate,
@@ -1403,6 +1461,24 @@ export class FLVDemuxer {
 
         const orderName = AudioChannelOrder[audioChannelOrder] ?? String(audioChannelOrder);
         Log.v(FLVDemuxer.TAG, `_parseMultichannelConfig(): audioChannelOrder=${orderName} channelCount=${channelCount}`);
+
+        if (audioChannelOrder === AudioChannelOrder.Native) {
+            const audioChannelFlags = view.getUint32(2, false);
+            const presentChannels: string[] = [];
+            for (const [name, mask] of Object.entries(AudioChannelMask) as [string, number][]) {
+                if (typeof mask === 'number' && (audioChannelFlags & mask) !== 0) {
+                    presentChannels.push(name);
+                }
+            }
+            Log.v(FLVDemuxer.TAG, `_parseMultichannelConfig(): Native audioChannelFlags=0x${audioChannelFlags.toString(16).padStart(6, '0')} channels=[${presentChannels.join(', ')}]`);
+        } else if (audioChannelOrder === AudioChannelOrder.Custom) {
+            const mapping: string[] = [];
+            for (let i = 0; i < channelCount; i++) {
+                const ch = view.getUint8(2 + i);
+                mapping.push(`ch${i}=${AudioChannel[ch] ?? `0x${ch.toString(16)}`}`);
+            }
+            Log.v(FLVDemuxer.TAG, `_parseMultichannelConfig(): Custom mapping=[${mapping.join(', ')}]`);
+        }
 
         const meta = this._audioMetadata;
         if (meta && channelCount > 0 && meta.channelCount !== channelCount) {
