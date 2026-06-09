@@ -179,6 +179,21 @@ class Log {
         console.log(str, ...args);
     }
 
+    static scope(tag: string, scope: string) {
+        let firstLine = true;
+        const nextPrefix = () => {
+            const prefix = firstLine ? scope : ' '.repeat(scope.length);
+            firstLine = false;
+            return `${prefix}:`;
+        };
+
+        return {
+            v: (...args: any[]) => Log.v(tag, nextPrefix(), ...args),
+            w: (msg: string) => Log.w(tag, `${nextPrefix()} ${msg}`),
+            e: (msg: string) => Log.e(tag, `${nextPrefix()} ${msg}`),
+        };
+    }
+
     static a(tag: string, msg: string, condition?: unknown): asserts condition {
         if (!condition) {
             const str = `[${tag}] ASSERT FAILED: ${msg}`;
