@@ -847,10 +847,16 @@ class MP4 {
         const transferCharacteristics = meta.transferCharacteristics;
         const matrixCoefficients = meta.matrixCoefficients;
 
+        // ISO/MPEG color value 2 means "unspecified". Emitting an nclx colr box
+        // with unspecified (or non-finite) values forces a wrong YUV->RGB matrix
+        // in some renderers (green shadows / magenta highlights). Omit the box so
+        // the decoder applies its own default, matching the WebM path and the
+        // prior MP4 behavior.
+        const isSpecified = (v) => Number.isFinite(v) && v !== 2;
         if (
-            !Number.isFinite(colourPrimaries) ||
-            !Number.isFinite(transferCharacteristics) ||
-            !Number.isFinite(matrixCoefficients)
+            !isSpecified(colourPrimaries) ||
+            !isSpecified(transferCharacteristics) ||
+            !isSpecified(matrixCoefficients)
         ) {
             return null;
         }

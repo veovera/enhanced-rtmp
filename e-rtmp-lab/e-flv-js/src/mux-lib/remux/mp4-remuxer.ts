@@ -25,6 +25,11 @@ function formatVp9CodecComponent(value: number): string {
     return `${Math.max(0, Math.trunc(value))}`.padStart(2, '0');
 }
 
+function isSpecifiedColorValue(value: number): boolean {
+    // ISO/MPEG color value 2 == "unspecified".
+    return Number.isFinite(value) && value !== 2;
+}
+
 function getMp4Vp9CodecString(metadata: VideoMetadata): string {
     // profile/level arrive as strings from the demuxer; bitDepth is already numeric.
     const profile = Number.parseInt(metadata.profile, 10);
@@ -48,9 +53,9 @@ function getMp4Vp9CodecString(metadata: VideoMetadata): string {
 
     if (
         !Number.isFinite(metadata.chromaFormat) ||
-        !Number.isFinite(metadata.colourPrimaries) ||
-        !Number.isFinite(metadata.transferCharacteristics) ||
-        !Number.isFinite(metadata.matrixCoefficients) ||
+        !isSpecifiedColorValue(metadata.colourPrimaries) ||
+        !isSpecifiedColorValue(metadata.transferCharacteristics) ||
+        !isSpecifiedColorValue(metadata.matrixCoefficients) ||
         !Number.isFinite(metadata.colorRange)
     ) {
         return codecString.join('.');
