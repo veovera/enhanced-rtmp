@@ -21,6 +21,81 @@ import { AudioMetadata, AudioTrack, AudioFrame, VideoMetadata, VideoTrack, Video
 import AV1OBUParser from '../demux/av1-parser.js';
 import { ConfigOptions } from '../config.js';
 
+function formatVp9CodecComponent(value: number): string {
+    return `${Math.max(0, Math.trunc(value))}`.padStart(2, '0');
+}
+
+function getMp4Vp9CodecString(metadata: VideoMetadata): string {
+    // profile/level arrive as strings from the demuxer; bitDepth is already numeric.
+    const profile = Number.parseInt(metadata.profile, 10);
+    const level = Number.parseInt(metadata.level, 10);
+    const bitDepth = metadata.bitDepth;
+
+    if (
+        !Number.isFinite(profile) ||
+        !Number.isFinite(level) ||
+        !Number.isFinite(bitDepth)
+    ) {
+        return metadata.codec;
+    }
+
+    const codecString = [
+        'vp09',
+        formatVp9CodecComponent(profile),
+        formatVp9CodecComponent(level),
+        formatVp9CodecComponent(bitDepth)
+    ];
+
+    if (
+        !Number.isFinite(metadata.chromaFormat) ||
+        !Number.isFinite(metadata.colourPrimaries) ||
+        !Number.isFinite(metadata.transferCharacteristics) ||
+        !Number.isFinite(metadata.matrixCoefficients) ||
+        !Number.isFinite(metadata.colorRange)
+    ) {
+        return codecString.join('.');
+    }
+
+    return codecString.concat([
+        formatVp9CodecComponent(metadata.chromaFormat),
+        formatVp9CodecComponent(metadata.colourPrimaries),
+        formatVp9CodecComponent(metadata.transferCharacteristics),
+        formatVp9CodecComponent(metadata.matrixCoefficients),
+        formatVp9CodecComponent(metadata.colorRange ? 1 : 0)
+    ]).join('.');
+}
+
+function asUint8Array(data: ArrayBuffer | ArrayBufferView | ArrayLike<number> | null | undefined): Uint8Array | null {
+    if (!data) {
+        return null;
+    }
+    if (data instanceof Uint8Array) {
+        return data;
+    }
+    if (ArrayBuffer.isView(data)) {
+        return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+    }
+    if (data instanceof ArrayBuffer) {
+        return new Uint8Array(data);
+    }
+    if (typeof data.length === 'number') {
+        return Uint8Array.from(data);
+    }
+    return null;
+}
+
+function formatBytesPrefix(data: ArrayBuffer | ArrayBufferView | ArrayLike<number> | null | undefined, length = 16): string {
+    const bytes = asUint8Array(data);
+
+    if (!bytes || bytes.byteLength === 0) {
+        return 'empty';
+    }
+
+    return Array.from(bytes.subarray(0, Math.min(length, bytes.byteLength)))
+        .map((value) => value.toString(16).padStart(2, '0'))
+        .join(' ');
+}
+
 export class MP4Remuxer extends Remuxer {
         static readonly TAG = 'MP4Remuxer';
 
@@ -138,6 +213,19 @@ export class MP4Remuxer extends Remuxer {
         };
     }
 
+    _describeMetadata(metadata: AudioMetadata | VideoMetadata): string {
+        let details = `type=${metadata.type} codec=${metadata.codec} duration=${metadata.duration}`;
+        if (metadata.type === TrackType.Audio) {
+            details += ` channels=${metadata.channelCount} sampleRate=${metadata.audioSampleRate}`;
+            details += ` config=${formatBytesPrefix(metadata.codecConfig)}`;
+        }
+        return details;
+    }
+
+    _describeInitSegment(initSegment: MSEInitSegment): string {
+        return `type=${initSegment.type} codec=${initSegment.codec || 'none'} container=${initSegment.container} bytes=${initSegment.data.byteLength} head=${formatBytesPrefix(initSegment.data)}`;
+    }
+
     _onTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack) {
         if (this._dtsBase === Infinity) {
 
@@ -146,10 +234,12 @@ export class MP4Remuxer extends Remuxer {
         // Flush all pending init segments before any data so both SourceBuffers
         // are created while updating=false, avoiding InvalidStateError on mediaSource.duration.
         if (this._pendingVideoInitSegment) {
+            Log.v(MP4Remuxer.TAG, `_onTrackData(): flushing pending video init before data batch, videoFrames=${videoTrack.frames.length} audioFrames=${audioTrack.frames.length} ${this._describeInitSegment(this._pendingVideoInitSegment)}`);
             this._onInitSegment(TrackType.Video, this._pendingVideoInitSegment);
             this._pendingVideoInitSegment = null;
         }
         if (this._pendingAudioInitSegment) {
+            Log.v(MP4Remuxer.TAG, `_onTrackData(): flushing pending audio init before data batch, videoFrames=${videoTrack.frames.length} audioFrames=${audioTrack.frames.length} ${this._describeInitSegment(this._pendingAudioInitSegment)}`);
             this._onInitSegment(TrackType.Audio, this._pendingAudioInitSegment);
             this._pendingAudioInitSegment = null;
         }
@@ -179,6 +269,9 @@ export class MP4Remuxer extends Remuxer {
         } else {
             this._isVideoMetadataDispatched = true;
             this._videoMeta = metadata as VideoMetadata;
+            if (metadata.codecType === VideoCodecType.Vp9) {
+                codec = getMp4Vp9CodecString(metadata);
+            }
             metabox = MP4.generateInitSegment(this._getMp4Metadata(metadata));
         }
 
@@ -194,8 +287,18 @@ export class MP4Remuxer extends Remuxer {
         };
 
         if (type === TrackType.Audio) {
+            if (this._pendingAudioInitSegment) {
+                Log.v(MP4Remuxer.TAG, `_onTrackMetadata(): replacing pending audio init ${this._describeInitSegment(this._pendingAudioInitSegment)} -> ${this._describeMetadata(metadata)}`);
+            } else {
+                Log.v(MP4Remuxer.TAG, `_onTrackMetadata(): stashing audio init from metadata ${this._describeMetadata(metadata)}`);
+            }
             this._pendingAudioInitSegment = initSegment;
         } else {
+            if (this._pendingVideoInitSegment) {
+                Log.v(MP4Remuxer.TAG, `_onTrackMetadata(): replacing pending video init ${this._describeInitSegment(this._pendingVideoInitSegment)} -> ${this._describeMetadata(metadata)}`);
+            } else {
+                Log.v(MP4Remuxer.TAG, `_onTrackMetadata(): stashing video init from metadata ${this._describeMetadata(metadata)}`);
+            }
             this._pendingVideoInitSegment = initSegment;
         }
     }
@@ -265,6 +368,7 @@ export class MP4Remuxer extends Remuxer {
         }
 
         if (this._pendingAudioInitSegment) {
+            Log.v(MP4Remuxer.TAG, `_remuxAudio(): flushing pending audio init before audio remux, audioFrames=${audioTrack.frames.length} force=${force} ${this._describeInitSegment(this._pendingAudioInitSegment)}`);
             this._onInitSegment(TrackType.Audio, this._pendingAudioInitSegment);
             this._pendingAudioInitSegment = null;
         }

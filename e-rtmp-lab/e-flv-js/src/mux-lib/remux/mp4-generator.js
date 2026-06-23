@@ -13,7 +13,7 @@
 //  MP4 boxes generator for ISO BMFF (ISO Base Media File Format, defined in ISO/IEC 14496-12)
 class MP4 {
     static types;
-    
+
     static init() {
         // NOTE: FourCC codes are exactly 4 chars; MP3 is 'mp3 ' (trailing space), not '.mp3'
         MP4.types = {
@@ -31,7 +31,7 @@ class MP4 {
             Opus: [], dOps: [], fLaC: [], dfLa: [],
             ipcm: [], pcmC: [],
             'ac-3': [], dac3: [], 'ec-3': [], dec3: [],
-            vp08: [], vp09: [], vpcC: [],
+            vp08: [], vp09: [], vpcC: [], colr: [],
         };
 
         for (let name in MP4.types) {
@@ -62,6 +62,14 @@ class MP4 {
             0x69, 0x73, 0x6F, 0x36,  // 'iso6'
             0x61, 0x76, 0x30, 0x31,  // 'av01'
             0x6D, 0x70, 0x34, 0x31   // 'mp41'
+        ]);
+
+        constants.FTYP_VP9 = new Uint8Array([
+            0x76, 0x70, 0x30, 0x39,  // major_brand: 'vp09'
+            0x00, 0x00, 0x00, 0x00,  // minor_version: 0
+            0x76, 0x70, 0x30, 0x39,  // 'vp09'
+            0x69, 0x73, 0x6F, 0x6D,  // 'isom'
+            0x69, 0x73, 0x6F, 0x36,  // 'iso6'
         ]);
 
         constants.STSD_PREFIX = new Uint8Array([
@@ -160,8 +168,12 @@ class MP4 {
     // emit ftyp & moov
     static generateInitSegment(meta) {
         let ftypBody = MP4.constants.FTYP;
-        if (meta.type === 'video' && meta.codec && meta.codec.startsWith('av01')) {
-            ftypBody = MP4.constants.FTYP_AV1;
+        if (meta.type === 'video' && meta.codec) {
+            if (meta.codec.startsWith('av01')) {
+                ftypBody = MP4.constants.FTYP_AV1;
+            } else if (meta.codec.startsWith('vp09')) {
+                ftypBody = MP4.constants.FTYP_VP9;
+            }
         }
 
         let ftyp = MP4.box(MP4.types.ftyp, ftypBody);
@@ -442,7 +454,7 @@ class MP4 {
     }
 
     static esds(meta) {
-        let config = meta.codecConfig || [];
+        let config = Array.from(meta.codecConfig || []);
         let configSize = config.length;
         let data = new Uint8Array([
             0x00, 0x00, 0x00, 0x00,  // version 0 + flags
@@ -718,42 +730,79 @@ class MP4 {
         return MP4.box(MP4.types.hvc1, data, MP4.box(MP4.types.hvcC, hvcc));
     }
 
+    static buildVp9CodecConfig(meta) {
+        const profile = Number.isFinite(Number(meta.profile)) ? Number(meta.profile) : 0;     // 0..3
+        const level = Number.isFinite(Number(meta.level)) ? Number(meta.level) : 10;           // e.g., 10, 11, 20...
+        const bitDepth = Number.isFinite(meta.bitDepth) ? meta.bitDepth : 8;            // 8/10/12
+        const chromaSubsampling = Number.isFinite(meta.chromaFormat) ? meta.chromaFormat : 1; // 0=420 vertical,1=420 colocated,2=422,3=444
+        const colorRange = meta.colorRange ? 1 : 0;                                     // 0=limited,1=full
+        const colourPrimaries = Number.isFinite(meta.colourPrimaries) ? meta.colourPrimaries : 1;          // 1=BT.709
+        const transferCharacteristics = Number.isFinite(meta.transferCharacteristics) ? meta.transferCharacteristics : 1; // 1=BT.709
+        const matrixCoefficients = Number.isFinite(meta.matrixCoefficients) ? meta.matrixCoefficients : 1; // 1=BT.709
+
+        return new Uint8Array([
+            0x01, 0x00, 0x00, 0x00,             // FullBox: version=1, flags=0
+            profile & 0xFF,                     // profile
+            level & 0xFF,                       // level
+            ((bitDepth & 0x0F) << 4) |
+            ((chromaSubsampling & 0x07) << 1) |
+            (colorRange & 0x01),                // bitDepth/chromaSubsampling/colorRange packed
+            colourPrimaries & 0xFF,             // colourPrimaries
+            transferCharacteristics & 0xFF,     // transferCharacteristics
+            matrixCoefficients & 0xFF,          // matrixCoefficients
+            0x00, 0x00                          // codecInitializationDataSize = 0
+        ]);
+    }
+
+    // Normalize an incoming VP9 codec config into the 12-byte vpcC FullBox layout:
+    //   [0]=version, [1..3]=flags(0), [4]=profile, [5]=level, [6]=packed,
+    //   [7]=colourPrimaries, [8]=transferCharacteristics, [9]=matrixCoefficients,
+    //   [10..11]=codecInitializationDataSize.
+    static normalizeVp9CodecConfig(codecConfig) {
+        const VPCC_RECORD_LENGTH = 12; // 4-byte FullBox header + 8-byte record (no init data)
+        const vpcc = new Uint8Array(codecConfig);
+
+        // Already a full 12-byte FullBox record.
+        if (vpcc.length === VPCC_RECORD_LENGTH) {
+            return vpcc;
+        }
+
+        // 9-byte ISO form: [version, profile, level, packed, cp, tc, mc, initHi, initLo].
+        if (vpcc.length === 9) {
+            const expanded = new Uint8Array(VPCC_RECORD_LENGTH);
+            expanded[0] = vpcc[0] || 0x01;
+            expanded.set(vpcc.subarray(1, 9), 4);
+            return expanded;
+        }
+
+        // Defensive only: the demuxer rejects records shorter than 9 bytes, so the
+        // 8- and 7-byte forms below should never be produced by this pipeline.
+        if (vpcc.length === 8) {
+            const expanded = new Uint8Array(VPCC_RECORD_LENGTH);
+            expanded[0] = 0x01;
+            expanded.set(vpcc, 4);
+            return expanded;
+        }
+
+        if (vpcc.length === 7) {
+            const expanded = new Uint8Array(VPCC_RECORD_LENGTH);
+            expanded[0] = vpcc[0] || 0x01;
+            expanded.set(vpcc.subarray(1, 7), 4);
+            return expanded;
+        }
+
+        return null;
+    }
+
     static vp09(meta) {
-        let vpcc = meta.codecConfig || null;
+        let vpcc = meta.codecConfig
+            ? MP4.normalizeVp9CodecConfig(meta.codecConfig)
+            : null;
         let width = meta.codecWidth || meta.presentWidth || 192;
         let height = meta.codecHeight || meta.presentHeight || 108;
 
-        // Build a minimal vpcC if codecConfig is not provided
         if (!vpcc) {
-            const profile = (meta.profile != null) ? meta.profile : 0;              // 0..3
-            const level = (meta.level != null) ? meta.level : 10;                   // e.g., 10, 11, 20...
-            const bitDepth = (meta.bitDepth != null) ? meta.bitDepth : 8;           // 8/10/12
-            const chromaSubsampling = (meta.chromaSubsampling != null) ? meta.chromaSubsampling : 2; // 0=444,1=422,2=420
-            const colorRange = meta.colorRange ? 1 : 0;                             // 0=limited,1=full
-            const colourPrimaries = (meta.colourPrimaries != null) ? meta.colourPrimaries : 1;          // 1=BT.709
-            const transferCharacteristics = (meta.transferCharacteristics != null) ? meta.transferCharacteristics : 1; // 1=BT.709
-            const matrixCoefficients = (meta.matrixCoefficients != null) ? meta.matrixCoefficients : 1; // 1=BT.709
-
-            vpcc = new Uint8Array([
-                0x01,                               // configurationVersion
-                profile & 0xFF,                     // profile
-                level & 0xFF,                       // level
-                ((bitDepth & 0x0F) << 4) |
-                ((chromaSubsampling & 0x07) << 1) |
-                (colorRange & 0x01),                // bitDepth/chromaSubsampling/colorRange packed
-                colourPrimaries & 0xFF,             // colourPrimaries
-                transferCharacteristics & 0xFF,     // transferCharacteristics
-                matrixCoefficients & 0xFF,          // matrixCoefficients
-                0x00, 0x00,                         // codecInitializationDataSize = 0
-            ]);
-        } else {
-            vpcc = new Uint8Array(vpcc);
-            if (vpcc.length === 7) {                
-                const fixed = new Uint8Array(9);
-                fixed.set(vpcc, 0);
-                fixed.set([0x00, 0x00], 7);
-                vpcc = fixed;
-            }
+            vpcc = MP4.buildVp9CodecConfig(meta);
         }
 
         // VisualSampleEntry (same layout as avc1/av01/hvc1)
@@ -785,7 +834,40 @@ class MP4 {
             0xFF, 0xFF               // pre_defined = -1
         ]);
 
-        return MP4.box(MP4.types.vp09, data, MP4.box(MP4.types.vpcC, vpcc));
+        const children = [MP4.box(MP4.types.vpcC, vpcc)];
+        const colrBox = MP4.colr(meta);
+        if (colrBox) {
+            children.push(colrBox);
+        }
+        return MP4.box(MP4.types.vp09, data, ...children);
+    }
+
+    static colr(meta) {
+        const colourPrimaries = meta.colourPrimaries;
+        const transferCharacteristics = meta.transferCharacteristics;
+        const matrixCoefficients = meta.matrixCoefficients;
+
+        if (
+            !Number.isFinite(colourPrimaries) ||
+            !Number.isFinite(transferCharacteristics) ||
+            !Number.isFinite(matrixCoefficients)
+        ) {
+            return null;
+        }
+
+        const fullRangeFlag = meta.colorRange ? 0x80 : 0x00;
+        const data = new Uint8Array([
+            0x6E, 0x63, 0x6C, 0x78,  // colour_type: 'nclx'
+            (colourPrimaries >>> 8) & 0xFF,
+            (colourPrimaries) & 0xFF,
+            (transferCharacteristics >>> 8) & 0xFF,
+            (transferCharacteristics) & 0xFF,
+            (matrixCoefficients >>> 8) & 0xFF,
+            (matrixCoefficients) & 0xFF,
+            fullRangeFlag
+        ]);
+
+        return MP4.box(MP4.types.colr, data);
     }
 
     static av01(meta) {
