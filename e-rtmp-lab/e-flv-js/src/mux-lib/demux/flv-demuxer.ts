@@ -1868,6 +1868,9 @@ export class FLVDemuxer {
        if (packetType === AudioPacketType.SequenceStart) {
             this._parseOpusSequenceHeader(arrayBuffer, dataOffset, dataSize);
         } else if (packetType === AudioPacketType.CodedFrames) {
+            if (!this._hasUsableOpusMetadata()) {
+                this._injectFallbackOpusSequenceHeader(tagTimestamp);
+            }
             this._parseOpusAudioData(arrayBuffer, dataOffset, dataSize, tagTimestamp);
         } else if (packetType === AudioPacketType.SequenceEnd) {
             // empty, Opus end of sequence
@@ -1877,6 +1880,44 @@ export class FLVDemuxer {
            const typeName = AudioPacketType[packetType] ?? String(packetType);
            Log.w(FLVDemuxer.TAG, `_parseOpusAudioPacket(): unsupported FlvAudioPacketType=${typeName} ts=${tagTimestamp} offset=${dataOffset} size=${dataSize} action=drop`);
         }
+    }
+
+    private _hasUsableOpusMetadata(): boolean {
+        return this._audioMetadata?.codecType === AudioCodecType.Opus && !!this._audioMetadata.codecConfig;
+    }
+
+    /**
+     * Injects a synthetic OpusHead sequence header when Opus CodedFrames arrive
+     * without a prior SequenceStart packet. This can happen when a viewer joins a
+     * live stream mid-stream and the server does not replay cached initialization
+     * packets.
+     *
+     * E-RTMP-compliant servers MUST cache and replay codec initialization packets
+     * to late joiners, including SequenceStart and MultichannelConfig packets for
+     * every audio codec in the stream. This method is a best-effort fallback for 
+     * Opus streams from non-compliant servers; it does not recover missing 
+     * initialization metadata for other codecs and is not a substitute for correct 
+     * server behavior.
+     *
+     * Limitations:
+     * - Assumes stereo, mapping family 0.
+     * - Mono streams may be exposed as stereo.
+     * - Multichannel Opus requires the real SequenceStart/MultichannelConfig
+     *   metadata and may be represented incorrectly by this fallback.
+     */
+    private _injectFallbackOpusSequenceHeader(tagTimestamp: number): void {
+         const header = new Uint8Array([
+             0x4F, 0x70, 0x75, 0x73, 0x48, 0x65, 0x61, 0x64, // "OpusHead"
+             0x01,                                           // version
+             0x02,                                           // stereo
+             0x00, 0x00,                                     // pre-skip
+             0x80, 0xBB, 0x00, 0x00,                         // input sample rate: 48000 Hz, little-endian
+             0x00, 0x00,                                     // output gain
+             0x00                                            // mapping family 0: mono/stereo
+         ]);
+
+        Log.w(FLVDemuxer.TAG, `_parseOpusAudioPacket(): Opus CodedFrames received before SequenceStart ts=${tagTimestamp}; injecting fallback stereo OpusHead`);
+        this._parseOpusSequenceHeader(header.buffer, header.byteOffset, header.byteLength);
     }
 
     private _parseOpusSequenceHeader(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number) {
