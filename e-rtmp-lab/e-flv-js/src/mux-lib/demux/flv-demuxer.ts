@@ -52,11 +52,19 @@ export interface AACConfig {
     channelCount: number;
     codec: string;
     originalCodec: string;
+    channelConfigWasInBand: boolean;
+    channelConfigHasPce: boolean;
 }
 
 type AACPacketData =
     | { packetType: AudioPacketType.SequenceStart; data: AACConfig }                                      // sequence header
     | { packetType: Exclude<AudioPacketType, AudioPacketType.SequenceStart>; data: Uint8Array };          // coded frames or other packet types (e.g., CodedFrames, SequenceEnd, Multitrack, ModEx, etc.)
+
+function formatHexBytes(data: Uint8Array): string {
+    return Array.from(data)
+        .map((value) => value.toString(16).padStart(2, '0'))
+        .join(' ');
+}
 
 /**
  * AudioPacketType defines the types of audio packets
@@ -228,6 +236,75 @@ function describeAacProgramConfigElement(gb: ExpGolomb): string {
     const numCc = gb.readBits(4);
 
     return `PCE instanceTag=${instanceTag} objectType=${objectType} samplingIndex=${samplingIndex} front=${numFront} side=${numSide} back=${numBack} lfe=${numLfe} assoc=${numAssoc} cc=${numCc}`;
+}
+
+function parseAacProgramConfigElementChannelCount(gb: ExpGolomb): { channelCount: number; description: string } {
+    const instanceTag = gb.readBits(4);
+    const objectType = gb.readBits(2);
+    const samplingIndex = gb.readBits(4);
+    const numFront = gb.readBits(4);
+    const numSide = gb.readBits(4);
+    const numBack = gb.readBits(4);
+    const numLfe = gb.readBits(2);
+    const numAssoc = gb.readBits(3);
+    const numCc = gb.readBits(4);
+
+    if (gb.readBool()) skipAacProbeBits(gb, 4);
+    if (gb.readBool()) skipAacProbeBits(gb, 4);
+    if (gb.readBool()) skipAacProbeBits(gb, 3);
+
+    let channelCount = 0;
+    const countTaggedChannels = (count: number): void => {
+        for (let i = 0; i < count; i++) {
+            const isCpe = gb.readBool();
+            skipAacProbeBits(gb, 4);
+            channelCount += isCpe ? 2 : 1;
+        }
+    };
+
+    countTaggedChannels(numFront);
+    countTaggedChannels(numSide);
+    countTaggedChannels(numBack);
+
+    for (let i = 0; i < numLfe; i++) {
+        skipAacProbeBits(gb, 4);
+        channelCount++;
+    }
+    for (let i = 0; i < numAssoc; i++) {
+        skipAacProbeBits(gb, 4);
+    }
+    for (let i = 0; i < numCc; i++) {
+        skipAacProbeBits(gb, 5);
+    }
+
+    return {
+        channelCount,
+        description: `PCE instanceTag=${instanceTag} objectType=${objectType} samplingIndex=${samplingIndex} front=${numFront} side=${numSide} back=${numBack} lfe=${numLfe} assoc=${numAssoc} cc=${numCc}`
+    };
+}
+
+function parseAacConfigProgramConfigElement(data: Uint8Array): { channelCount: number; description: string } | null {
+    const gb = new ExpGolomb(data);
+    try {
+        skipAacProbeBits(gb, 13);
+
+        const frameLengthFlag = gb.readBool();
+        const dependsOnCoreCoder = gb.readBool();
+        if (dependsOnCoreCoder) {
+            skipAacProbeBits(gb, 14);
+        }
+        const extensionFlag = gb.readBool();
+
+        const pce = parseAacProgramConfigElementChannelCount(gb);
+        return {
+            ...pce,
+            description: `${pce.description} frameLengthFlag=${Number(frameLengthFlag)} dependsOnCoreCoder=${Number(dependsOnCoreCoder)} extensionFlag=${Number(extensionFlag)}`
+        };
+    } catch (error) {
+        return null;
+    } finally {
+        gb.destroy();
+    }
 }
 
 function skipAacProbeBits(gb: ExpGolomb, bits: number): void {
@@ -457,6 +534,7 @@ export interface AudioMetadata {
     codecType: AudioCodecType;
     codec: string;
     codecConfig?: Uint8Array;  // Audio specific config / codec private data
+    aacChannelConfigWasInBand: boolean;
 
     trackId: number;
     timescale: number;
@@ -477,6 +555,7 @@ const audioMetadataDefault: AudioMetadata = {
     codecType: AudioCodecType.Unknown,
     codec: 'Unknown',
     originalCodec: 'Unknown',
+    aacChannelConfigWasInBand: false,
 
     trackId: NaN,
     timescale: NaN,
@@ -668,6 +747,7 @@ export class FLVDemuxer {
     private _hasLoggedAacSbrDetection = false;
     private _hasObservedAacPce = false;
     private _pendingAacMultichannelChannelCount: number | undefined = undefined;
+    private _hasIgnoredAacMultichannelConfig = false;
     private _aacPayloadProbeFrameIndex = 0;
 
     constructor(probeData: FlvProbeSuccess, config: ConfigOptions, remuxer: Remuxer) {
@@ -697,6 +777,7 @@ export class FLVDemuxer {
         this._hasLoggedAacSbrDetection = false;
         this._hasObservedAacPce = false;
         this._pendingAacMultichannelChannelCount = undefined;
+        this._hasIgnoredAacMultichannelConfig = false;
         this._aacPayloadProbeFrameIndex = 0;
     }
 
@@ -717,6 +798,7 @@ export class FLVDemuxer {
         }
 
         const hasPce = payloadDescription.includes('PCE');
+        const hasStereoCpe = payloadDescription.includes('CPE(stereo-pair)');
         if (hasPce) {
             this._hasObservedAacPce = true;
         }
@@ -733,6 +815,8 @@ export class FLVDemuxer {
 
         if (hasPce) {
             this._applyPendingAacMultichannelConfig();
+        } else if (hasStereoCpe) {
+            this._ignorePendingAacMultichannelConfig(payloadDescription);
         }
     }
 
@@ -1121,6 +1205,9 @@ export class FLVDemuxer {
     }
 
     private _parseAudioData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number) {
+        (this as any).__audioMessageCount ??= 0;
+        const audioMessageCount = ++(this as any).__audioMessageCount;
+
         if (dataSize <= 1) {
             Log.w(FLVDemuxer.TAG, 'Flv: Invalid audio packet, missing SoundData payload!');
             return;
@@ -1145,16 +1232,16 @@ export class FLVDemuxer {
             let packetType: AudioPacketType = soundSpec & 0x0F;
             let fourcc = String.fromCharCode(... (new Uint8Array(arrayBuffer, dataOffset, dataSize)).slice(1, 5));
 
-            // !!@TODO: where is support for aac and mp3?
+            // !!@TODO: where is support for mp3?
             switch(fourcc){
             case AudioFourCc.Opus:
-                this._parseOpusAudioPacket(arrayBuffer, dataOffset + 5, dataSize - 5, tagTimestamp, packetType);
+                this._parseEnhancedOpusAudioPacket(arrayBuffer, dataOffset + 5, dataSize - 5, tagTimestamp, packetType);
                 break;
             case AudioFourCc.Flac:
-                this._parseFlacAudioPacket(arrayBuffer, dataOffset + 5, dataSize - 5, tagTimestamp, packetType);
+                this._parseEnhancedFlacAudioPacket(arrayBuffer, dataOffset + 5, dataSize - 5, tagTimestamp, packetType);
                 break;
             case AudioFourCc.Aac:
-                this._parseAACAudioPacket(arrayBuffer, dataOffset + 5, dataSize - 5, tagTimestamp, packetType);
+                this._parseEnhancedAACAudioPacket(arrayBuffer, dataOffset + 5, dataSize - 5, tagTimestamp, packetType);
                 break;
             default:
                 this._onError(DemuxErrors.CODEC_UNSUPPORTED, `${FLVDemuxer.TAG}._parseAudioData() - Unsupported FOURCC ${fourcc}`);
@@ -1223,11 +1310,13 @@ export class FLVDemuxer {
                 meta.codec = misc.codec;
                 meta.originalCodec = misc.originalCodec;
                 meta.codecConfig = misc.config;
+                meta.aacChannelConfigWasInBand = misc.channelConfigWasInBand;
                 this._hasLoggedFirstAacPayloadProbe = false;
                 this._hasLoggedAacPceDetection = false;
                 this._hasLoggedAacSbrDetection = false;
-                this._hasObservedAacPce = false;
+                this._hasObservedAacPce = misc.channelConfigHasPce;
                 this._pendingAacMultichannelChannelCount = undefined;
+                this._hasIgnoredAacMultichannelConfig = false;
                 this._aacPayloadProbeFrameIndex = 0;
                 // The decode result of an aac sample is 1024 PCM samples
                 meta.refFrameDuration = 1024 / meta.audioSampleRate * meta.timescale;
@@ -1395,6 +1484,20 @@ export class FLVDemuxer {
         }
 
         if (channelConfig === 0) {
+            const pce = parseAacConfigProgramConfigElement(asc);
+            if (pce && pce.channelCount > 0) {
+                Log.w(FLVDemuxer.TAG, `PCE_CONFIRMED: AAC sequence header contains Program Config Element; ${pce.description}; channelCount=${pce.channelCount}; ascBytes=${asc.length}; asc=${formatHexBytes(asc)}`);
+                return {
+                    config: Uint8Array.from(asc),
+                    samplingRate: samplingRate,
+                    channelCount: pce.channelCount,
+                    codec: 'mp4a.40.' + audioObjectType,
+                    originalCodec: 'mp4a.40.' + audioObjectType,
+                    channelConfigWasInBand: true,
+                    channelConfigHasPce: true
+                };
+            }
+
             // channelConfig=0 means the channel layout is signalled either by a PCE inside
             // the bitstream or via an E-RTMP MultichannelConfig packet.  The raw buffer may
             // contain garbage beyond the first two meaningful bytes (e.g. FFmpeg embeds its
@@ -1403,18 +1506,21 @@ export class FLVDemuxer {
             // AudioSpecificConfig preserving audioObjectType and samplingIndex.
             //
             // Default channelCount=2 (stereo): we cannot determine the final layout from the
-            // AudioSpecificConfig alone at this point.  Stereo is the safest initial default.
-            Log.w(FLVDemuxer.TAG, 'Flv: AAC channel config 0 (in-band) detected, synthesising clean 2-ch AudioSpecificConfig');
+            // AudioSpecificConfig alone at this point.  Stereo is the safest initial default,
+            // and Chrome requires the esds DecoderSpecificInfo to say stereo unless a PCE is present.
+            Log.w(FLVDemuxer.TAG, 'Flv: AAC channel config 0 (in-band) detected, synthesising clean stereo AudioSpecificConfig');
             const cleanConfig = new Uint8Array([
                 (audioObjectType << 3) | ((samplingRateIndex & 0x0E) >>> 1),
-                ((samplingRateIndex & 0x01) << 7)  // channelConfig=0, GASpecificConfig flags=0
+                ((samplingRateIndex & 0x01) << 7) | (2 << 3)  // channelConfig=2 (stereo), GASpecificConfig flags=0
             ]);
             return {
                 config: cleanConfig,
                 samplingRate: samplingRate,
                 channelCount: 2,  // initial default; may be updated by a subsequent MultichannelConfig packet
                 codec: 'mp4a.40.' + audioObjectType,
-                originalCodec: 'mp4a.40.' + audioObjectType
+                originalCodec: 'mp4a.40.' + audioObjectType,
+                channelConfigWasInBand: true,
+                channelConfigHasPce: false
             };
         }
 
@@ -1424,7 +1530,9 @@ export class FLVDemuxer {
             samplingRate: aacConfig.sampling_rate,
             channelCount: aacConfig.channel_count,
             codec: aacConfig.codec_mimetype,
-            originalCodec: aacConfig.original_codec_mimetype
+            originalCodec: aacConfig.original_codec_mimetype,
+            channelConfigWasInBand: false,
+            channelConfigHasPce: false
         };
     }
 
@@ -1575,12 +1683,13 @@ export class FLVDemuxer {
         }
 
         const channelConfig = (meta.codecConfig[1] & 0x78) >>> 3;
-        if (meta.channelCount === channelCount && channelConfig !== 0) {
-            log.v(`ignoring MultichannelConfig channelCount=${channelCount}, current channelCount=${meta.channelCount} channelConfig=${channelConfig}`);
+        const channelConfigWasInBand = meta.aacChannelConfigWasInBand;
+        if (meta.channelCount === channelCount) {
+            log.v(`ignoring MultichannelConfig channelCount=${channelCount}, current channelCount=${meta.channelCount} channelConfig=${channelConfig} channelConfigWasInBand=${channelConfigWasInBand}`);
             return;
         }
 
-        if (channelConfig === 0 && channelCount > 2) {
+        if (channelConfigWasInBand && channelCount > 2) {
             const audioObjectType = meta.codecConfig[0] >>> 3 as MPEG4AudioObjectTypes;
             if (audioObjectType === MPEG4AudioObjectTypes.kAAC_PS) {
                 log.v(`channelConfig=0 + audioObjectType=${MPEG4AudioObjectTypes[audioObjectType]}(${audioObjectType}) = HE-AAC v2 PS, ignoring MultichannelConfig channelCount=${channelCount}, keeping channelCount=${meta.channelCount}`);
@@ -1588,12 +1697,17 @@ export class FLVDemuxer {
             }
 
             if (!this._hasObservedAacPce) {
+                if (this._hasIgnoredAacMultichannelConfig) {
+                    log.v(`channelConfig=0 + stereo AAC evidence without PCE, treating MultichannelConfig channelCount=${channelCount} as advisory, keeping channelCount=${meta.channelCount}`);
+                    return;
+                }
+
                 this._pendingAacMultichannelChannelCount = channelCount;
                 log.v(`channelConfig=0 + audioObjectType=${MPEG4AudioObjectTypes[audioObjectType]}(${audioObjectType}), deferring MultichannelConfig channelCount=${channelCount} until AAC PCE is observed`);
                 return;
             }
 
-            log.v(`channelConfig=0 + observed AAC PCE, honouring MultichannelConfig channelCount=${channelCount}`);
+            log.v(`original channelConfig=0 + observed AAC PCE, honouring MultichannelConfig channelCount=${channelCount}`);
         }
 
         this._rewriteAacChannelConfig(channelCount, channelConfig, log);
@@ -1627,6 +1741,27 @@ export class FLVDemuxer {
         }
     }
 
+    private _ignorePendingAacMultichannelConfig(payloadDescription: string): void {
+        if (this._pendingAacMultichannelChannelCount === undefined || this._hasObservedAacPce || this._hasIgnoredAacMultichannelConfig) {
+            return;
+        }
+
+        const meta = this._audioMetadata;
+        if (!meta?.codecConfig || meta.codecType !== AudioCodecType.Aac) {
+            return;
+        }
+
+        if (!meta.aacChannelConfigWasInBand) {
+            return;
+        }
+
+        const channelCount = this._pendingAacMultichannelChannelCount;
+        this._hasIgnoredAacMultichannelConfig = true;
+
+        const log = Log.scope(FLVDemuxer.TAG, '_parseMultichannelConfig()');
+        log.v(`stereo AAC payload without PCE (${payloadDescription}), treating pending MultichannelConfig channelCount=${channelCount} as advisory, keeping channelCount=${meta.channelCount}`);
+    }
+
     private _applyPendingAacMultichannelConfig(): void {
         if (!this._hasObservedAacPce || this._pendingAacMultichannelChannelCount === undefined) {
             return;
@@ -1634,12 +1769,13 @@ export class FLVDemuxer {
 
         const channelCount = this._pendingAacMultichannelChannelCount;
         this._pendingAacMultichannelChannelCount = undefined;
+        this._hasIgnoredAacMultichannelConfig = false;
         const log = Log.scope(FLVDemuxer.TAG, '_parseMultichannelConfig()');
         log.v(`observed AAC PCE, applying pending MultichannelConfig channelCount=${channelCount}`);
         this._handleAacMultichannelConfig(channelCount, log);
     }
 
-    private _parseAACAudioPacket(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, packetType: AudioPacketType) {
+    private _parseEnhancedAACAudioPacket(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, packetType: AudioPacketType) {
         let meta = this._audioMetadata;
         let track = this._audioTrack;
 
@@ -1677,11 +1813,13 @@ export class FLVDemuxer {
             meta.codec = misc.codec;
             meta.originalCodec = misc.originalCodec;
             meta.codecConfig = configBytes;
+            meta.aacChannelConfigWasInBand = misc.channelConfigWasInBand;
             this._hasLoggedFirstAacPayloadProbe = false;
             this._hasLoggedAacPceDetection = false;
             this._hasLoggedAacSbrDetection = false;
-            this._hasObservedAacPce = false;
+            this._hasObservedAacPce = misc.channelConfigHasPce;
             this._pendingAacMultichannelChannelCount = undefined;
+            this._hasIgnoredAacMultichannelConfig = false;
             this._aacPayloadProbeFrameIndex = 0;
             meta.refFrameDuration = 1024 / meta.audioSampleRate * meta.timescale;
             Log.v(FLVDemuxer.TAG, 'Parsed Enhanced FLV AAC AudioSpecificConfig');
@@ -1726,7 +1864,7 @@ export class FLVDemuxer {
         }
     }
 
-    private _parseOpusAudioPacket(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, packetType: AudioPacketType) {
+    private _parseEnhancedOpusAudioPacket(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, packetType: AudioPacketType) {
        if (packetType === AudioPacketType.SequenceStart) {
             this._parseOpusSequenceHeader(arrayBuffer, dataOffset, dataSize);
         } else if (packetType === AudioPacketType.CodedFrames) {
@@ -1844,7 +1982,7 @@ export class FLVDemuxer {
         track.length += data.length;
     }
 
-    private _parseFlacAudioPacket(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, packetType: AudioPacketType) {
+    private _parseEnhancedFlacAudioPacket(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, packetType: AudioPacketType) {
         if (packetType === AudioPacketType.SequenceStart) {
             this._parseFlacSequenceHeader(arrayBuffer, dataOffset, dataSize);
         } else if (packetType === AudioPacketType.CodedFrames) {
