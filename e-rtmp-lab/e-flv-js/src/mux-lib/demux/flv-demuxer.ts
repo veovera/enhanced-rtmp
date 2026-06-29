@@ -553,8 +553,8 @@ export interface AudioMetadata {
 const audioMetadataDefault: AudioMetadata = {
     type: TrackType.Audio,
     codecType: AudioCodecType.Unknown,
-    codec: 'Unknown',
-    originalCodec: 'Unknown',
+    codec: '',                          // unknown 
+    originalCodec: '',                  // unknown
     aacChannelConfigWasInBand: false,
 
     trackId: NaN,
@@ -609,7 +609,7 @@ export interface VideoMetadata {
 const videoMetadataDefault: VideoMetadata = {
     type: TrackType.Video,
     codecType: VideoCodecType.Unknown,
-    codec: 'Unknown',
+    codec: '',                          // unknown
 
     trackId: NaN,
     timescale: NaN,

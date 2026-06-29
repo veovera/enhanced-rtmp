@@ -15,7 +15,7 @@ class MP4 {
     static types;
 
     static init() {
-        // NOTE: FourCC codes are exactly 4 chars; MP3 is 'mp3 ' (trailing space), not '.mp3'
+        // NOTE: FourCC codes are exactly 4 chars; MP3 is '.mp3' (leading dot) per ISOBMFF spec, not 'mp3 ' (trailing space)
         MP4.types = {
             avc1: [], avcC: [], btrt: [], dinf: [],
             dref: [], esds: [], ftyp: [], hdlr: [],
@@ -27,7 +27,7 @@ class MP4 {
             stts: [], tfdt: [], tfhd: [], traf: [],
             trak: [], trun: [], trex: [], tkhd: [],
             vmhd: [], smhd: [], chnl: [],
-            'mp3 ': [],
+            '.mp3': [],
             Opus: [], dOps: [], fLaC: [], dfLa: [],
             ipcm: [], pcmC: [],
             'ac-3': [], dac3: [], 'ec-3': [], dec3: [],
@@ -390,7 +390,7 @@ class MP4 {
             0x00, 0x00
         ]);
 
-        return MP4.box(MP4.types['mp3 '], data);
+        return MP4.box(MP4.types['.mp3'], data);
     }
 
     static mp4a(meta) {
