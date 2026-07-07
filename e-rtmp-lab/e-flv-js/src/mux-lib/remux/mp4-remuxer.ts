@@ -233,7 +233,6 @@ export class MP4Remuxer extends Remuxer {
 
     _onTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack) {
         if (this._dtsBase === Infinity) {
-
             this._calculateDtsBase(audioTrack, videoTrack);
         }
         // Flush all pending init segments before any data so both SourceBuffers

@@ -456,29 +456,48 @@ class MP4 {
     static esds(meta) {
         let config = Array.from(meta.codecConfig || []);
         let configSize = config.length;
+        const descriptorLength = (length) => [
+            0x80 | ((length >>> 21) & 0x7F),
+            0x80 | ((length >>> 14) & 0x7F),
+            0x80 | ((length >>> 7) & 0x7F),
+            length & 0x7F
+        ];
+        const decoderSpecificInfoSize = 1 + 4 + configSize;
+        const slConfigDescriptorSize = 1 + 4 + 1;
+        const decoderConfigDescriptorSize = 13 + decoderSpecificInfoSize;
+        const esDescriptorSize = 3 + 1 + 4 + decoderConfigDescriptorSize + slConfigDescriptorSize;
+        const bitRate = Math.max(0, Math.trunc(meta.bitRate ?? 0));
+
         let data = new Uint8Array([
             0x00, 0x00, 0x00, 0x00,  // version 0 + flags
 
             0x03,                    // descriptor_type
-            0x17 + configSize,       // length3
-            0x00, 0x01,              // es_id
+            ... descriptorLength(esDescriptorSize),
+            (meta.trackId >>> 8) & 0xFF, // es_id
+            meta.trackId & 0xFF,
             0x00,                    // stream_priority
 
             0x04,                    // descriptor_type
-            0x0F + configSize,       // length
+            ... descriptorLength(decoderConfigDescriptorSize),
             0x40,                    // codec: mpeg4_audio
             0x15,                    // stream_type: Audio
             0x00, 0x00, 0x00,        // buffer_size
-            0x00, 0x00, 0x00, 0x00,  // maxBitrate
-            0x00, 0x00, 0x00, 0x00,  // avgBitrate
+            (bitRate >>> 24) & 0xFF, // maxBitrate
+            (bitRate >>> 16) & 0xFF,
+            (bitRate >>> 8) & 0xFF,
+            (bitRate) & 0xFF,
+            (bitRate >>> 24) & 0xFF, // avgBitrate
+            (bitRate >>> 16) & 0xFF,
+            (bitRate >>> 8) & 0xFF,
+            (bitRate) & 0xFF,
 
             0x05                     // descriptor_type
         ].concat([
-            configSize
+            ... descriptorLength(configSize)
         ]).concat(
             config
         ).concat([
-            0x06, 0x01, 0x02         // GASpecificConfig
+            0x06, ... descriptorLength(0x01), 0x02  // SLConfigDescriptor
         ]));
         return MP4.box(MP4.types.esds, data);
     }
