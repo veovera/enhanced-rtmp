@@ -224,6 +224,33 @@ function describeAacSyntaxElement(elementId: number): string {
     }
 }
 
+function aacProbeBitsConsumed(gb: ExpGolomb): number {
+    const state = gb as any;
+    return state._buffer_index * 8 - state._current_word_bits_left;
+}
+
+function aacProbeBitsRemaining(gb: ExpGolomb): number {
+    const state = gb as any;
+    return state._total_bits - aacProbeBitsConsumed(gb);
+}
+
+function readAacProbeBits(gb: ExpGolomb, bits: number): number | null {
+    if (bits < 0 || bits > 32) {
+        return null;
+    }
+
+    if (aacProbeBitsRemaining(gb) < bits) {
+        return null;
+    }
+
+    return gb.readBits(bits);
+}
+
+function readAacProbeBool(gb: ExpGolomb): boolean | null {
+    const value = readAacProbeBits(gb, 1);
+    return value === null ? null : value === 1;
+}
+
 function describeAacProgramConfigElement(gb: ExpGolomb): string {
     const instanceTag = gb.readBits(4);
     const objectType = gb.readBits(2);
@@ -238,83 +265,166 @@ function describeAacProgramConfigElement(gb: ExpGolomb): string {
     return `PCE instanceTag=${instanceTag} objectType=${objectType} samplingIndex=${samplingIndex} front=${numFront} side=${numSide} back=${numBack} lfe=${numLfe} assoc=${numAssoc} cc=${numCc}`;
 }
 
-function parseAacProgramConfigElementChannelCount(gb: ExpGolomb): { channelCount: number; description: string } {
-    const instanceTag = gb.readBits(4);
-    const objectType = gb.readBits(2);
-    const samplingIndex = gb.readBits(4);
-    const numFront = gb.readBits(4);
-    const numSide = gb.readBits(4);
-    const numBack = gb.readBits(4);
-    const numLfe = gb.readBits(2);
-    const numAssoc = gb.readBits(3);
-    const numCc = gb.readBits(4);
+function parseAacProgramConfigElementChannelCount(
+    gb: ExpGolomb,
+    expectedSamplingIndex: MPEG4SamplingRateIndex
+): { channelCount: number; description: string } | null {
+    // parse based on ISO/IEC 14496-3 program_config_element() field order
+    const instanceTag = readAacProbeBits(gb, 4);    // element_instance_tag
+    const objectType = readAacProbeBits(gb, 2);     // object_type
+    const samplingIndex = readAacProbeBits(gb, 4);  // sampling_frequency_index
+    const numFront = readAacProbeBits(gb, 4);       // num_front_channel_elements
+    const numSide = readAacProbeBits(gb, 4);        // num_side_channel_elements
+    const numBack = readAacProbeBits(gb, 4);        // num_back_channel_elements
+    const numLfe = readAacProbeBits(gb, 2);         // num_lfe_channel_elements
+    const numAssoc = readAacProbeBits(gb, 3);       // num_assoc_data_elements
+    const numCc = readAacProbeBits(gb, 4);          // num_valid_cc_elements
 
-    if (gb.readBool()) skipAacProbeBits(gb, 4);
-    if (gb.readBool()) skipAacProbeBits(gb, 4);
-    if (gb.readBool()) skipAacProbeBits(gb, 3);
+    if (
+        instanceTag === null ||
+        objectType === null ||
+        samplingIndex === null ||
+        numFront === null ||
+        numSide === null ||
+        numBack === null ||
+        numLfe === null ||
+        numAssoc === null ||
+        numCc === null
+    ) {
+        return null;
+    }
+
+    // If this does not match the enclosing AudioSpecificConfig sampling index,
+    // we are most likely looking at trailing extradata rather than a real PCE.
+    if (samplingIndex !== expectedSamplingIndex) {
+        return null;
+    }
+
+    // Optional mixdown fields are layout hints, not additional decoded channels.
+    const monoMixdownPresent = readAacProbeBool(gb);
+    if (monoMixdownPresent === null) return null;
+    if (monoMixdownPresent && !skipAacProbeBits(gb, 4)) return null;
+
+    const stereoMixdownPresent = readAacProbeBool(gb);
+    if (stereoMixdownPresent === null) return null;
+    if (stereoMixdownPresent && !skipAacProbeBits(gb, 4)) return null;
+
+    const matrixMixdownPresent = readAacProbeBool(gb);
+    if (matrixMixdownPresent === null) return null;
+    if (matrixMixdownPresent && !skipAacProbeBits(gb, 3)) return null;
 
     let channelCount = 0;
-    const countTaggedChannels = (count: number): void => {
+    const frontElements: string[] = [];
+    const sideElements: string[] = [];
+    const backElements: string[] = [];
+    const lfeElements: string[] = [];
+
+    const countTaggedChannels = (count: number, elements: string[]): boolean => {
         for (let i = 0; i < count; i++) {
-            const isCpe = gb.readBool();
-            skipAacProbeBits(gb, 4);
+            // Each front/side/back entry is tagged as either SCE (1 channel)
+            // or CPE (2 channels), followed by a 4-bit element instance tag.
+            const isCpe = readAacProbeBool(gb);
+            const tag = readAacProbeBits(gb, 4);
+            if (isCpe === null || tag === null) {
+                return false;
+            }
+            elements.push(`${isCpe ? 'CPE' : 'SCE'}:${tag}`);
             channelCount += isCpe ? 2 : 1;
         }
+        return true;
     };
 
-    countTaggedChannels(numFront);
-    countTaggedChannels(numSide);
-    countTaggedChannels(numBack);
+    if (!countTaggedChannels(numFront, frontElements)) return null;
+    if (!countTaggedChannels(numSide, sideElements)) return null;
+    if (!countTaggedChannels(numBack, backElements)) return null;
 
+    // LFE entries are always single low-frequency channels.
     for (let i = 0; i < numLfe; i++) {
-        skipAacProbeBits(gb, 4);
+        const tag = readAacProbeBits(gb, 4);
+        if (tag === null) return null;
+        lfeElements.push(`LFE:${tag}`);
         channelCount++;
     }
+    // Associated data and coupling channel entries are present in the PCE, but
+    // they are not playback output channels for this channelCount value.
     for (let i = 0; i < numAssoc; i++) {
-        skipAacProbeBits(gb, 4);
+        if (!skipAacProbeBits(gb, 4)) return null;
     }
     for (let i = 0; i < numCc; i++) {
-        skipAacProbeBits(gb, 5);
+        if (!skipAacProbeBits(gb, 5)) return null;
     }
+
+    const paddingBits = (8 - (aacProbeBitsConsumed(gb) % 8)) % 8;
+    if (paddingBits > 0) {
+        if (!skipAacProbeBits(gb, paddingBits)) return null;
+    }
+
+    // PCE ends with a byte-aligned comment field.
+    const commentFieldBytes = readAacProbeBits(gb, 8);
+    if (commentFieldBytes === null) {
+        return null;
+    }
+    const commentBytes: number[] = [];
+    for (let i = 0; i < commentFieldBytes; i++) {
+        const commentByte = readAacProbeBits(gb, 8);
+        if (commentByte === null) return null;
+        commentBytes.push(commentByte);
+    }
+    const commentAscii = commentBytes
+        .map(b => (b >= 0x20 && b <= 0x7e) ? String.fromCharCode(b) : '.')
+        .join('');
 
     return {
         channelCount,
-        description: `PCE instanceTag=${instanceTag} objectType=${objectType} samplingIndex=${samplingIndex} front=${numFront} side=${numSide} back=${numBack} lfe=${numLfe} assoc=${numAssoc} cc=${numCc}`
+        description: `PCE instanceTag=${instanceTag} objectType=${objectType} samplingIndex=${samplingIndex} front=${numFront}[${frontElements.join(',')}] side=${numSide}[${sideElements.join(',')}] back=${numBack}[${backElements.join(',')}] lfe=${numLfe}[${lfeElements.join(',')}] assoc=${numAssoc} cc=${numCc} commentBytes=${commentFieldBytes} comment="${commentAscii}"`
     };
 }
 
-function parseAacConfigProgramConfigElement(data: Uint8Array): { channelCount: number; description: string } | null {
+function parseAacConfigProgramConfigElement(
+    data: Uint8Array,
+    expectedSamplingIndex: MPEG4SamplingRateIndex
+): { channelCount: number; description: string } | null {
     const gb = new ExpGolomb(data);
-    try {
-        skipAacProbeBits(gb, 13);
-
-        const frameLengthFlag = gb.readBool();
-        const dependsOnCoreCoder = gb.readBool();
-        if (dependsOnCoreCoder) {
-            skipAacProbeBits(gb, 14);
-        }
-        const extensionFlag = gb.readBool();
-
-        const pce = parseAacProgramConfigElementChannelCount(gb);
-        return {
-            ...pce,
-            description: `${pce.description} frameLengthFlag=${Number(frameLengthFlag)} dependsOnCoreCoder=${Number(dependsOnCoreCoder)} extensionFlag=${Number(extensionFlag)}`
-        };
-    } catch (error) {
-        return null;
-    } finally {
+    const finish = <T>(result: T): T => {
         gb.destroy();
+        return result;
+    };
+
+    if (!skipAacProbeBits(gb, 13)) return finish(null);
+
+    const frameLengthFlag = readAacProbeBool(gb);
+    if (frameLengthFlag === null) return finish(null);
+    const dependsOnCoreCoder = readAacProbeBool(gb);
+    if (dependsOnCoreCoder === null) return finish(null);
+    if (dependsOnCoreCoder) {
+        if (!skipAacProbeBits(gb, 14)) return finish(null);
     }
+    const extensionFlag = readAacProbeBool(gb);
+    if (extensionFlag === null) return finish(null);
+
+    const pce = parseAacProgramConfigElementChannelCount(gb, expectedSamplingIndex);
+    if (!pce) {
+        return finish(null);
+    }
+
+    return finish({
+        ...pce,
+        description: `${pce.description} frameLengthFlag=${Number(frameLengthFlag)} dependsOnCoreCoder=${Number(dependsOnCoreCoder)} extensionFlag=${Number(extensionFlag)}`
+    });
 }
 
-function skipAacProbeBits(gb: ExpGolomb, bits: number): void {
+function skipAacProbeBits(gb: ExpGolomb, bits: number): boolean {
     let bitsRemaining = bits;
 
     while (bitsRemaining > 0) {
         const chunkSize = Math.min(bitsRemaining, 32);
-        gb.readBits(chunkSize);
+        if (readAacProbeBits(gb, chunkSize) === null) {
+            return false;
+        }
         bitsRemaining -= chunkSize;
     }
+
+    return true;
 }
 
 function describeFirstAacPayload(data: Uint8Array): string {
@@ -1484,7 +1594,7 @@ export class FLVDemuxer {
         }
 
         if (channelConfig === 0) {
-            const pce = parseAacConfigProgramConfigElement(asc);
+            const pce = parseAacConfigProgramConfigElement(asc, samplingRateIndex);
             if (pce && pce.channelCount > 0) {
                 Log.w(FLVDemuxer.TAG, `PCE_CONFIRMED: AAC sequence header contains Program Config Element; ${pce.description}; channelCount=${pce.channelCount}; ascBytes=${asc.length}; asc=${formatHexBytes(asc)}`);
                 return {
