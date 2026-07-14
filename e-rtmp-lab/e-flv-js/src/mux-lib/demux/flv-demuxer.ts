@@ -505,6 +505,111 @@ function describeFirstAacPayload(data: Uint8Array): string {
     }
 }
 
+function describeAacRawDataBlockElements(data: Uint8Array): string {
+    if (!data || data.byteLength === 0) {
+        return 'elements=0 complete=true empty-payload';
+    }
+
+    const gb = new ExpGolomb(data);
+    const elements: string[] = [];
+    let knownChannels = 0;
+    let complete = false;
+    let stopReason = '';
+
+    try {
+        while (aacProbeBitsRemaining(gb) >= 3) {
+            const elementId = readAacProbeBits(gb, 3);
+            if (elementId === null) {
+                stopReason = 'truncated-element-id';
+                break;
+            }
+
+            const elementName = describeAacSyntaxElement(elementId);
+            if (elementId === 7) {
+                elements.push('END(7)');
+                complete = true;
+                break;
+            }
+
+            if (elementId === 6) {
+                let fillCount = readAacProbeBits(gb, 4);
+                if (fillCount === null) {
+                    elements.push('FIL(6,truncated-count)');
+                    stopReason = 'truncated-fill-count';
+                    break;
+                }
+                if (fillCount === 15) {
+                    const fillExt = readAacProbeBits(gb, 8);
+                    if (fillExt === null) {
+                        elements.push('FIL(6,truncated-escape)');
+                        stopReason = 'truncated-fill-escape';
+                        break;
+                    }
+                    fillCount += fillExt - 1;
+                }
+
+                let fillDetail = `fillBytes=${fillCount}`;
+                if (fillCount > 0) {
+                    const extType = readAacProbeBits(gb, 4);
+                    if (extType === null) {
+                        elements.push(`FIL(6,${fillDetail},truncated-extType)`);
+                        stopReason = 'truncated-fill-extType';
+                        break;
+                    }
+                    fillDetail += ` extType=0x${extType.toString(16)}`;
+                    const remainingFillBits = fillCount * 8 - 4;
+                    if (!skipAacProbeBits(gb, remainingFillBits)) {
+                        elements.push(`FIL(6,${fillDetail},truncated-payload)`);
+                        stopReason = 'truncated-fill-payload';
+                        break;
+                    }
+                }
+
+                elements.push(`FIL(6,${fillDetail})`);
+                continue;
+            }
+
+            if (elementId === 0 || elementId === 1 || elementId === 3) {
+                const tag = readAacProbeBits(gb, 4);
+                if (tag === null) {
+                    elements.push(`${elementName}(${elementId},truncated-tag)`);
+                    stopReason = 'truncated-audio-element-tag';
+                    break;
+                }
+
+                knownChannels += elementId === 1 ? 2 : 1;
+                elements.push(`${elementName}(${elementId},tag=${tag})`);
+
+                // SCE/CPE/LFE payloads are individual_channel_stream data with
+                // entropy-coded spectral payloads. There is no element-local
+                // byte length to skip without a fuller AAC raw_data_block parser.
+                stopReason = `${elementName}-payload-not-skipped`;
+                break;
+            }
+
+            if (elementId === 5) {
+                elements.push(`PCE(5,${describeAacProgramConfigElement(gb)})`);
+                stopReason = 'pce-payload-not-skipped';
+                break;
+            }
+
+            elements.push(`${elementName}(${elementId})`);
+            stopReason = `${elementName}-payload-not-skipped`;
+            break;
+        }
+
+        if (!complete && !stopReason) {
+            stopReason = 'no-end-element-before-eof';
+        }
+
+        return `elements=${elements.length} complete=${complete} knownChannels=${knownChannels} sequence=[${elements.join(' ')}] stopReason=${stopReason}`;
+    } catch (error: any) {
+        return `elements=${elements.length} complete=false knownChannels=${knownChannels} sequence=[${elements.join(' ')}] probeError=${error?.message || String(error)}`;
+    } finally {
+        gb.destroy();
+    }
+}
+
 enum AudioFourCc {
     //
     // Valid FOURCC values for signaling support of audio codecs
@@ -898,6 +1003,7 @@ export class FLVDemuxer {
 
         this._aacPayloadProbeFrameIndex++;
         const payloadDescription = describeFirstAacPayload(data);
+        const rawDataBlockDescription = describeAacRawDataBlockElements(data);
         const hex = Array.from(data.subarray(0, Math.min(8, data.byteLength)))
             .map((b) => b.toString(16).padStart(2, '0'))
             .join(' ');
@@ -905,6 +1011,9 @@ export class FLVDemuxer {
         if (!this._hasLoggedFirstAacPayloadProbe) {
             Log.v(FLVDemuxer.TAG, `First AAC CodedFrame: size=${data.byteLength} bytes[0..7]=${hex} ${payloadDescription}`);
             this._hasLoggedFirstAacPayloadProbe = true;
+        }
+        if (this._aacPayloadProbeFrameIndex <= 5) {
+            Log.v(FLVDemuxer.TAG, `AAC CodedFrame[${this._aacPayloadProbeFrameIndex}] rawDataBlock ${rawDataBlockDescription}`);
         }
 
         const hasPce = payloadDescription.includes('PCE');
