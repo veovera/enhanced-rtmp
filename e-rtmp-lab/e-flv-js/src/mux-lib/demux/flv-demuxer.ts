@@ -1424,9 +1424,6 @@ export class FLVDemuxer {
     }
 
     private _parseAudioTagData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number) {
-        (this as any).__audioMessageCount ??= 0;
-        const audioMessageCount = ++(this as any).__audioMessageCount;
-
         if (dataSize <= 1) {
             Log.w(FLVDemuxer.TAG, 'Flv: Invalid audio packet, missing SoundData payload!');
             return;
