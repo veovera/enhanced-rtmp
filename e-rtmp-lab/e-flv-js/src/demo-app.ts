@@ -17,6 +17,7 @@ const useWebMCheckbox: HTMLInputElement = document.createElement('input');
 
 let videoElement: HTMLVideoElement;
 let player: MSEPlayer | NativePlayer | null = null;
+let loadedMetadataHandler: (() => void) | null = null;
 let fileSelect: HTMLSelectElement;
 
 interface FileItem {
@@ -72,6 +73,17 @@ function initLayout() {
     padding: 8px;
     resize: vertical;
     margin-top: 32px;
+  }
+  .player-error {
+    box-sizing: border-box;
+    width: 100%;
+    margin: 0 0 12px;
+    padding: 12px;
+    color: #7a1c1c;
+    background: #fff0f0;
+    border: 1px solid #d88;
+    border-radius: 4px;
+    white-space: pre-wrap;
   }`;
 
   document.head.appendChild(style);
@@ -184,6 +196,16 @@ function initLayout() {
   controlsDiv.appendChild(mseBuffersButton);
 
   document.body.appendChild(controlsDiv)
+
+  // Public player errors are presented in the page. The controller retains
+  // its internal console log as a diagnostic fallback for library consumers.
+  const playerErrorBox = document.createElement('pre');
+  playerErrorBox.id = 'playerErrorBox';
+  playerErrorBox.className = 'player-error';
+  playerErrorBox.setAttribute('role', 'alert');
+  playerErrorBox.setAttribute('aria-live', 'assertive');
+  playerErrorBox.hidden = true;
+  document.body.appendChild(playerErrorBox);
 
   // Create a flex container for the debug trace boxes
   const dbgRow = document.createElement('div');
@@ -335,6 +357,20 @@ function createPlayer(): MSEPlayer | NativePlayer | null {
   // !!@TODO: add a config object
   // !!@TODO: take a look at flags below, logic to handle them is scattered around the code    console.warn('Player already exists, detaching previous media element.');
  
+  const playerErrorBox = document.getElementById('playerErrorBox');
+  if (playerErrorBox) {
+    playerErrorBox.textContent = '';
+    playerErrorBox.hidden = true;
+  }
+
+  // A failed player may never emit loadedmetadata, leaving its once-listener
+  // attached. Remove it before replacing the player so a later successful
+  // stream cannot call play() on the already-destroyed player instance.
+  if (loadedMetadataHandler) {
+    videoElement.removeEventListener('loadedmetadata', loadedMetadataHandler);
+    loadedMetadataHandler = null;
+  }
+
   if (player) {
     player.detachMediaElement();
     player.destroy();
@@ -371,8 +407,17 @@ function createPlayer(): MSEPlayer | NativePlayer | null {
     return null;
   }
 
-  _player.on('error', (...args) => {
-    console.error('Player error event args:', args);
+  _player.on('error', (category, detail, message) => {
+    if (!playerErrorBox) {
+      return;
+    }
+
+    playerErrorBox.textContent =
+      `Playback error\n` +
+      `Category: ${String(category)}\n` +
+      `Detail: ${String(detail)}\n` +
+      `Message: ${String(message)}`;
+    playerErrorBox.hidden = false;
   });
 
   _player.on('statistics_info', (stats) => {
@@ -380,11 +425,12 @@ function createPlayer(): MSEPlayer | NativePlayer | null {
   });
 
   // Auto-play when metadata is ready on the media element
-  videoElement.addEventListener('loadedmetadata', () => {
+  loadedMetadataHandler = () => {
     if (videoElement.paused) {
       _player.play().catch((e: Error) => console.error('Play failed:', e));
     }
-  }, { once: true });
+  };
+  videoElement.addEventListener('loadedmetadata', loadedMetadataHandler, { once: true });
 
   _player.on(TransmuxingEvents.SCRIPTDATA_ARRIVED, (scriptData) => {
     const traceBox = document.getElementById('videoMetadataBox') as HTMLTextAreaElement;
