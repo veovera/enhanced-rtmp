@@ -265,10 +265,45 @@ function describeAacProgramConfigElement(gb: ExpGolomb): string {
     return `PCE instanceTag=${instanceTag} objectType=${objectType} samplingIndex=${samplingIndex} front=${numFront} side=${numSide} back=${numBack} lfe=${numLfe} assoc=${numAssoc} cc=${numCc}`;
 }
 
+type AacPceChannelLayout = {
+    front: boolean[];
+    side: boolean[];
+    back: boolean[];
+    lfeCount: number;
+};
+
+function standardAacChannelConfigForPceLayout(layout: AacPceChannelLayout): number | null {
+    // A PCE is allowed to describe arbitrary layouts.  These are the layouts
+    // represented by the standard 1..7 channelConfiguration values; `true`
+    // denotes a CPE (a stereo pair) and `false` an SCE (one channel).
+    const standardLayouts: Array<[number, AacPceChannelLayout]> = [
+        [1, { front: [false], side: [], back: [], lfeCount: 0 }],
+        [2, { front: [true], side: [], back: [], lfeCount: 0 }],
+        [3, { front: [false, true], side: [], back: [], lfeCount: 0 }],
+        [4, { front: [false, true], side: [], back: [false], lfeCount: 0 }],
+        [5, { front: [false, true], side: [], back: [true], lfeCount: 0 }],
+        [6, { front: [false, true], side: [true], back: [], lfeCount: 1 }],
+        [7, { front: [false, true, true], side: [true], back: [], lfeCount: 1 }]
+    ];
+    const sameElements = (a: boolean[], b: boolean[]) => a.length === b.length && a.every((element, index) => element === b[index]);
+
+    for (const [channelConfig, standard] of standardLayouts) {
+        if (
+            sameElements(layout.front, standard.front) &&
+            sameElements(layout.side, standard.side) &&
+            sameElements(layout.back, standard.back) &&
+            layout.lfeCount === standard.lfeCount
+        ) {
+            return channelConfig;
+        }
+    }
+    return null;
+}
+
 function parseAacProgramConfigElementChannelCount(
     gb: ExpGolomb,
     expectedSamplingIndex: MPEG4SamplingRateIndex
-): { channelCount: number; description: string } | null {
+): { channelCount: number; description: string; layout: AacPceChannelLayout } | null {
     // parse based on ISO/IEC 14496-3 program_config_element() field order
     const instanceTag = readAacProbeBits(gb, 4);    // element_instance_tag
     const objectType = readAacProbeBits(gb, 2);     // object_type
@@ -376,6 +411,12 @@ function parseAacProgramConfigElementChannelCount(
 
     return {
         channelCount,
+        layout: {
+            front: frontElements.map(element => element.startsWith('CPE:')),
+            side: sideElements.map(element => element.startsWith('CPE:')),
+            back: backElements.map(element => element.startsWith('CPE:')),
+            lfeCount: lfeElements.length
+        },
         description: `PCE instanceTag=${instanceTag} objectType=${objectType} samplingIndex=${samplingIndex} front=${numFront}[${frontElements.join(',')}] side=${numSide}[${sideElements.join(',')}] back=${numBack}[${backElements.join(',')}] lfe=${numLfe}[${lfeElements.join(',')}] assoc=${numAssoc} cc=${numCc} commentBytes=${commentFieldBytes} comment="${commentAscii}"`
     };
 }
@@ -383,7 +424,7 @@ function parseAacProgramConfigElementChannelCount(
 function parseAacConfigProgramConfigElement(
     data: Uint8Array,
     expectedSamplingIndex: MPEG4SamplingRateIndex
-): { channelCount: number; description: string } | null {
+): { channelCount: number; description: string; layout: AacPceChannelLayout } | null {
     const gb = new ExpGolomb(data);
     const finish = <T>(result: T): T => {
         gb.destroy();
@@ -1702,9 +1743,26 @@ export class FLVDemuxer {
         if (channelConfig === 0) {
             const pce = parseAacConfigProgramConfigElement(asc, samplingRateIndex);
             if (pce && pce.channelCount > 0) {
-                Log.w(FLVDemuxer.TAG, `PCE_CONFIRMED: AAC sequence header contains Program Config Element; ${pce.description}; channelCount=${pce.channelCount}; ascBytes=${asc.length}; asc=${formatHexBytes(asc)}`);
+                Log.v(FLVDemuxer.TAG, `PCE_CONFIRMED: AAC sequence header contains Program Config Element; ${pce.description}; channelCount=${pce.channelCount}; ascBytes=${asc.length}; asc=${formatHexBytes(asc)}`);
+                const standardChannelConfig = standardAacChannelConfigForPceLayout(pce.layout);
+                if (standardChannelConfig === null) {
+                    this._onError(
+                        DemuxErrors.FORMAT_UNSUPPORTED,
+                        `Flv: AAC PCE describes a custom ${pce.channelCount}-channel layout that cannot be represented by a standard channelConfiguration; MSE playback requires transcoding`
+                    );
+                    return undefined;
+                }
+
+                // Chrome MSE does not accept a PCE-bearing ASC in esds.  When the PCE
+                // exactly matches a standard layout, replace it with the equivalent
+                // two-byte AudioSpecificConfig without changing the AAC frame semantics.
+                const cleanConfig = new Uint8Array([
+                    (audioObjectType << 3) | ((samplingRateIndex & 0x0E) >>> 1),
+                    ((samplingRateIndex & 0x01) << 7) | (standardChannelConfig << 3)  // GASpecificConfig flags=0
+                ]);
+                Log.v(FLVDemuxer.TAG, `AAC_PCE_NORMALIZED: replaced standard-equivalent PCE with channelConfig=${standardChannelConfig}; asc=${formatHexBytes(cleanConfig)}`);
                 return {
-                    config: Uint8Array.from(asc),
+                    config: cleanConfig,
                     samplingRate: samplingRate,
                     channelCount: pce.channelCount,
                     codec: 'mp4a.40.' + audioObjectType,
