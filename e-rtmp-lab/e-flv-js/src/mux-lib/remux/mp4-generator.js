@@ -394,22 +394,36 @@ class MP4 {
     }
 
     static mp4a(meta) {
+        // Number of decoded channels written into the MP4 AudioSampleEntry
+        // (for example, 2 for stereo, 5 for 5.0, or 6 for 5.1).
         let channelCount = meta.channelCount;
+
+        // Output sampling frequency in Hz, such as 44100 or 48000.
         let sampleRate = meta.audioSampleRate;
 
+        // ISO BMFF AudioSampleEntry payload (28 bytes), excluding the box
+        // header and the AAC-specific esds child box added below.
         let data = new Uint8Array([
-            0x00, 0x00, 0x00, 0x00,  // reserved(4)
-            0x00, 0x00, 0x00, 0x01,  // reserved(2) + data_reference_index(2)
-            0x00, 0x00, 0x00, 0x00,  // reserved: 2 * 4 bytes
-            0x00, 0x00, 0x00, 0x00,
-            0x00, channelCount,      // channelCount(2)
-            0x00, 0x10,              // 16 bitsPerSample (2-byte field)
-            0x00, 0x00, 0x00, 0x00,  // reserved(4)
-            (sampleRate >>> 8) & 0xFF,  // Audio sample rate
-            (sampleRate) & 0xFF,
-            0x00, 0x00
+            0x00, 0x00, 0x00, 0x00,     // reserved: first 4 of 6 bytes
+            0x00, 0x00,                 // reserved: final 2 of 6 bytes
+            0x00, 0x01,                 // data_reference_index = 1 (unsigned 16-bit, big-endian)
+
+            0x00, 0x00, 0x00, 0x00,     // legacy version/revision fields, unused
+            0x00, 0x00, 0x00, 0x00,     // legacy vendor field, unused
+
+            0x00, channelCount,         // channelcount (unsigned 16-bit, big-endian)
+            0x00, 0x10,                 // samplesize = 16 decoded bits per sample
+            0x00, 0x00,                 // pre_defined = 0
+            0x00, 0x00,                 // reserved = 0
+
+            (sampleRate >>> 8) & 0xFF,  // samplerate integer high byte
+            sampleRate & 0xFF,          // samplerate integer low byte
+            0x00, 0x00                  // 16.16 fixed-point fractional part = 0
         ]);
 
+        // The mp4a payload above describes the decoded audio shape.  esds
+        // carries the AAC AudioSpecificConfig (object type, frequency index,
+        // and channelConfig/PCE), which must agree with the encoded frames.
         return MP4.box(MP4.types.mp4a, data, MP4.esds(meta));
     }
 
