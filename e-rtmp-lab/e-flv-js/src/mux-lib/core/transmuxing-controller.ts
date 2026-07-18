@@ -486,6 +486,13 @@ class TransmuxingController {
     _onDemuxException(type: string, info: string) {
         Log.e(this.TAG, `DemuxException: type = ${type}, info = ${info}`);
         this._emitter.emit(TransmuxingEvents.DEMUX_ERROR, type, info);
+
+        // An unsupported format cannot become playable by reading more input.
+        // Abort after notifying listeners so no additional packets are parsed and
+        // no end-of-stream stash flush runs against incomplete track metadata.
+        if (type === DemuxErrors.FORMAT_UNSUPPORTED) {
+            this.stop();
+        }
     }
 
     _onRemuxerInitSegmentArrival(type: string, initSegment: ArrayBuffer) {

@@ -702,11 +702,17 @@ export class MP4Remuxer extends Remuxer {
     }
 
     _remuxVideo(videoTrack: VideoTrack, force: boolean) {
+        // A forced end-of-stream flush may receive an empty placeholder track.
+        // There is nothing to remux and no codec metadata should be required.
+        if (videoTrack.frames.length === 0) {
+            return;
+        }
+
         // Require at least 2 frames before remuxing (unless forced, e.g. flushStashedFrames).
         // MP4 computes each frame's duration as nextFrame.dts - currentFrame.dts, so the stash
         // mechanism always pops the last frame and holds it for the next batch as the "next frame"
         // reference. With only 1 frame there is nothing to pop/stash, breaking the DTS chain.
-        if (videoTrack.frames.length <= 1 && !force) {
+        if (videoTrack.frames.length === 1 && !force) {
             return;
         }
         if (!this._videoMeta) {
