@@ -10,8 +10,6 @@
  * See Git history for full details.
  */
 
-// !!@TODO: reduce usage of any
-
 import Log from '../utils/logger.js';
 import AMF from './amf-parser.js';
 import SPSParser from './sps-parser.js';
@@ -59,6 +57,14 @@ export interface AACConfig {
 type AACPacketData =
     | { packetType: AudioPacketType.SequenceStart; data: AACConfig }                                      // sequence header
     | { packetType: Exclude<AudioPacketType, AudioPacketType.SequenceStart>; data: Uint8Array };          // coded frames or other packet types (e.g., CodedFrames, SequenceEnd, Multitrack, ModEx, etc.)
+
+interface Mp3FrameHeader {
+    bitRate: number;
+    samplingRate: number;
+    channelCount: number;
+    codec: string;
+    originalCodec: string;
+}
 
 function formatHexBytes(data: Uint8Array): string {
     return Array.from(data)
@@ -748,7 +754,6 @@ enum AvMultitrackType {
     ManyTracksManyCodecs = 2,
 }
 
-//!!@ move to proper file
 enum Vp8FrameType {
     KEY_FRAME   = 0,
     INTER_FRAME = 1
@@ -1810,15 +1815,16 @@ export class FLVDemuxer {
         };
     }
 
-    // !!@todo: switch to retrun a type instead of any
-    private _parseLegacyMp3FrameData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, requestHeader: boolean) : any {
+    private _parseLegacyMp3FrameData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, requestHeader: true): Mp3FrameHeader | undefined;
+    private _parseLegacyMp3FrameData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, requestHeader: false): Uint8Array | undefined;
+    private _parseLegacyMp3FrameData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, requestHeader: boolean): Mp3FrameHeader | Uint8Array | undefined {
         if (dataSize < 4) {
             Log.w(FLVDemuxer.TAG, 'Flv: Invalid MP3 packet, header missing!');
             return;
         }
 
         let array = new Uint8Array(arrayBuffer, dataOffset, dataSize);
-        let result = null;
+        let result: Mp3FrameHeader | Uint8Array;
 
         if (requestHeader) {
             if (array[0] !== 0xFF) {
