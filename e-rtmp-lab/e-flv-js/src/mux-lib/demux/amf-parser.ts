@@ -1,19 +1,13 @@
 /*
- * Copyright (C) 2016 Bilibili. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
  *
+ * Copyright (C) 2016 Bilibili
  * @author zheng qian <xqq@xqq.im>
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Modified and migrated to TypeScript by Slavik Lozben.
+ * Additional changes Copyright (C) 2026 Veovera Software Organization.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * See Git history for full details.
  */
 
 import Log from '../utils/logger.js';
@@ -28,8 +22,8 @@ let le = (function () {
 
 class AMF {
 
-    static parseScriptData(arrayBuffer, dataOffset, dataSize) {
-        let data = {};
+    static parseScriptData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number) {
+        let data: Record<string, any> = {};
 
         try {
             let name = AMF.parseValue(arrayBuffer, dataOffset, dataSize);
@@ -37,13 +31,13 @@ class AMF {
 
             data[name.data] = value.data;
         } catch (e) {
-            Log.e('AMF', e.toString());
+            Log.e('AMF', (e as Error).toString());
         }
 
         return data;
     }
 
-    static parseObject(arrayBuffer, dataOffset, dataSize) {
+    static parseObject(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number) {
         if (dataSize < 3) {
             throw new IllegalStateException('Data not enough when parse ScriptDataObject');
         }
@@ -61,11 +55,11 @@ class AMF {
         };
     }
 
-    static parseVariable(arrayBuffer, dataOffset, dataSize) {
+    static parseVariable(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number) {
         return AMF.parseObject(arrayBuffer, dataOffset, dataSize);
     }
 
-    static parseString(arrayBuffer, dataOffset, dataSize) {
+    static parseString(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number) {
         if (dataSize < 2) {
             throw new IllegalStateException('Data not enough when parse String');
         }
@@ -85,7 +79,7 @@ class AMF {
         };
     }
 
-    static parseLongString(arrayBuffer, dataOffset, dataSize) {
+    static parseLongString(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number) {
         if (dataSize < 4) {
             throw new IllegalStateException('Data not enough when parse LongString');
         }
@@ -105,7 +99,7 @@ class AMF {
         };
     }
 
-    static parseDate(arrayBuffer, dataOffset, dataSize) {
+    static parseDate(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number) {
         if (dataSize < 10) {
             throw new IllegalStateException('Data size invalid when parse Date');
         }
@@ -120,7 +114,7 @@ class AMF {
         };
     }
 
-    static parseValue(arrayBuffer, dataOffset, dataSize) {
+    static parseValue(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number): { data: any; size: number; objectEnd: boolean } {
         if (dataSize < 1) {
             throw new IllegalStateException('Data not enough when parse Value');
         }
@@ -151,7 +145,7 @@ class AMF {
                     break;
                 }
                 case 3: { // Object(s) type
-                    value = {};
+                    value = {} as Record<string, any>;
                     let terminal = 0;  // workaround for malformed Objects which has missing ScriptDataObjectEnd
                     if ((v.getUint32(dataSize - 4, !le) & 0x00FFFFFF) === 9) {
                         terminal = 3;
@@ -172,7 +166,7 @@ class AMF {
                     break;
                 }
                 case 8: { // ECMA array type (Mixed array)
-                    value = {};
+                    value = {} as Record<string, any>;
                     offset += 4;  // ECMAArrayLength(UI32)
                     let terminal = 0;  // workaround for malformed MixedArrays which has missing ScriptDataObjectEnd
                     if ((v.getUint32(dataSize - 4, !le) & 0x00FFFFFF) === 9) {
@@ -228,7 +222,7 @@ class AMF {
                     Log.w('AMF', 'Unsupported AMF value type ' + type);
             }
         } catch (e) {
-            Log.e('AMF', e.toString());
+            Log.e('AMF', (e as Error).toString());
         }
 
         return {
