@@ -11,7 +11,7 @@
  */
 
 import Log from '../utils/logger.js';
-import AMF from './amf-parser.js';
+import AMF, { AMFObjectValue, AMFScriptData } from './amf-parser.js';
 import SPSParser from './sps-parser.js';
 import DemuxErrors from './demux-errors.js';
 import MediaInfo, { KeyframesIndex } from '../core/media-info.js';
@@ -1368,10 +1368,10 @@ export class FLVDemuxer {
     }
 
     private _parseScriptTagData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number) {
-        let scriptData = AMF.parseScriptData(arrayBuffer, dataOffset, dataSize) as any; // !!@ fix any
+        let scriptData: AMFScriptData = AMF.parseScriptData(arrayBuffer, dataOffset, dataSize);
 
         if (scriptData.hasOwnProperty('onMetaData')) {
-            if (scriptData.onMetaData == null || typeof scriptData.onMetaData !== 'object') {
+            if (scriptData.onMetaData == null || typeof scriptData.onMetaData !== 'object' || Array.isArray(scriptData.onMetaData)) {
                 Log.w(FLVDemuxer.TAG, 'Invalid onMetaData structure!');
                 return;
             }
@@ -1379,7 +1379,7 @@ export class FLVDemuxer {
                 Log.w(FLVDemuxer.TAG, 'Found another onMetaData tag!');
             }
             this._scriptData = scriptData;
-            let onMetaData = this._scriptData.onMetaData;
+            let onMetaData = this._scriptData.onMetaData as AMFObjectValue;
 
             if (this._onScriptMetadata) {
                 this._onScriptMetadata(Object.assign({}, onMetaData));
@@ -1431,7 +1431,7 @@ export class FLVDemuxer {
             }
             if (typeof onMetaData.keyframes === 'object') {  // keyframes
                 this._mediaInfo.hasKeyframesIndex = true;
-                let keyframes = onMetaData.keyframes as KeyframesIndex;
+                let keyframes = onMetaData.keyframes as unknown as KeyframesIndex;
                 this._mediaInfo.keyframesIndex = this._parseKeyframesIndex(keyframes);
                 onMetaData.keyframes = null;  // keyframes has been extracted, remove it
             } else {

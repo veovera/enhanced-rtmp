@@ -14,6 +14,17 @@ import Log from '../utils/logger.js';
 import decodeUTF8 from '../utils/utf8-conv.js';
 import {IllegalStateException} from '../utils/exception.js';
 
+export interface AMFObjectValue {
+    [key: string]: AMFValue;
+}
+
+export type AMFValue = string | number | boolean | Date | null | undefined | AMFObjectValue | AMFValue[];
+
+export interface AMFScriptData {
+    onMetaData?: AMFObjectValue | null;
+    [key: string]: AMFValue | undefined;
+}
+
 let le = (function () {
     let buf = new ArrayBuffer(2);
     (new DataView(buf)).setInt16(0, 256, true);  // little-endian write
@@ -22,12 +33,16 @@ let le = (function () {
 
 class AMF {
 
-    static parseScriptData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number) {
-        let data: Record<string, any> = {};
+    static parseScriptData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number): AMFScriptData {
+        let data: AMFScriptData = {};
 
         try {
             let name = AMF.parseValue(arrayBuffer, dataOffset, dataSize);
             let value = AMF.parseValue(arrayBuffer, dataOffset + name.size, dataSize - name.size);
+
+            if (typeof name.data !== 'string') {
+                return data;
+            }
 
             data[name.data] = value.data;
         } catch (e) {
@@ -37,7 +52,7 @@ class AMF {
         return data;
     }
 
-    static parseObject(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number) {
+    static parseObject(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number): { data: { name: string; value: AMFValue }; size: number; objectEnd: boolean } {
         if (dataSize < 3) {
             throw new IllegalStateException('Data not enough when parse ScriptDataObject');
         }
@@ -59,7 +74,7 @@ class AMF {
         return AMF.parseObject(arrayBuffer, dataOffset, dataSize);
     }
 
-    static parseString(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number) {
+    static parseString(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number): { data: string; size: number } {
         if (dataSize < 2) {
             throw new IllegalStateException('Data not enough when parse String');
         }
@@ -79,7 +94,7 @@ class AMF {
         };
     }
 
-    static parseLongString(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number) {
+    static parseLongString(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number): { data: string; size: number } {
         if (dataSize < 4) {
             throw new IllegalStateException('Data not enough when parse LongString');
         }
@@ -99,7 +114,7 @@ class AMF {
         };
     }
 
-    static parseDate(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number) {
+    static parseDate(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number): { data: Date; size: number } {
         if (dataSize < 10) {
             throw new IllegalStateException('Data size invalid when parse Date');
         }
@@ -114,7 +129,7 @@ class AMF {
         };
     }
 
-    static parseValue(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number): { data: any; size: number; objectEnd: boolean } {
+    static parseValue(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number): { data: AMFValue; size: number; objectEnd: boolean } {
         if (dataSize < 1) {
             throw new IllegalStateException('Data not enough when parse Value');
         }
@@ -123,7 +138,7 @@ class AMF {
 
         let offset = 1;
         let type = v.getUint8(0);
-        let value;
+        let value: AMFValue;
         let objectEnd = false;
 
         try {
@@ -145,7 +160,7 @@ class AMF {
                     break;
                 }
                 case 3: { // Object(s) type
-                    value = {} as Record<string, any>;
+                    value = {} as AMFObjectValue;
                     let terminal = 0;  // workaround for malformed Objects which has missing ScriptDataObjectEnd
                     if ((v.getUint32(dataSize - 4, !le) & 0x00FFFFFF) === 9) {
                         terminal = 3;
@@ -166,7 +181,7 @@ class AMF {
                     break;
                 }
                 case 8: { // ECMA array type (Mixed array)
-                    value = {} as Record<string, any>;
+                    value = {} as AMFObjectValue;
                     offset += 4;  // ECMAArrayLength(UI32)
                     let terminal = 0;  // workaround for malformed MixedArrays which has missing ScriptDataObjectEnd
                     if ((v.getUint32(dataSize - 4, !le) & 0x00FFFFFF) === 9) {
@@ -194,7 +209,7 @@ class AMF {
                     break;
                 case 10: {  // Strict array type
                     // ScriptDataValue[n]. NOTE: according to video_file_format_spec_v10_1.pdf
-                    value = [];
+                    value = [] as AMFValue[];
                     let strictArrayLength = v.getUint32(1, !le);
                     offset += 4;
                     for (let i = 0; i < strictArrayLength; i++) {
