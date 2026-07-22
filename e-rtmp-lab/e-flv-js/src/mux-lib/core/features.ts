@@ -1,64 +1,72 @@
 /*
- * Copyright (C) 2016 Bilibili. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
  *
+ * Copyright (C) 2016 Bilibili
  * @author zheng qian <xqq@xqq.im>
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Modified and migrated to TypeScript by Slavik Lozben.
+ * Additional changes Copyright (C) 2026 Veovera Software Organization.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * See Git history for full details.
  */
 
 import IOController from '../io/io-controller.js';
 import {createDefaultConfig} from '../config.js';
 
+export interface FeatureList {
+    msePlayback: boolean;
+    mseLivePlayback: boolean;
+    mseH265Playback: boolean;
+    networkStreamIO: boolean;
+    networkLoaderName: string;
+    nativeMP4H264Playback: boolean;
+    nativeMP4H265Playback: boolean;
+    nativeWebmVP8Playback: boolean;
+    nativeWebmVP9Playback: boolean;
+}
+
 class Features {
 
-    static supportMSEH264Playback() {
+    private static videoElement?: HTMLVideoElement;
+
+    static supportMSEH264Playback(): boolean {
         const avc_aac_mime_type = 'video/mp4; codecs="avc1.42E01E,mp4a.40.2"';
-        const support_w3c_mse = self.MediaSource && self.MediaSource.isTypeSupported(avc_aac_mime_type);
-        const support_apple_mme = self.ManagedMediaSource && self.ManagedMediaSource.isTypeSupported(avc_aac_mime_type);
+        const support_w3c_mse = !!self.MediaSource && self.MediaSource.isTypeSupported(avc_aac_mime_type);
+        const support_apple_mme = !!self.ManagedMediaSource && self.ManagedMediaSource.isTypeSupported(avc_aac_mime_type);
         return support_w3c_mse || support_apple_mme;
     }
 
-    static supportMSEH265Playback() {
+    static supportMSEH265Playback(): boolean {
         const hevc_mime_type = 'video/mp4; codecs="hvc1.1.6.L93.B0"';
-        const support_w3c_mse = self.MediaSource && self.MediaSource.isTypeSupported(hevc_mime_type);
-        const support_apple_mme = self.ManagedMediaSource && self.ManagedMediaSource.isTypeSupported(hevc_mime_type);
+        const support_w3c_mse = !!self.MediaSource && self.MediaSource.isTypeSupported(hevc_mime_type);
+        const support_apple_mme = !!self.ManagedMediaSource && self.ManagedMediaSource.isTypeSupported(hevc_mime_type);
         return support_w3c_mse || support_apple_mme;
     }
 
-    static supportNetworkStreamIO() {
+    static supportNetworkStreamIO(): boolean {
         let ioctl = new IOController({}, createDefaultConfig());
         let loaderType = ioctl.loaderType;
         ioctl.destroy();
         return loaderType == 'fetch-stream-loader' || loaderType == 'xhr-moz-chunked-loader';
     }
 
-    static getNetworkLoaderTypeName() {
+    static getNetworkLoaderTypeName(): string {
         let ioctl = new IOController({}, createDefaultConfig());
         let loaderType = ioctl.loaderType;
         ioctl.destroy();
         return loaderType;
     }
 
-    static supportNativeMediaPlayback(mimeType) {
-        if (Features.videoElement == undefined) {
+    static supportNativeMediaPlayback(mimeType: string): boolean {
+        if (Features.videoElement === undefined) {
             Features.videoElement = window.document.createElement('video');
         }
         let canPlay = Features.videoElement.canPlayType(mimeType);
         return canPlay === 'probably' || canPlay == 'maybe';
     }
 
-    static getFeatureList() {
-        let features = {
+    static getFeatureList(): FeatureList {
+        let features: FeatureList = {
             msePlayback: false,
             mseLivePlayback: false,
             mseH265Playback: false,
