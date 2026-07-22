@@ -13,6 +13,14 @@
 import IOController from '../io/io-controller.js';
 import {createDefaultConfig} from '../config.js';
 
+type ManagedMediaSourceConstructor = {
+    isTypeSupported(type: string): boolean;
+};
+
+function getManagedMediaSource(): ManagedMediaSourceConstructor | undefined {
+    return (self as typeof self & {ManagedMediaSource?: ManagedMediaSourceConstructor}).ManagedMediaSource;
+}
+
 export interface FeatureList {
     msePlayback: boolean;
     mseLivePlayback: boolean;
@@ -32,14 +40,16 @@ class Features {
     static supportMSEH264Playback(): boolean {
         const avc_aac_mime_type = 'video/mp4; codecs="avc1.42E01E,mp4a.40.2"';
         const support_w3c_mse = !!self.MediaSource && self.MediaSource.isTypeSupported(avc_aac_mime_type);
-        const support_apple_mme = !!self.ManagedMediaSource && self.ManagedMediaSource.isTypeSupported(avc_aac_mime_type);
+        const managedMediaSource = getManagedMediaSource();
+        const support_apple_mme = !!managedMediaSource && managedMediaSource.isTypeSupported(avc_aac_mime_type);
         return support_w3c_mse || support_apple_mme;
     }
 
     static supportMSEH265Playback(): boolean {
         const hevc_mime_type = 'video/mp4; codecs="hvc1.1.6.L93.B0"';
         const support_w3c_mse = !!self.MediaSource && self.MediaSource.isTypeSupported(hevc_mime_type);
-        const support_apple_mme = !!self.ManagedMediaSource && self.ManagedMediaSource.isTypeSupported(hevc_mime_type);
+        const managedMediaSource = getManagedMediaSource();
+        const support_apple_mme = !!managedMediaSource && managedMediaSource.isTypeSupported(hevc_mime_type);
         return support_w3c_mse || support_apple_mme;
     }
 
