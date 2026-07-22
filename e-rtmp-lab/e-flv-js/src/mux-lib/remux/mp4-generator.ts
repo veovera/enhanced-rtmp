@@ -4,15 +4,19 @@
  * Copyright (C) 2016 Bilibili.
  * @author zheng qian <xqq@xqq.im>
  * 
- * Modified by Slavik Lozben.
+ * Modified and migrated to TypeScript by Slavik Lozben.
  * Additional changes Copyright (C) 2025 Veovera Software Organization.
  *
  * See Git history for full details.
  */
 
 //  MP4 boxes generator for ISO BMFF (ISO Base Media File Format, defined in ISO/IEC 14496-12)
+type MP4Metadata = Record<string, any>;
+type MP4Track = Record<string, any>;
+
 class MP4 {
-    static types;
+    static types: Record<string, number[]>;
+    static constants: Record<string, Uint8Array>;
 
     static init() {
         // NOTE: FourCC codes are exactly 4 chars; MP3 is '.mp3' (leading dot) per ISOBMFF spec, not 'mp3 ' (trailing space)
@@ -45,7 +49,7 @@ class MP4 {
             }
         }
 
-        let constants = MP4.constants = {};
+        const constants: Record<string, Uint8Array> = MP4.constants = {};
 
         constants.FTYP = new Uint8Array([
             0x69, 0x73, 0x6F, 0x6D,  // major_brand: isom
@@ -138,10 +142,9 @@ class MP4 {
     }
 
     // Generate a box
-    static box(type) {
+    static box(type: ArrayLike<number>, ...datas: Uint8Array[]): Uint8Array {
         let size = 8;
-        let result = null;
-        let datas = Array.prototype.slice.call(arguments, 1);
+        let result: Uint8Array;
         let arrayCount = datas.length;
 
         for (let i = 0; i < arrayCount; i++) {
@@ -166,7 +169,7 @@ class MP4 {
     }
 
     // emit ftyp & moov
-    static generateInitSegment(meta) {
+    static generateInitSegment(meta: MP4Metadata): Uint8Array {
         let ftypBody = MP4.constants.FTYP;
         if (meta.type === 'video' && meta.codec) {
             if (meta.codec.startsWith('av01')) {
@@ -186,7 +189,7 @@ class MP4 {
     }
 
     // Movie metadata box
-    static moov(meta) {
+    static moov(meta: MP4Metadata): Uint8Array {
         let mvhd = MP4.mvhd(meta.timescale, meta.duration);
         let trak = MP4.trak(meta);
         let mvex = MP4.mvex(meta);
@@ -194,7 +197,7 @@ class MP4 {
     }
 
     // Movie header box
-    static mvhd(timescale, duration) {
+    static mvhd(timescale: number, duration: number): Uint8Array {
         return MP4.box(MP4.types.mvhd, new Uint8Array([
             0x00, 0x00, 0x00, 0x00,  // version(0) + flags
             0x00, 0x00, 0x00, 0x00,  // creation_time
@@ -231,12 +234,12 @@ class MP4 {
     }
 
     // Track box
-    static trak(meta) {
+    static trak(meta: MP4Metadata): Uint8Array {
         return MP4.box(MP4.types.trak, MP4.tkhd(meta), MP4.mdia(meta));
     }
 
     // Track header box
-    static tkhd(meta) {
+    static tkhd(meta: MP4Metadata): Uint8Array {
         let trackId = meta.trackId, duration = meta.duration;
         let width = (meta.presentWidth || meta.codecWidth || 0) >>> 0;
         let height = (meta.presentHeight || meta.codecHeight || 0) >>> 0;
@@ -277,12 +280,12 @@ class MP4 {
     }
 
     // Media Box
-    static mdia(meta) {
+    static mdia(meta: MP4Metadata): Uint8Array {
         return MP4.box(MP4.types.mdia, MP4.mdhd(meta), MP4.hdlr(meta), MP4.minf(meta));
     }
 
     // Media header box
-    static mdhd(meta) {
+    static mdhd(meta: MP4Metadata): Uint8Array {
         let timescale = meta.timescale;
         let duration = meta.duration;
         return MP4.box(MP4.types.mdhd, new Uint8Array([
@@ -303,7 +306,7 @@ class MP4 {
     }
 
     // Media handler reference box
-    static hdlr(meta) {
+    static hdlr(meta: MP4Metadata): Uint8Array {
         let data = null;
         if (meta.type === 'audio') {
             data = MP4.constants.HDLR_AUDIO;
@@ -314,7 +317,7 @@ class MP4 {
     }
 
     // Media infomation box
-    static minf(meta) {
+    static minf(meta: MP4Metadata): Uint8Array {
         let xmhd = null;
         if (meta.type === 'audio') {
             xmhd = MP4.box(MP4.types.smhd, MP4.constants.SMHD);
@@ -333,7 +336,7 @@ class MP4 {
     }
 
     // Sample table box
-    static stbl(meta) {
+    static stbl(meta: MP4Metadata): Uint8Array {
         let result = MP4.box(MP4.types.stbl,  // type: stbl
             MP4.stsd(meta),  // Sample Description Table
             MP4.box(MP4.types.stts, MP4.constants.STTS),  // Time-To-Sample
@@ -345,7 +348,7 @@ class MP4 {
     }
 
     // Sample description box
-    static stsd(meta) {
+    static stsd(meta: MP4Metadata): Uint8Array {
         if (meta.type === 'audio') {
             if (meta.codec === 'mp3') {
                 return MP4.box(MP4.types.stsd, MP4.constants.STSD_PREFIX, MP4.mp3(meta));
@@ -373,7 +376,7 @@ class MP4 {
         }
     }
 
-    static mp3(meta) {
+    static mp3(meta: MP4Metadata): Uint8Array {
         let channelCount = meta.channelCount;
         let sampleRate = meta.audioSampleRate;
 
@@ -393,7 +396,7 @@ class MP4 {
         return MP4.box(MP4.types['.mp3'], data);
     }
 
-    static mp4a(meta) {
+    static mp4a(meta: MP4Metadata): Uint8Array {
         // Number of decoded channels written into the MP4 AudioSampleEntry
         // (for example, 2 for stereo, 5 for 5.0, or 6 for 5.1).
         let channelCount = meta.channelCount;
@@ -427,7 +430,7 @@ class MP4 {
         return MP4.box(MP4.types.mp4a, data, MP4.esds(meta));
     }
 
-    static ac3(meta) {
+    static ac3(meta: MP4Metadata): Uint8Array {
         let channelCount = meta.channelCount;
         let sampleRate = meta.audioSampleRate;
 
@@ -447,7 +450,7 @@ class MP4 {
         return MP4.box(MP4.types['ac-3'], data, MP4.box(MP4.types.dac3, new Uint8Array(meta.codecConfig)));
     }
 
-    static ec3(meta) {
+    static ec3(meta: MP4Metadata): Uint8Array {
         let channelCount = meta.channelCount;
         let sampleRate = meta.audioSampleRate;
 
@@ -467,10 +470,10 @@ class MP4 {
         return MP4.box(MP4.types['ec-3'], data, MP4.box(MP4.types.dec3, new Uint8Array(meta.codecConfig)));
     }
 
-    static esds(meta) {
-        let config = Array.from(meta.codecConfig || []);
+    static esds(meta: MP4Metadata): Uint8Array {
+        const config: number[] = Array.from(meta.codecConfig || []);
         let configSize = config.length;
-        const descriptorLength = (length) => [
+        const descriptorLength = (length: number): number[] => [
             0x80 | ((length >>> 21) & 0x7F),
             0x80 | ((length >>> 14) & 0x7F),
             0x80 | ((length >>> 7) & 0x7F),
@@ -516,7 +519,7 @@ class MP4 {
         return MP4.box(MP4.types.esds, data);
     }
 
-    static Opus(meta) {
+    static Opus(meta: MP4Metadata): Uint8Array {
         let channelCount = meta.channelCount;
         let sampleRate = meta.audioSampleRate;
 
@@ -536,7 +539,7 @@ class MP4 {
         return MP4.box(MP4.types.Opus, data, MP4.dOps(meta));
     }
 
-    static dOps(meta) {
+    static dOps(meta: MP4Metadata): Uint8Array {
         let channelCount = meta.channelCount;
         let channelConfigCode = meta.channelConfigCode;
         let sampleRate = meta.audioSampleRate;
@@ -554,7 +557,7 @@ class MP4 {
             return MP4.box(MP4.types.dOps, config);
         }
 
-        let mapping = [];
+        let mapping: number[] = [];
         switch (channelConfigCode) {
             case 0x01:
             case 0x02:
@@ -621,7 +624,7 @@ class MP4 {
         return MP4.box(MP4.types.dOps, data);
     }
 
-    static fLaC(meta) {
+    static fLaC(meta: MP4Metadata): Uint8Array {
         let channelCount = meta.channelCount;
         let sampleRate = Math.min(meta.audioSampleRate, 65535);
         let bitsPerSample = meta.bitsPerSample;
@@ -642,7 +645,7 @@ class MP4 {
         return MP4.box(MP4.types.fLaC, data, MP4.dfLa(meta));
     }
 
-    static dfLa(meta) {
+    static dfLa(meta: MP4Metadata): Uint8Array {
         let data = new Uint8Array([
             0x00, 0x00, 0x00, 0x00, // version, flag
             ... meta.codecConfig
@@ -650,7 +653,7 @@ class MP4 {
         return MP4.box(MP4.types.dfLa, data);
     }
 
-    static ipcm(meta) {
+    static ipcm(meta: MP4Metadata): Uint8Array {
         let channelCount = meta.channelCount;
         let sampleRate = Math.min(meta.audioSampleRate, 65535);
         let bitsPerSample = meta.bitsPerSample;
@@ -675,7 +678,7 @@ class MP4 {
         }
     }
 
-    static chnl(meta) {
+    static chnl(meta: MP4Metadata): Uint8Array {
         let data = new Uint8Array([
             0x00, 0x00, 0x00, 0x00, // version, flag
             0x01, // Channel Based Layout
@@ -685,7 +688,7 @@ class MP4 {
         return MP4.box(MP4.types.chnl, data);
     }
 
-    static pcmC(meta) {
+    static pcmC(meta: MP4Metadata): Uint8Array {
         let littleEndian = meta.littleEndian ? 0x01 : 0x00
         let bitsPerSample = meta.bitsPerSample;
         let data = new Uint8Array([
@@ -695,7 +698,7 @@ class MP4 {
         return MP4.box(MP4.types.pcmC, data);
     }
 
-    static avc1(meta) {
+    static avc1(meta: MP4Metadata): Uint8Array {
         let avcc = meta.codecConfig;
         let width = meta.codecWidth, height = meta.codecHeight;
 
@@ -729,7 +732,7 @@ class MP4 {
         return MP4.box(MP4.types.avc1, data, MP4.box(MP4.types.avcC, avcc));
     }
 
-    static hvc1(meta) {
+    static hvc1(meta: MP4Metadata): Uint8Array {
         let hvcc = meta.codecConfig;
         let width = meta.codecWidth, height = meta.codecHeight;
 
@@ -763,15 +766,15 @@ class MP4 {
         return MP4.box(MP4.types.hvc1, data, MP4.box(MP4.types.hvcC, hvcc));
     }
 
-    static buildVp9CodecConfig(meta) {
-        const profile = Number.isFinite(Number(meta.profile)) ? Number(meta.profile) : 0;     // 0..3
-        const level = Number.isFinite(Number(meta.level)) ? Number(meta.level) : 10;           // e.g., 10, 11, 20...
-        const bitDepth = Number.isFinite(meta.bitDepth) ? meta.bitDepth : 8;            // 8/10/12
-        const chromaSubsampling = Number.isFinite(meta.chromaFormat) ? meta.chromaFormat : 1; // 0=420 vertical,1=420 colocated,2=422,3=444
-        const colorRange = meta.colorRange ? 1 : 0;                                     // 0=limited,1=full
-        const colourPrimaries = Number.isFinite(meta.colourPrimaries) ? meta.colourPrimaries : 1;          // 1=BT.709
-        const transferCharacteristics = Number.isFinite(meta.transferCharacteristics) ? meta.transferCharacteristics : 1; // 1=BT.709
-        const matrixCoefficients = Number.isFinite(meta.matrixCoefficients) ? meta.matrixCoefficients : 1; // 1=BT.709
+    static buildVp9CodecConfig(meta: MP4Metadata): Uint8Array {
+        const profile = Number.isFinite(Number(meta.profile)) ? Number(meta.profile) : 0;                                   // 0..3
+        const level = Number.isFinite(Number(meta.level)) ? Number(meta.level) : 10;                                        // e.g., 10, 11, 20...
+        const bitDepth = Number.isFinite(meta.bitDepth) ? meta.bitDepth : 8;                                                // 8/10/12
+        const chromaSubsampling = Number.isFinite(meta.chromaFormat) ? meta.chromaFormat : 1;                               // 0=420 vertical,1=420 colocated,2=422,3=444
+        const colorRange = meta.colorRange ? 1 : 0;                                                                         // 0=limited,1=full
+        const colourPrimaries = Number.isFinite(meta.colourPrimaries) ? meta.colourPrimaries : 1;                           // 1=BT.709
+        const transferCharacteristics = Number.isFinite(meta.transferCharacteristics) ? meta.transferCharacteristics : 1;   // 1=BT.709
+        const matrixCoefficients = Number.isFinite(meta.matrixCoefficients) ? meta.matrixCoefficients : 1;                  // 1=BT.709
 
         return new Uint8Array([
             0x01, 0x00, 0x00, 0x00,             // FullBox: version=1, flags=0
@@ -791,7 +794,7 @@ class MP4 {
     //   [0]=version, [1..3]=flags(0), [4]=profile, [5]=level, [6]=packed,
     //   [7]=colourPrimaries, [8]=transferCharacteristics, [9]=matrixCoefficients,
     //   [10..11]=codecInitializationDataSize.
-    static normalizeVp9CodecConfig(codecConfig) {
+    static normalizeVp9CodecConfig(codecConfig: Uint8Array): Uint8Array | null {
         const VPCC_RECORD_LENGTH = 12; // 4-byte FullBox header + 8-byte record (no init data)
         const vpcc = new Uint8Array(codecConfig);
 
@@ -827,7 +830,7 @@ class MP4 {
         return null;
     }
 
-    static vp09(meta) {
+    static vp09(meta: MP4Metadata): Uint8Array {
         let vpcc = meta.codecConfig
             ? MP4.normalizeVp9CodecConfig(meta.codecConfig)
             : null;
@@ -875,7 +878,7 @@ class MP4 {
         return MP4.box(MP4.types.vp09, data, ...children);
     }
 
-    static colr(meta) {
+    static colr(meta: MP4Metadata): Uint8Array | null {
         const colourPrimaries = meta.colourPrimaries;
         const transferCharacteristics = meta.transferCharacteristics;
         const matrixCoefficients = meta.matrixCoefficients;
@@ -885,7 +888,7 @@ class MP4 {
         // in some renderers (green shadows / magenta highlights). Omit the box so
         // the decoder applies its own default, matching the WebM path and the
         // prior MP4 behavior.
-        const isSpecified = (v) => Number.isFinite(v) && v !== 2;
+        const isSpecified = (v: number) => Number.isFinite(v) && v !== 2;
         if (
             !isSpecified(colourPrimaries) ||
             !isSpecified(transferCharacteristics) ||
@@ -909,7 +912,7 @@ class MP4 {
         return MP4.box(MP4.types.colr, data);
     }
 
-    static av01(meta) {
+    static av01(meta: MP4Metadata): Uint8Array {
         let av1c = meta.codecConfig;
         let width = meta.codecWidth || 192, height = meta.codecHeight || 108;
 
@@ -944,12 +947,12 @@ class MP4 {
     }
 
     // Movie Extends box
-    static mvex(meta) {
+    static mvex(meta: MP4Metadata): Uint8Array {
         return MP4.box(MP4.types.mvex, MP4.trex(meta));
     }
 
     // Track Extends box
-    static trex(meta) {
+    static trex(meta: MP4Metadata): Uint8Array {
         let trackId = meta.trackId;
         let data = new Uint8Array([
             0x00, 0x00, 0x00, 0x00,  // version(0) + flags
@@ -966,11 +969,11 @@ class MP4 {
     }
 
     // Movie fragment box
-    static moof(track, baseMediaDecodeTime) {
+    static moof(track: MP4Track, baseMediaDecodeTime: number): Uint8Array {
         return MP4.box(MP4.types.moof, MP4.mfhd(track.sequenceNumber), MP4.traf(track, baseMediaDecodeTime));
     }
 
-    static mfhd(sequenceNumber) {
+    static mfhd(sequenceNumber: number): Uint8Array {
         let data = new Uint8Array([
             0x00, 0x00, 0x00, 0x00,
             (sequenceNumber >>> 24) & 0xFF,  // sequence_number: int32
@@ -982,7 +985,7 @@ class MP4 {
     }
 
     // Track fragment box
-    static traf(track, baseMediaDecodeTime) {
+    static traf(track: MP4Track, baseMediaDecodeTime: number): Uint8Array {
         let trackId = track.id;
 
         // Track fragment header box
@@ -1008,7 +1011,7 @@ class MP4 {
     }
 
     // Sample Dependency Type box
-    static sdtp(track) {
+    static sdtp(track: MP4Track): Uint8Array {
         let frames = track.frames || [];
         let frameCount = frames.length;
         let data = new Uint8Array(4 + frameCount);
@@ -1024,7 +1027,7 @@ class MP4 {
     }
 
     // Track fragment run box
-    static trun(track, offset) {
+    static trun(track: MP4Track, offset: number): Uint8Array {
         let frames = track.frames || [];
         let frameCount = frames.length;
         let hasCompositionOffsets = false;
@@ -1090,7 +1093,7 @@ class MP4 {
         return MP4.box(MP4.types.trun, data);
     }
 
-    static mdat(data) {
+    static mdat(data: Uint8Array): Uint8Array {
         return MP4.box(MP4.types.mdat, data);
     }
 
