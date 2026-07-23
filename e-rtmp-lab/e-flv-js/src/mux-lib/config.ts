@@ -118,9 +118,49 @@ export const defaultConfig = {
 
     // Referrer policy for fetch requests
     referrerPolicy: undefined
-} as const;
+} as const satisfies PlayerConfig;
 
 export type ConfigOptions = typeof defaultConfig;
+
+type Constructor = new (...args: any[]) => any;
+
+// Public configuration accepted by createPlayer(). Keep this explicit rather
+// than deriving it from defaultConfig so the API remains readable and defaults
+// such as `undefined` retain their intended override types.
+export interface PlayerConfig {
+    enableWorker?: boolean;
+    enableWorkerForMSE?: boolean;
+    enableStashBuffer?: boolean;
+    stashInitialSize?: number;
+    isLive?: boolean;
+    liveBufferLatencyChasing?: boolean;
+    liveBufferLatencyChasingOnPaused?: boolean;
+    liveBufferLatencyMaxLatency?: number;
+    liveBufferLatencyMinRemain?: number;
+    liveSync?: boolean;
+    liveSyncMaxLatency?: number;
+    liveSyncTargetLatency?: number;
+    liveSyncPlaybackRate?: number;
+    lazyLoad?: boolean;
+    lazyLoadMaxDuration?: number;
+    lazyLoadRecoverDuration?: number;
+    deferLoadAfterSourceOpen?: boolean;
+    autoCleanupMaxBackwardDuration?: number;
+    autoCleanupMinBackwardDuration?: number;
+    autoCleanupSourceBuffer?: boolean;
+    statisticsInfoReportInterval?: number;
+    fixAudioTimestampGap?: boolean;
+    accurateSeek?: boolean;
+    seekType?: 'range' | 'param' | 'custom';
+    seekParamStart?: string;
+    seekParamEnd?: string;
+    rangeLoadZeroStart?: boolean;
+    customSeekHandler?: Constructor;
+    reuseRedirectedURL?: boolean;
+    headers?: Record<string, string>;
+    customLoader?: Constructor;
+    referrerPolicy?: ReferrerPolicy;
+}
 
 export function createDefaultConfig(): ConfigOptions {
     return { ...defaultConfig };
