@@ -3442,7 +3442,7 @@ export class FLVDemuxer {
                 mi.sarNum = meta.sarRatio.width;
                 mi.sarDen = meta.sarRatio.height;
 
-                Log.v(FLVDemuxer.TAG, `VP9 keyframe dimensions: ${meta.codecWidth}x${meta.codecHeight}, render: ${meta.presentWidth}x${meta.presentHeight}`);
+                //Log.v(FLVDemuxer.TAG, `VP9 keyframe dimensions: ${meta.codecWidth}x${meta.codecHeight}, render: ${meta.presentWidth}x${meta.presentHeight}`);
             }
         }
 
