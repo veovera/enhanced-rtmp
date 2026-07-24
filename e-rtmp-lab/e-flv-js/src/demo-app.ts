@@ -185,7 +185,7 @@ function initLayout() {
   useWebMCheckbox.checked = true;
   useWebMLabel.textContent = '';
   useWebMLabel.appendChild(useWebMCheckbox);
-  useWebMLabel.append('Use WebM (valid for AV1/Opus codecs)');
+  useWebMLabel.append('Prefer WebM when compatible');
 
   // Append the button to the controlsDiv
   controlsDiv.appendChild(fileSelect);
