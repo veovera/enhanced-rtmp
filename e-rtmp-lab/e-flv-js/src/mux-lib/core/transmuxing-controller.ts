@@ -15,13 +15,15 @@ import Log from '../utils/logger.js';
 import Browser from '../utils/browser.js';
 import MediaInfo from './media-info.js';
 import FLVDemuxer from '../demux/flv-demuxer.js';
-import type { FlvProbeSuccess } from '../demux/flv-demuxer.js';
+import { VideoCodecType } from '../demux/flv-demuxer.js';
+import type { AudioMetadata, AudioTrack, FlvProbeSuccess, VideoMetadata, VideoTrack } from '../demux/flv-demuxer.js';
 import MP4Remuxer from '../remux/mp4-remuxer.js';
 import { WebMRemuxer } from '../remux/webm-remuxer.js';
 import DemuxErrors from '../demux/demux-errors.js';
 import IOController from '../io/io-controller.js';
 import TransmuxingEvents from './transmuxing-events';
 import { ConfigOptions } from '../config.js';
+import { RemuxerType, TrackType } from '../remux/remuxer.js';
 import { SCTE35Data } from '../demux/scte35.js';
 import { SMPTE2038Data } from '../demux/smpte2038.js';
 import { KLVData } from '../demux/klv.js';
@@ -39,6 +41,11 @@ class TransmuxingController {
     private _demuxer: FLVDemuxer | null = null;
     private _mediaInfo: MediaInfo | null = null;
     private _ioctl: IOController | null = null;
+    private _hasAudioTrack: boolean = false;
+    private _hasVideoTrack: boolean = false;
+    // Locked after initial metadata has selected the single remuxer used for this playback.
+    private _hasSelectedRemuxerForCodecs: boolean = false;
+    private _pendingTrackMetadata: Array<AudioMetadata | VideoMetadata> = [];
     private _pendingSeekTime: number | null = null;
     private _pendingResolveSeekPoint: number | null = null;
     private _statisticsReporter: number | null = null;
@@ -64,11 +71,7 @@ class TransmuxingController {
         }
 
         this._mediaDataSource = mediaDataSource;
-        if (this._mediaDataSource.useWebM) {
-            this._remuxer = new WebMRemuxer(config);
-        } else {
-            this._remuxer = new MP4Remuxer(config);
-        }
+        this._remuxer = this._createRemuxer(this._getPreferredRemuxerType());
 
         let totalDuration = 0;
 
@@ -88,6 +91,130 @@ class TransmuxingController {
         if (!isNaN(totalDuration) && this._mediaDataSource.duration !== totalDuration) {
             this._mediaDataSource.duration = totalDuration;
         }
+    }
+
+    /**
+     * Remuxer selection strategy (Chrome scope)
+     *
+     * `preferWebM` is a per-track preference, not a requirement that every track
+     * in a playback use the same container.  A playback may therefore use both
+     * remuxers: for example, VP9 video may be WebM while AAC audio is MP4.
+     *
+     * Select a track's remuxer when its first codec-bearing FLV packet is
+     * encountered.  That packet may be either a codec sequence header /
+     * configuration record or a media frame.  If a media frame arrives before
+     * the configuration record required to initialize the selected container,
+     * buffer it; configuration ordering and validity are demuxer concerns.
+     *
+     * | Track             | `preferWebM` | no `preferWebM` |
+     * |-------------------|--------------|-----------------|
+     * | AVC / HEVC video  | MP4          | MP4             |
+     * | AV1 video         | WebM         | MP4             |
+     * | VP9 video         | WebM         | WebM            |
+     * | AAC audio         | MP4          | MP4             |
+     * | Opus audio        | WebM         | MP4             |
+     *
+     * VP8 will follow the VP9 policy after VP8 E-FLV parsing and WebM remuxing
+     * support are implemented.
+     *
+     * A track retains its selected container for the playback session.  A
+     * later sequence-header change may reinitialize the same container, but
+     * does not change it from MP4 to WebM or vice versa.  Coordinated container
+     * switching is intentionally a future feature: it needs to drain the old
+     * output, replace the relevant SourceBuffer, append a new init segment, and
+     * resume from an appropriate keyframe.
+     *
+     * The current controller still owns one remuxer for all tracks.  Evolving
+     * it to realize this policy requires separate audio/video remuxer routing.
+     */
+    private _getPreferredRemuxerType(): RemuxerType {
+        return this._config.preferWebM ? 'webm' : 'mp4';
+    }
+
+    private _getCurrentRemuxerType(): RemuxerType {
+        return this._remuxer instanceof WebMRemuxer ? 'webm' : 'mp4';
+    }
+
+    private _createRemuxer(type: RemuxerType): MP4Remuxer | WebMRemuxer {
+        return type === 'webm' ? new WebMRemuxer(this._config) : new MP4Remuxer(this._config);
+    }
+
+    private _isWebMCompatibleAudio(metadata: AudioMetadata): boolean {
+        return metadata.codec === 'opus';
+    }
+
+    private _requiresWebMRemuxer(metadata: AudioMetadata | VideoMetadata): boolean {
+        return metadata.type === TrackType.Video && metadata.codecType === VideoCodecType.Vp9;
+    }
+
+    private _selectRemuxerType(metadata: Array<AudioMetadata | VideoMetadata>): RemuxerType {
+        const videoMetadata = metadata.find((track) => track.type === TrackType.Video) as VideoMetadata | undefined;
+        const audioMetadata = metadata.find((track) => track.type === TrackType.Audio) as AudioMetadata | undefined;
+
+        if (videoMetadata) {
+            let selectedType: RemuxerType;
+            switch (videoMetadata.codecType) {
+                case VideoCodecType.Avc:
+                case VideoCodecType.Hevc:
+                case VideoCodecType.Vp8:
+                    selectedType = 'mp4';
+                    break;
+                case VideoCodecType.Vp9:
+                    selectedType = 'webm';
+                    break;
+                case VideoCodecType.Av1:
+                    selectedType = this._getPreferredRemuxerType();
+                    break;
+                default:
+                    selectedType = this._getCurrentRemuxerType();
+            }
+
+            // WebM output must be compatible with every selected track, not
+            // just the video codec. For example, AAC cannot be remuxed as WebM.
+            if (selectedType === 'webm' && audioMetadata && !this._isWebMCompatibleAudio(audioMetadata)) {
+                return 'mp4';
+            }
+            return selectedType;
+        }
+
+        return this._getPreferredRemuxerType() === 'webm' && audioMetadata && this._isWebMCompatibleAudio(audioMetadata) ? 'webm' : 'mp4';
+    }
+
+    private _bindRemuxerToDemuxer() {
+        if (!this._demuxer) {
+            return;
+        }
+
+        this._demuxer.remuxer = this._remuxer;
+        this._demuxer.onTrackData = this._onTrackData.bind(this);
+        this._demuxer.onTrackMetadata = this._onTrackMetadata.bind(this);
+        this._remuxer.onInitSegment = this._onRemuxerInitSegmentArrival.bind(this);
+        this._remuxer.onMediaSegment = this._onRemuxerMediaSegmentArrival.bind(this);
+    }
+
+    private _switchRemuxerIfNeeded(metadata: Array<AudioMetadata | VideoMetadata>) {
+        const selectedType = this._selectRemuxerType(metadata);
+        const currentType = this._getCurrentRemuxerType();
+        const selectedMetadata = metadata.find((track) => track.type === TrackType.Video) ?? metadata[0];
+
+        if (selectedType === currentType) {
+            return;
+        }
+
+        if (this._getPreferredRemuxerType() === 'webm' && selectedType === 'mp4') {
+            Log.i(this.TAG, `Using MP4 remuxer because ${selectedMetadata.codec || 'unknown'} ${selectedMetadata.type} is not WebM-compatible`);
+        } else if (this._getPreferredRemuxerType() === 'mp4' && selectedType === 'webm' && this._requiresWebMRemuxer(selectedMetadata)) {
+            Log.i(this.TAG, `Using WebM remuxer because ${selectedMetadata.codec || 'unknown'} ${selectedMetadata.type} is not reliable in MP4 MSE`);
+        }
+        Log.i(this.TAG, `Switching remuxer from ${currentType} to ${selectedType} for ${selectedMetadata.codec || 'unknown'} track`);
+        this._remuxer.destroy();
+        this._remuxer = this._createRemuxer(selectedType);
+        this._bindRemuxerToDemuxer();
+    }
+
+    private _hasMetadataForAllTracks(): boolean {
+        return (!this._hasAudioTrack || this._pendingTrackMetadata.some((track) => track.type === TrackType.Audio)) &&
+            (!this._hasVideoTrack || this._pendingTrackMetadata.some((track) => track.type === TrackType.Video));
     }
 
     destroy() {
@@ -269,26 +396,23 @@ class TransmuxingController {
     }
 
     _setupFLVDemuxerRemuxer(probeData: FlvProbeSuccess) {
-        // !!@ should useWebM be a config option? see this._config?
-        if (!this._remuxer) {
-            if (this._mediaDataSource.useWebM) {
-                this._remuxer = new WebMRemuxer(this._config);
-            } else {
-                this._remuxer = new MP4Remuxer(this._config);
-            }
-        }
-
         this._demuxer = new FLVDemuxer(probeData, this._config, this._remuxer);
 
         let mds = this._mediaDataSource;
+        this._hasAudioTrack = probeData.hasAudioTrack;
+        this._hasVideoTrack = probeData.hasVideoTrack;
+        this._hasSelectedRemuxerForCodecs = false;
+        this._pendingTrackMetadata = [];
         if (mds.duration != undefined && !isNaN(mds.duration)) {
             this._demuxer.overridedDuration = mds.duration;
         }
         if (typeof mds.hasAudio === 'boolean') {
             this._demuxer.overridedHasAudio = mds.hasAudio;
+            this._hasAudioTrack = mds.hasAudio && probeData.hasAudioTrack;
         }
         if (typeof mds.hasVideo === 'boolean') {
             this._demuxer.overridedHasVideo = mds.hasVideo;
+            this._hasVideoTrack = mds.hasVideo && probeData.hasVideoTrack;
         }
 
         this._demuxer.timestampBase = mds.segments[this._currentSegmentIndex].timestampBase;
@@ -298,10 +422,42 @@ class TransmuxingController {
         this._demuxer.onScriptMetadata = this._onScriptMetadata.bind(this);
         this._demuxer.onScriptData = this._onScriptData.bind(this);
 
-        //!!@ _remuxer has a reference to _demuxer, so we need to bind them together?
-        this._remuxer.bindDataSource(this._demuxer.bindDataSource(this._ioctl!));
-        this._remuxer.onInitSegment = this._onRemuxerInitSegmentArrival.bind(this);
-        this._remuxer.onMediaSegment = this._onRemuxerMediaSegmentArrival.bind(this);
+        this._demuxer.bindDataSource(this._ioctl!);
+        this._bindRemuxerToDemuxer();
+    }
+
+    _onTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack) {
+        // Video metadata can change the remuxer choice, so do not pass frames
+        // through the initial/default remuxer until that choice is locked.
+        if (this._hasVideoTrack && !this._hasSelectedRemuxerForCodecs) {
+            return;
+        }
+
+        this._remuxer.remuxTrackData(audioTrack, videoTrack);
+    }
+
+    _onTrackMetadata(metadata: AudioMetadata | VideoMetadata) {
+        if (!this._hasSelectedRemuxerForCodecs) {
+            // Wait for all expected track metadata before choosing a remuxer;
+            // WebM compatibility depends on both video codec and audio codec.
+            this._pendingTrackMetadata.push(metadata);
+
+            if (!this._hasMetadataForAllTracks()) {
+                return;
+            }
+
+            this._switchRemuxerIfNeeded(this._pendingTrackMetadata);
+            this._hasSelectedRemuxerForCodecs = true;
+
+            // remuxTrackMetadata() may emit init segments, so the remuxer must
+            // already be selected before flushing the buffered metadata.
+            while (this._pendingTrackMetadata.length > 0) {
+                this._remuxer.remuxTrackMetadata(this._pendingTrackMetadata.shift()!);
+            }
+            return;
+        }
+
+        this._remuxer.remuxTrackMetadata(metadata);
     }
 
     //!!@ is this ever called?

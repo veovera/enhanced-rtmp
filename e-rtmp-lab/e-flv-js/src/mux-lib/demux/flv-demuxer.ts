@@ -811,7 +811,7 @@ export interface AudioMetadata {
     refFrameDuration: number;
 }
 
-const audioMetadataDefault: AudioMetadata = {
+const audioMetadataDefault = {
     type: TrackType.Audio,
     codecType: AudioCodecType.Unknown,
     codec: '',                          // unknown 
@@ -829,7 +829,7 @@ const audioMetadataDefault: AudioMetadata = {
     bitsPerSample: NaN,
     littleEndian: false,
     refFrameDuration: NaN,
-}
+} as const satisfies AudioMetadata;
 
 export enum VideoCodecType {
     Unknown     = 0,
@@ -867,7 +867,7 @@ export interface VideoMetadata {
     refFrameDuration: number;
 }
 
-const videoMetadataDefault: VideoMetadata = {
+const videoMetadataDefault = {
     type: TrackType.Video,
     codecType: VideoCodecType.Unknown,
     codec: '',                          // unknown
@@ -890,7 +890,7 @@ const videoMetadataDefault: VideoMetadata = {
     sarRatio: { width: NaN, height: NaN },
     frameRate: { fixed: false, fps: NaN, fps_num: NaN, fps_den: NaN },
     refFrameDuration: NaN,
-}
+} as const satisfies VideoMetadata;
 
 export interface VideoFrame {
     units: VideoUnit[],                 // The actual video data units (e.g., NAL units for H.264)
@@ -1118,6 +1118,10 @@ export class FLVDemuxer {
     bindDataSource(loader: IOController) {
         loader.onDataArrival = this.parseChunks.bind(this);
         return this;
+    }
+
+    set remuxer(remuxer: Remuxer) {
+        this._remuxer = remuxer;
     }
 
     get onTrackMetadata() {

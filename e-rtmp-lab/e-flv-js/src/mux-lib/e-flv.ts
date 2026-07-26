@@ -29,26 +29,23 @@ interface MediaDataSource {
     [key: string]: unknown;
 }
 
-// `unknown` keeps this JavaScript-facing API boundary honest: callers can pass
-// any value at runtime, so validate it before treating it as a MediaDataSource.
-// factory method
-function createPlayer(mediaDataSource: unknown, optionalConfig?: PlayerConfig): MSEPlayer | NativePlayer {
+function createPlayer(mediaDataSource: MediaDataSource, optionalConfig?: PlayerConfig): MSEPlayer | NativePlayer {
+    // TypeScript callers get the MediaDataSource shape at compile time, but
+    // keep this guard for JavaScript callers and TypeScript `any` boundaries.
     if (mediaDataSource == null || typeof mediaDataSource !== 'object') {
         throw new InvalidArgumentException('MediaDataSource must be a javascript object!');
     }
 
-    const mds = mediaDataSource as MediaDataSource;
-
-    if (typeof mds.type !== 'string' || mds.type === '') {
+    if (typeof mediaDataSource.type !== 'string' || mediaDataSource.type === '') {
         throw new InvalidArgumentException('MediaDataSource must include a non-empty string type field!');
     }
 
-    switch (mds.type) {
+    switch (mediaDataSource.type) {
         case 'mse':
         case 'flv':
-            return new MSEPlayer(mds, optionalConfig);
+            return new MSEPlayer(mediaDataSource, optionalConfig);
         default:
-            return new NativePlayer(mds, optionalConfig);
+            return new NativePlayer(mediaDataSource, optionalConfig);
     }
 }
 

@@ -12,8 +12,8 @@ const hasAudioLabel: HTMLLabelElement = document.createElement('label');
 const hasAudioCheckbox: HTMLInputElement = document.createElement('input');
 const hasVideoLabel: HTMLLabelElement = document.createElement('label');
 const hasVideoCheckbox: HTMLInputElement = document.createElement('input');
-const useWebMLabel: HTMLLabelElement = document.createElement('label');
-const useWebMCheckbox: HTMLInputElement = document.createElement('input');
+const preferWebMLabel: HTMLLabelElement = document.createElement('label');
+const preferWebMCheckbox: HTMLInputElement = document.createElement('input');
 
 let videoElement: HTMLVideoElement;
 let player: MSEPlayer | NativePlayer | null = null;
@@ -180,19 +180,19 @@ function initLayout() {
   hasVideoLabel.appendChild(hasVideoCheckbox);
   hasVideoLabel.append('hasVideo');
 
-  useWebMCheckbox.type = 'checkbox';
-  useWebMCheckbox.id = 'useWebM';
-  useWebMCheckbox.checked = true;
-  useWebMLabel.textContent = '';
-  useWebMLabel.appendChild(useWebMCheckbox);
-  useWebMLabel.append('Prefer WebM when compatible');
+  preferWebMCheckbox.type = 'checkbox';
+  preferWebMCheckbox.id = 'preferWebM';
+  preferWebMCheckbox.checked = true;
+  preferWebMLabel.textContent = '';
+  preferWebMLabel.appendChild(preferWebMCheckbox);
+  preferWebMLabel.append('Prefer WebM when compatible');
 
   // Append the button to the controlsDiv
   controlsDiv.appendChild(fileSelect);
   controlsDiv.appendChild(createPlayerButton);
   controlsDiv.appendChild(hasAudioLabel);
   controlsDiv.appendChild(hasVideoLabel);
-  controlsDiv.appendChild(useWebMLabel);
+  controlsDiv.appendChild(preferWebMLabel);
   controlsDiv.appendChild(mseBuffersButton);
 
   document.body.appendChild(controlsDiv)
@@ -390,13 +390,13 @@ function createPlayer(): MSEPlayer | NativePlayer | null {
     hasVideo: hasVideoCheckbox.checked,
     cors: true,
     withCredentials: false,
-    useWebM: useWebMCheckbox.checked,
   };
 
   const config = {
-    enableStashBuffer: false,     // when true improves performance for network jitter
-    fixAudioTimestampGap: false,  // when true fixes gaps in audio timestamps to improve sync
-    rangeLoadZeroStart: true,     // Always start range requests from 0
+    enableStashBuffer: false,               // when true improves performance for network jitter
+    fixAudioTimestampGap: false,            // when true fixes gaps in audio timestamps to improve sync
+    rangeLoadZeroStart: true,               // Always start range requests from 0
+    preferWebM: preferWebMCheckbox.checked, // Prefer WebM format when compatible
   };
 
   const _player = eflv.createPlayer(mediaDataSource, config);

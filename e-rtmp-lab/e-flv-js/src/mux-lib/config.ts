@@ -117,7 +117,10 @@ export const defaultConfig = {
     customLoader: undefined,
 
     // Referrer policy for fetch requests
-    referrerPolicy: undefined
+    referrerPolicy: undefined,
+
+    // Prefer WebM format when compatible
+    preferWebM: false,
 } as const satisfies PlayerConfig;
 
 export type ConfigOptions = typeof defaultConfig;
@@ -160,6 +163,7 @@ export interface PlayerConfig {
     headers?: Record<string, string>;
     customLoader?: Constructor;
     referrerPolicy?: ReferrerPolicy;
+    preferWebM?: boolean;
 }
 
 export function createDefaultConfig(): ConfigOptions {

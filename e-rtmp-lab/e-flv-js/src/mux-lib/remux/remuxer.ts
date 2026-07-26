@@ -57,6 +57,14 @@ export abstract class Remuxer {
 
   abstract get timestampBase(): number | undefined;
 
+  remuxTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack): void {
+    this._onTrackData(audioTrack, videoTrack);
+  }
+
+  remuxTrackMetadata(metadata: AudioMetadata | VideoMetadata): void {
+    this._onTrackMetadata(metadata);
+  }
+
   // Callback properties
   abstract get onInitSegment(): Callback;
   abstract set onInitSegment(callback: Callback);   // !!@ define callback signature for type safety
