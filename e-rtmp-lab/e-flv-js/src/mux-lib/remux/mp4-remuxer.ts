@@ -17,7 +17,7 @@ import Browser from '../utils/browser.js';
 import { FrameInfo as FrameInfo, MediaSegmentInfo, MediaSegmentInfoList } from '../core/media-segment-info.js';
 import { MSEInitSegment, MSEMediaSegment, Remuxer, SegmentKind, TrackType } from './remuxer.js';
 import { Callback, assertCallback } from '../utils/common.js';
-import { AudioMetadata, AudioTrack, AudioFrame, VideoMetadata, VideoTrack, VideoFrame, VideoCodecType } from '../demux/flv-demuxer.js';
+import { AudioMetadata, AudioTrack, AudioFrame, VideoMetadata, VideoTrack, VideoFrame, VideoCodecKind } from '../demux/flv-demuxer.js';
 import AV1OBUParser from '../demux/av1-parser.js';
 import { ConfigOptions } from '../config.js';
 
@@ -273,7 +273,7 @@ export class MP4Remuxer extends Remuxer {
         } else {
             this._isVideoMetadataDispatched = true;
             this._videoMeta = metadata as VideoMetadata;
-            if (metadata.codecType === VideoCodecType.Vp9) {
+            if (metadata.codecKind === VideoCodecKind.Vp9) {
                 codec = getMp4Vp9CodecString(metadata);
             }
             metabox = MP4.generateInitSegment(this._getMp4Metadata(metadata));
@@ -757,7 +757,7 @@ export class MP4Remuxer extends Remuxer {
             this._videoStashedLastFrame = lastFrame;
         }
 
-        const isAv1 = this._videoMeta.codecType === VideoCodecType.Av1;
+        const isAv1 = this._videoMeta.codecKind === VideoCodecKind.Av1;
 
         let firstFrameOriginalDts = frames[0].dts - this._dtsBase;
 

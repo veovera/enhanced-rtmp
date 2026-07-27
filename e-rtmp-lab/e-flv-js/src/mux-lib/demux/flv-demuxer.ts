@@ -781,18 +781,20 @@ export interface AudioTrack {
     length: number;
 }
 
-enum AudioCodecType {
-    Unknown = 0,
-    Mp3 = 1,
-    Aac = 2,
-    Opus = 3,
-    Flac = 4,
-    Lpcm = 5,
-}
+export const AudioCodecKind = {
+    Unknown:    'unknown',
+    Mp3:        'mp3',
+    Aac:        'aac',
+    Opus:       'opus',
+    Flac:       'flac',
+    Lpcm:       'lpcm',
+} as const;
+
+export type AudioCodecKind = typeof AudioCodecKind[keyof typeof AudioCodecKind];
 
 export interface AudioMetadata {
     type: TrackType.Audio;
-    codecType: AudioCodecType;
+    codecKind: AudioCodecKind;
     codec: string;
     codecConfig?: Uint8Array;  // Audio specific config / codec private data
     aacChannelConfigWasInBand: boolean;
@@ -813,9 +815,9 @@ export interface AudioMetadata {
 
 const audioMetadataDefault = {
     type: TrackType.Audio,
-    codecType: AudioCodecType.Unknown,
-    codec: '',                          // unknown 
-    originalCodec: '',                  // unknown
+    codecKind: AudioCodecKind.Unknown,
+    codec: '',                          // not set until codec metadata is parsed
+    originalCodec: '',                  // not set until codec metadata is parsed
     aacChannelConfigWasInBand: false,
 
     trackId: NaN,
@@ -831,18 +833,20 @@ const audioMetadataDefault = {
     refFrameDuration: NaN,
 } as const satisfies AudioMetadata;
 
-export enum VideoCodecType {
-    Unknown     = 0,
-    Avc         = 1,
-    Hevc        = 2,
-    Vp8         = 3,
-    Vp9         = 4,
-    Av1         = 5,
-}
+export const VideoCodecKind = {
+    Unknown:    'unknown',
+    Avc:        'avc',
+    Hevc:       'hevc',
+    Vp8:        'vp8',
+    Vp9:        'vp9',
+    Av1:        'av1',
+} as const;
+
+export type VideoCodecKind = typeof VideoCodecKind[keyof typeof VideoCodecKind];
 
 export interface VideoMetadata {
     type: TrackType.Video;
-    codecType: VideoCodecType;
+    codecKind: VideoCodecKind;
     codec: string;
     av1Extra?: AV1Metadata;
     codecConfig?: Uint8Array;  // Holds avcc, hvcc, av1c, or vp9c data
@@ -869,7 +873,7 @@ export interface VideoMetadata {
 
 const videoMetadataDefault = {
     type: TrackType.Video,
-    codecType: VideoCodecType.Unknown,
+    codecKind: VideoCodecKind.Unknown,
     codec: '',                          // unknown
 
     trackId: NaN,
@@ -1555,7 +1559,7 @@ export class FLVDemuxer {
         }
 
         if (soundFormat === SoundFormat.Aac) {
-            meta.codecType = AudioCodecType.Aac;
+            meta.codecKind = AudioCodecKind.Aac;
             let aacData = this._parseLegacyAacAudioPacket(arrayBuffer, dataOffset + 1, dataSize - 1);
             if (aacData == undefined) {
                 return;
@@ -1623,7 +1627,7 @@ export class FLVDemuxer {
                 Log.e(FLVDemuxer.TAG, `Flv: Unsupported AAC data type ${aacData.packetType}`);
             }
         } else if (soundFormat === SoundFormat.Mp3) {
-            meta.codecType = AudioCodecType.Mp3;
+            meta.codecKind = AudioCodecKind.Mp3;
             if (!meta.codec) {
                 // We need metadata for mp3 audio track, extract info from frame header
                 let misc = this._parseLegacyMp3FrameData(arrayBuffer, dataOffset + 1, dataSize - 1, true);
@@ -1667,7 +1671,7 @@ export class FLVDemuxer {
             track.frames.push(mp3Sample);
             track.length += data.length;
         } else if (soundFormat === SoundFormat.LPcmLittleEndian) {
-            meta.codecType = AudioCodecType.Lpcm;
+            meta.codecKind = AudioCodecKind.Lpcm;
             if (!meta.codec) {
                 meta.audioSampleRate = soundRate;
                 meta.bitsPerSample = (soundSize + 1) * 8;
@@ -1961,8 +1965,8 @@ export class FLVDemuxer {
             return;
         }
 
-        if (meta.codecType !== AudioCodecType.Aac || !meta.codecConfig || meta.codecConfig.length < 2) {
-            log.v(`ignoring MultichannelConfig channelCount=${channelCount}, codecType=${AudioCodecType[meta.codecType] ?? meta.codecType} codecConfigLength=${meta.codecConfig?.length ?? 0}`);
+        if (meta.codecKind !== AudioCodecKind.Aac || !meta.codecConfig || meta.codecConfig.length < 2) {
+            log.v(`ignoring MultichannelConfig channelCount=${channelCount}, codecKind=${meta.codecKind} codecConfigLength=${meta.codecConfig?.length ?? 0}`);
             return;
         }
 
@@ -2031,7 +2035,7 @@ export class FLVDemuxer {
         }
 
         const meta = this._audioMetadata;
-        if (!meta?.codecConfig || meta.codecType !== AudioCodecType.Aac) {
+        if (!meta?.codecConfig || meta.codecKind !== AudioCodecKind.Aac) {
             return;
         }
 
@@ -2076,7 +2080,7 @@ export class FLVDemuxer {
                 duration: this._duration,
             };
         }
-        meta.codecType = AudioCodecType.Aac;
+        meta.codecKind = AudioCodecKind.Aac;
 
         if (packetType === AudioPacketType.SequenceStart) {
             // Enhanced FLV: payload is directly AudioSpecificConfig (no leading AACPacketType byte)
@@ -2167,7 +2171,7 @@ export class FLVDemuxer {
     }
 
     private _hasUsableOpusMetadata(): boolean {
-        return this._audioMetadata?.codecType === AudioCodecType.Opus && !!this._audioMetadata.codecConfig;
+        return this._audioMetadata?.codecKind === AudioCodecKind.Opus && !!this._audioMetadata.codecConfig;
     }
 
     /**
@@ -2251,7 +2255,7 @@ export class FLVDemuxer {
                 duration: this._duration, 
             }
         }
-        meta.codecType = AudioCodecType.Opus;
+        meta.codecKind = AudioCodecKind.Opus;
 
         if (meta.codecConfig) {
             if (buffersAreEqual(config, meta.codecConfig)) {
@@ -2341,7 +2345,7 @@ export class FLVDemuxer {
                 duration: this._duration,
             }
         }
-        meta.codecType = AudioCodecType.Flac;
+        meta.codecKind = AudioCodecKind.Flac;
 
         // METADATA_BLOCK_HEADER
         const payload = new Uint8Array(arrayBuffer, dataOffset, dataSize);
@@ -2719,7 +2723,7 @@ export class FLVDemuxer {
                 }
             }
         }
-        meta.codecType = VideoCodecType.Avc;
+        meta.codecKind = VideoCodecKind.Avc;
 
         let version = v.getUint8(0);  // configurationVersion
         let avcProfile = v.getUint8(1);  // avcProfileIndication
@@ -2886,7 +2890,7 @@ export class FLVDemuxer {
                 Log.w(FLVDemuxer.TAG, 'HEVCDecoderConfigurationRecord has been changed, re-generate initialization segment');
             }
         }
-        meta.codecType = VideoCodecType.Hevc;
+        meta.codecKind = VideoCodecKind.Hevc;
 
         let version = v.getUint8(0);  // configurationVersion
         let hevcProfile = v.getUint8(1) & 0x1F;  // hevcProfileIndication
@@ -3019,7 +3023,7 @@ export class FLVDemuxer {
             }
             meta = existingMeta;
         }
-        meta.codecType = VideoCodecType.Av1;
+        meta.codecKind = VideoCodecKind.Av1;
 
         const version = v.getUint8(0) & 0x7F;
 
@@ -3333,7 +3337,7 @@ export class FLVDemuxer {
             }
             meta = existingMeta;
         }
-        meta.codecType = VideoCodecType.Vp9;
+        meta.codecKind = VideoCodecKind.Vp9;
 
         // Detect format:
         //   12-byte FullBox format: version(1) + flags(3) + profile(1) + level(1) + ...

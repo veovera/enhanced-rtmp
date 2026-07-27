@@ -7,7 +7,7 @@
  */
 
 // web
-import { AudioFrame, AudioMetadata, VideoFrame, VideoMetadata, VideoCodecType } from "../demux/flv-demuxer.js";
+import { AudioFrame, AudioMetadata, VideoFrame, VideoMetadata, VideoCodecKind } from "../demux/flv-demuxer.js";
 import Log from "../utils/logger.js";
 import AV1OBUParser from "../demux/av1-parser.js";
 
@@ -211,14 +211,14 @@ function concatUint8Arrays(buffers: Uint8Array[]): Uint8Array {
   return result;
 }
 
-function GetCodecId(codecType: VideoCodecType): string {
-  switch (codecType) {
-    case VideoCodecType.Vp9:
+function GetCodecId(codecKind: VideoCodecKind): string {
+  switch (codecKind) {
+    case VideoCodecKind.Vp9:
       return "V_VP9";
-    case VideoCodecType.Av1:
+    case VideoCodecKind.Av1:
       return "V_AV1";
     default:
-      Log.a(WebMGenerator.TAG, `GetCodecId(): Unsupported codec ${VideoCodecType[codecType]}`);
+      Log.a(WebMGenerator.TAG, `GetCodecId(): Unsupported codec ${codecKind}`);
       return '' ; // should not reach here'';
   }
 }
@@ -302,7 +302,7 @@ export class WebMGenerator {
     const width = videoMetadata.codecWidth;
     const height = videoMetadata.codecHeight;
     const codecConfig = videoMetadata.codecConfig;
-    const codecPrivate = videoMetadata.codecType === VideoCodecType.Vp9 ? buildVp9CodecPrivate(videoMetadata) : codecConfig;
+    const codecPrivate = videoMetadata.codecKind === VideoCodecKind.Vp9 ? buildVp9CodecPrivate(videoMetadata) : codecConfig;
     const colourElement = buildVideoColourElement(videoMetadata);
 
     if (!codecPrivate) {
@@ -344,7 +344,7 @@ export class WebMGenerator {
         encodeElement(EbmlId.TrackNumber, writeUInt(1, 1)),         // Track ID (index)
         encodeElement(EbmlId.TrackUid, writeUInt(1, 1)),            // Globally unique ID
         encodeElement(EbmlId.TrackType, writeUInt(1, 1)),           // 1 = video track
-        encodeElement(EbmlId.CodecId, writeString(GetCodecId(videoMetadata.codecType))),        // Codec string
+        encodeElement(EbmlId.CodecId, writeString(GetCodecId(videoMetadata.codecKind))),        // Codec string
         encodeElement(EbmlId.CodecPrivate, codecPrivate),
         encodeElement(EbmlId.Video, concatUint8Arrays(videoElements)),
       ])
@@ -515,7 +515,7 @@ export class WebMGenerator {
    * @param refFrameDuration - Reference duration for BlockDuration (used with BlockGroup).
    * @returns A Uint8Array containing the complete WebM Cluster.
    */
-  static generateVideoCluster(frames: VideoFrame[], clusterFrameIndex: number, refFrameDuration: number, codecType: VideoCodecType): Uint8Array {
+  static generateVideoCluster(frames: VideoFrame[], clusterFrameIndex: number, refFrameDuration: number, codecKind: VideoCodecKind): Uint8Array {
     const clusterTimecodeValue = frames[clusterFrameIndex].dts;
     const clusterTimecode = encodeElement(EbmlId.Timecode, writeUIntAuto(clusterTimecodeValue));
     let nextClusterFrameIndex = 0;
@@ -555,7 +555,7 @@ export class WebMGenerator {
         header[2] = blockTimecode & 0xff;
         header[3] = isKeyframe ? 0x80 : 0x00;      // Flags: bit 7 is keyframe, bits 1-2 are lacing (set to 0 
         
-        const framePayload = codecType === VideoCodecType.Av1 ? AV1OBUParser.stripLeadingObuFraming(rawData!) : rawData!;
+        const framePayload = codecKind === VideoCodecKind.Av1 ? AV1OBUParser.stripLeadingObuFraming(rawData!) : rawData!;
         const simpleBlock = encodeElement(EbmlId.SimpleBlock, concatUint8Arrays([header, framePayload]));
         elements.push(simpleBlock);
         //Log.d(WebMGenerator.TAG, `generateVideoCluster() - simpleBlock: key=${isKeyframe}, dts=${dts}, blockTimecode=${blockTimecode}, framePayload.length=${framePayload.length}, simpleBlock.length=${simpleBlock.length}`);
@@ -567,7 +567,7 @@ export class WebMGenerator {
         header[2] = blockTimecode & 0xff;
         header[3] = isKeyframe ? 0x80 : 0x00;      // Flags: bit 7 is keyframe, bits 1-2 are lacing (set to 0)
 
-        const framePayload = codecType === VideoCodecType.Av1 ? AV1OBUParser.stripLeadingObuFraming(rawData!) : rawData!;
+        const framePayload = codecKind === VideoCodecKind.Av1 ? AV1OBUParser.stripLeadingObuFraming(rawData!) : rawData!;
         const block = encodeElement(EbmlId.Block, concatUint8Arrays([header, framePayload]));
         const blockDuration = encodeElement(EbmlId.BlockDuration, writeUInt(refFrameDuration, 4));
         const blockGroup = encodeElement(EbmlId.BlockGroup, concatUint8Arrays([block, blockDuration]));
@@ -577,7 +577,7 @@ export class WebMGenerator {
 
     if (nextClusterFrameIndex > 0) {
       const currentCluster = encodeElement(EbmlId.Cluster, concatUint8Arrays([clusterTimecode, ...elements]));
-      const nextCluster = WebMGenerator.generateVideoCluster(frames, nextClusterFrameIndex, refFrameDuration, codecType);
+      const nextCluster = WebMGenerator.generateVideoCluster(frames, nextClusterFrameIndex, refFrameDuration, codecKind);
       result = concatUint8Arrays([currentCluster, nextCluster]);
     } else {
       result = encodeElement(EbmlId.Cluster, concatUint8Arrays([clusterTimecode, ...elements]));

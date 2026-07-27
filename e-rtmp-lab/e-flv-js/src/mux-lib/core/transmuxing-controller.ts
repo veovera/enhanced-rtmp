@@ -15,7 +15,7 @@ import Log from '../utils/logger.js';
 import Browser from '../utils/browser.js';
 import MediaInfo from './media-info.js';
 import FLVDemuxer from '../demux/flv-demuxer.js';
-import { VideoCodecType } from '../demux/flv-demuxer.js';
+import { VideoCodecKind } from '../demux/flv-demuxer.js';
 import type { AudioMetadata, AudioTrack, FlvProbeSuccess, VideoMetadata, VideoTrack } from '../demux/flv-demuxer.js';
 import MP4Remuxer from '../remux/mp4-remuxer.js';
 import { WebMRemuxer } from '../remux/webm-remuxer.js';
@@ -139,7 +139,7 @@ class TransmuxingController {
     }
 
     private _requiresWebMRemuxer(metadata: AudioMetadata | VideoMetadata): boolean {
-        return metadata.type === TrackType.Video && metadata.codecType === VideoCodecType.Vp9;
+        return metadata.type === TrackType.Video && metadata.codecKind === VideoCodecKind.Vp9;
     }
 
     private _selectRemuxerType(metadata: Array<AudioMetadata | VideoMetadata>): RemuxerType {
@@ -148,16 +148,16 @@ class TransmuxingController {
 
         if (videoMetadata) {
             let selectedType: RemuxerType;
-            switch (videoMetadata.codecType) {
-                case VideoCodecType.Avc:
-                case VideoCodecType.Hevc:
-                case VideoCodecType.Vp8:
+            switch (videoMetadata.codecKind) {
+                case VideoCodecKind.Avc:
+                case VideoCodecKind.Hevc:
+                case VideoCodecKind.Vp8:
                     selectedType = 'mp4';
                     break;
-                case VideoCodecType.Vp9:
+                case VideoCodecKind.Vp9:
                     selectedType = 'webm';
                     break;
-                case VideoCodecType.Av1:
+                case VideoCodecKind.Av1:
                     selectedType = this._getPreferredRemuxerType();
                     break;
                 default:
