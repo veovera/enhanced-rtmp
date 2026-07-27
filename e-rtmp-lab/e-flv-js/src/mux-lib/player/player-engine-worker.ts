@@ -252,27 +252,6 @@ const PlayerEngineWorker = (self: DedicatedWorkerGlobalScope) => {
         transmuxer.on(TransmuxingEvents.TIMED_ID3_METADATA_ARRIVED, (timed_id3_metadata: any) => {
             emitPlayerEventsExtraData(PlayerEvents.TIMED_ID3_METADATA_ARRIVED, timed_id3_metadata);
         });
-        transmuxer.on(TransmuxingEvents.PGS_SUBTITLE_ARRIVED, (pgs_data: any) => {
-            emitPlayerEventsExtraData(PlayerEvents.PGS_SUBTITLE_ARRIVED, pgs_data);
-        });
-        transmuxer.on(TransmuxingEvents.SYNCHRONOUS_KLV_METADATA_ARRIVED, (synchronous_klv_metadata: any) => {
-            emitPlayerEventsExtraData(PlayerEvents.SYNCHRONOUS_KLV_METADATA_ARRIVED, synchronous_klv_metadata);
-        });
-        transmuxer.on(TransmuxingEvents.ASYNCHRONOUS_KLV_METADATA_ARRIVED, (asynchronous_klv_metadata: any) => {
-            emitPlayerEventsExtraData(PlayerEvents.ASYNCHRONOUS_KLV_METADATA_ARRIVED, asynchronous_klv_metadata);
-        });
-        transmuxer.on(TransmuxingEvents.SMPTE2038_METADATA_ARRIVED, (smpte2038_metadata: any) => {
-            emitPlayerEventsExtraData(PlayerEvents.SMPTE2038_METADATA_ARRIVED, smpte2038_metadata);
-        });
-        transmuxer.on(TransmuxingEvents.SCTE35_METADATA_ARRIVED, (scte35_metadata: any) => {
-            emitPlayerEventsExtraData(PlayerEvents.SCTE35_METADATA_ARRIVED, scte35_metadata);
-        });
-        transmuxer.on(TransmuxingEvents.PES_PRIVATE_DATA_DESCRIPTOR, (descriptor: any) => {
-            emitPlayerEventsExtraData(PlayerEvents.PES_PRIVATE_DATA_DESCRIPTOR, descriptor);
-        });
-        transmuxer.on(TransmuxingEvents.PES_PRIVATE_DATA_ARRIVED, (private_data: any) => {
-            emitPlayerEventsExtraData(PlayerEvents.PES_PRIVATE_DATA_ARRIVED, private_data);
-        });
 
         transmuxer.open();
     }

@@ -62,14 +62,7 @@ export type WorkerMessagePacketPlayerEventExtraData = WorkerMessagePacketPlayerE
     event:
         | PlayerEvents.METADATA_ARRIVED
         | PlayerEvents.SCRIPTDATA_ARRIVED
-        | PlayerEvents.TIMED_ID3_METADATA_ARRIVED
-        | PlayerEvents.PGS_SUBTITLE_ARRIVED
-        | PlayerEvents.SYNCHRONOUS_KLV_METADATA_ARRIVED
-        | PlayerEvents.ASYNCHRONOUS_KLV_METADATA_ARRIVED
-        | PlayerEvents.SMPTE2038_METADATA_ARRIVED
-        | PlayerEvents.SCTE35_METADATA_ARRIVED
-        | PlayerEvents.PES_PRIVATE_DATA_DESCRIPTOR
-        | PlayerEvents.PES_PRIVATE_DATA_ARRIVED,
+        | PlayerEvents.TIMED_ID3_METADATA_ARRIVED,
     extraData: any,
 };
 

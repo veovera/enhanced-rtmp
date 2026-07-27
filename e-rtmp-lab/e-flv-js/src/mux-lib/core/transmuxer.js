@@ -55,12 +55,6 @@ class Transmuxer {
             ctl.on(TransmuxingEvents.METADATA_ARRIVED, this._onScriptMetadata.bind(this));
             ctl.on(TransmuxingEvents.SCRIPTDATA_ARRIVED, this._onScriptData.bind(this));
             ctl.on(TransmuxingEvents.TIMED_ID3_METADATA_ARRIVED, this._onTimedID3MetadataArrived.bind(this));
-            ctl.on(TransmuxingEvents.SYNCHRONOUS_KLV_METADATA_ARRIVED, this._onSynchronousKLVMetadataArrived.bind(this));
-            ctl.on(TransmuxingEvents.ASYNCHRONOUS_KLV_METADATA_ARRIVED, this._onAsynchronousKLVMetadataArrived.bind(this));
-            ctl.on(TransmuxingEvents.SMPTE2038_METADATA_ARRIVED, this._onSMPTE2038MetadataArrived.bind(this));
-            ctl.on(TransmuxingEvents.SCTE35_METADATA_ARRIVED, this._onSCTE35MetadataArrived.bind(this));
-            ctl.on(TransmuxingEvents.PES_PRIVATE_DATA_DESCRIPTOR, this._onPESPrivateDataDescriptor.bind(this));
-            ctl.on(TransmuxingEvents.PES_PRIVATE_DATA_ARRIVED, this._onPESPrivateDataArrived.bind(this));
             ctl.on(TransmuxingEvents.STATISTICS_INFO, this._onStatisticsInfo.bind(this));
             ctl.on(TransmuxingEvents.RECOMMEND_SEEKPOINT, this._onRecommendSeekpoint.bind(this));
         }
@@ -183,48 +177,6 @@ class Transmuxer {
         });
     }
 
-    _onPGSSubtitleArrived (data) {
-        Promise.resolve().then(() => {
-            this._emitter.emit(TransmuxingEvents.PGS_SUBTITLE_ARRIVED, data);
-        });
-    }
-
-    _onSynchronousKLVMetadataArrived (data) {
-        Promise.resolve().then(() => {
-            this._emitter.emit(TransmuxingEvents.SYNCHRONOUS_KLV_METADATA_ARRIVED, data);
-        })
-    }
-
-    _onAsynchronousKLVMetadataArrived (data) {
-        Promise.resolve().then(() => {
-            this._emitter.emit(TransmuxingEvents.ASYNCHRONOUS_KLV_METADATA_ARRIVED, data);
-        })
-    }
-
-    _onSMPTE2038MetadataArrived (data) {
-        Promise.resolve().then(() => {
-            this._emitter.emit(TransmuxingEvents.SMPTE2038_METADATA_ARRIVED, data);
-        })
-    }
-
-    _onSCTE35MetadataArrived (data) {
-        Promise.resolve().then(() => {
-            this._emitter.emit(TransmuxingEvents.SCTE35_METADATA_ARRIVED, data);
-        })
-    }
-
-    _onPESPrivateDataDescriptor(data) {
-        Promise.resolve().then(() => {
-            this._emitter.emit(TransmuxingEvents.PES_PRIVATE_DATA_DESCRIPTOR, data);
-        });
-    }
-
-    _onPESPrivateDataArrived(data) {
-        Promise.resolve().then(() => {
-            this._emitter.emit(TransmuxingEvents.PES_PRIVATE_DATA_ARRIVED, data);
-        });
-    }
-
     _onStatisticsInfo(statisticsInfo) {
         Promise.resolve().then(() => {
             this._emitter.emit(TransmuxingEvents.STATISTICS_INFO, statisticsInfo);
@@ -282,13 +234,6 @@ class Transmuxer {
             case TransmuxingEvents.METADATA_ARRIVED:
             case TransmuxingEvents.SCRIPTDATA_ARRIVED:
             case TransmuxingEvents.TIMED_ID3_METADATA_ARRIVED:
-            case TransmuxingEvents.PGS_SUBTITLE_ARRIVED:
-            case TransmuxingEvents.SYNCHRONOUS_KLV_METADATA_ARRIVED:
-            case TransmuxingEvents.ASYNCHRONOUS_KLV_METADATA_ARRIVED:
-            case TransmuxingEvents.SMPTE2038_METADATA_ARRIVED:
-            case TransmuxingEvents.SCTE35_METADATA_ARRIVED:
-            case TransmuxingEvents.PES_PRIVATE_DATA_DESCRIPTOR:
-            case TransmuxingEvents.PES_PRIVATE_DATA_ARRIVED:
             case TransmuxingEvents.STATISTICS_INFO:
                 this._emitter.emit(message.msg, data);
                 break;

@@ -226,27 +226,6 @@ class PlayerEngineMainThread implements PlayerEngine {
         this._transmuxer.on(TransmuxingEvents.TIMED_ID3_METADATA_ARRIVED, (timed_id3_metadata: any) => {
             this._emitter?.emit(PlayerEvents.TIMED_ID3_METADATA_ARRIVED, timed_id3_metadata);
         });
-        this._transmuxer.on(TransmuxingEvents.PGS_SUBTITLE_ARRIVED, (pgs_data: any) => {
-            this._emitter?.emit(PlayerEvents.PGS_SUBTITLE_ARRIVED, pgs_data);
-        });
-        this._transmuxer.on(TransmuxingEvents.SYNCHRONOUS_KLV_METADATA_ARRIVED, (synchronous_klv_metadata: any) => {
-            this._emitter?.emit(PlayerEvents.SYNCHRONOUS_KLV_METADATA_ARRIVED, synchronous_klv_metadata);
-        });
-        this._transmuxer.on(TransmuxingEvents.ASYNCHRONOUS_KLV_METADATA_ARRIVED, (asynchronous_klv_metadata: any) => {
-            this._emitter?.emit(PlayerEvents.ASYNCHRONOUS_KLV_METADATA_ARRIVED, asynchronous_klv_metadata);
-        });
-        this._transmuxer.on(TransmuxingEvents.SMPTE2038_METADATA_ARRIVED, (smpte2038_metadata: any) => {
-            this._emitter?.emit(PlayerEvents.SMPTE2038_METADATA_ARRIVED, smpte2038_metadata);
-        });
-        this._transmuxer.on(TransmuxingEvents.SCTE35_METADATA_ARRIVED, (scte35_metadata: any) => {
-            this._emitter?.emit(PlayerEvents.SCTE35_METADATA_ARRIVED, scte35_metadata);
-        });
-        this._transmuxer.on(TransmuxingEvents.PES_PRIVATE_DATA_DESCRIPTOR, (descriptor: any) => {
-            this._emitter?.emit(PlayerEvents.PES_PRIVATE_DATA_DESCRIPTOR, descriptor);
-        });
-        this._transmuxer.on(TransmuxingEvents.PES_PRIVATE_DATA_ARRIVED, (private_data: any) => {
-            this._emitter?.emit(PlayerEvents.PES_PRIVATE_DATA_ARRIVED, private_data);
-        });
 
         this._seeking_handler = new SeekingHandler(
             this._config,

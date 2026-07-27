@@ -24,11 +24,6 @@ import IOController from '../io/io-controller.js';
 import TransmuxingEvents from './transmuxing-events';
 import { ConfigOptions } from '../config.js';
 import { RemuxerType, TrackType } from '../remux/remuxer.js';
-import { SCTE35Data } from '../demux/scte35.js';
-import { SMPTE2038Data } from '../demux/smpte2038.js';
-import { KLVData } from '../demux/klv.js';
-import { PGSData } from '../demux/pgs-data.js';
-import { PESPrivateData, PESPrivateDataDescriptor } from '../demux/pes-private-data.js';
 
 // Transmuxing (IO, Demuxing, Remuxing) controller, with multipart support
 class TransmuxingController {
@@ -508,97 +503,6 @@ class TransmuxingController {
         }
 
         this._emitter.emit(TransmuxingEvents.TIMED_ID3_METADATA_ARRIVED, timed_id3_metadata);
-    }
-
-    _onPGSSubtitle(pgs_data: PGSData) {
-        let timestamp_base = this._remuxer.timestampBase;
-        if (timestamp_base == undefined) { return; }
-
-        if (pgs_data.pts != undefined) {
-            pgs_data.pts -= timestamp_base;
-        }
-
-        if (pgs_data.dts != undefined) {
-            pgs_data.dts -= timestamp_base;
-        }
-
-        this._emitter.emit(TransmuxingEvents.PGS_SUBTITLE_ARRIVED, pgs_data);
-    }
-
-    _onSynchronousKLVMetadata(synchronous_klv_metadata: KLVData) {
-        let timestamp_base = this._remuxer.timestampBase;
-        if (timestamp_base == undefined) { return; }
-
-        if (synchronous_klv_metadata.pts != undefined) {
-            synchronous_klv_metadata.pts -= timestamp_base;
-        }
-
-        if (synchronous_klv_metadata.dts != undefined) {
-            synchronous_klv_metadata.dts -= timestamp_base;
-        }
-
-        this._emitter.emit(TransmuxingEvents.SYNCHRONOUS_KLV_METADATA_ARRIVED, synchronous_klv_metadata);
-    }
-
-    _onAsynchronousKLVMetadata(asynchronous_klv_metadata: PESPrivateData) {
-        this._emitter.emit(TransmuxingEvents.ASYNCHRONOUS_KLV_METADATA_ARRIVED, asynchronous_klv_metadata);
-    }
-
-    _onSMPTE2038Metadata(smpte2038_metadata: SMPTE2038Data) {
-        let timestamp_base = this._remuxer.timestampBase;
-        if (timestamp_base == undefined) { return; }
-
-        if (smpte2038_metadata.pts != undefined) {
-            smpte2038_metadata.pts -= timestamp_base;
-        }
-
-        if (smpte2038_metadata.dts != undefined) {
-            smpte2038_metadata.dts -= timestamp_base;
-        }
-
-        if (smpte2038_metadata.nearest_pts != undefined) {
-            smpte2038_metadata.nearest_pts -= timestamp_base;
-        }
-
-        this._emitter.emit(TransmuxingEvents.SMPTE2038_METADATA_ARRIVED, smpte2038_metadata);
-    }
-
-    _onSCTE35Metadata(scte35: SCTE35Data) {
-        let timestamp_base = this._remuxer.timestampBase;
-        if (timestamp_base == undefined) { return; }
-
-        if (scte35.pts != undefined) {
-            scte35.pts -= timestamp_base;
-        }
-
-        if (scte35.nearest_pts != undefined) {
-            scte35.nearest_pts -= timestamp_base;
-        }
-
-        this._emitter.emit(TransmuxingEvents.SCTE35_METADATA_ARRIVED, scte35);
-    }
-
-    _onPESPrivateDataDescriptor(descriptor: PESPrivateDataDescriptor) {
-        this._emitter.emit(TransmuxingEvents.PES_PRIVATE_DATA_DESCRIPTOR, descriptor);
-    }
-
-    _onPESPrivateData(private_data: PESPrivateData) {
-        let timestamp_base = this._remuxer.timestampBase;
-        if (timestamp_base == undefined) { return; }
-
-        if (private_data.pts != undefined) {
-            private_data.pts -= timestamp_base;
-        }
-
-        if (private_data.nearest_pts != undefined) {
-            private_data.nearest_pts -= timestamp_base;
-        }
-
-        if (private_data.dts != undefined) {
-            private_data.dts -= timestamp_base;
-        }
-
-        this._emitter.emit(TransmuxingEvents.PES_PRIVATE_DATA_ARRIVED, private_data);
     }
 
     _onIOSeeked() {

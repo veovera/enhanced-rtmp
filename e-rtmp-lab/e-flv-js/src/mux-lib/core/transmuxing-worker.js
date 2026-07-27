@@ -47,13 +47,6 @@ let TransmuxingWorker = function (self) {
                 controller.on(TransmuxingEvents.METADATA_ARRIVED, onScriptMetadata.bind(this));
                 controller.on(TransmuxingEvents.SCRIPTDATA_ARRIVED, onScriptData.bind(this));
                 controller.on(TransmuxingEvents.TIMED_ID3_METADATA_ARRIVED, onTimedID3MetadataArrived.bind(this));
-                controller.on(TransmuxingEvents.PGS_SUBTITLE_ARRIVED, onPGSSubtitleDataArrived.bind(this));
-                controller.on(TransmuxingEvents.SYNCHRONOUS_KLV_METADATA_ARRIVED, onSynchronousKLVMetadataArrived.bind(this));
-                controller.on(TransmuxingEvents.ASYNCHRONOUS_KLV_METADATA_ARRIVED, onAsynchronousKLVMetadataArrived.bind(this));
-                controller.on(TransmuxingEvents.SMPTE2038_METADATA_ARRIVED, onSMPTE2038MetadataArrived.bind(this));
-                controller.on(TransmuxingEvents.SCTE35_METADATA_ARRIVED, onSCTE35MetadataArrived.bind(this));
-                controller.on(TransmuxingEvents.PES_PRIVATE_DATA_DESCRIPTOR, onPESPrivateDataDescriptor.bind(this));
-                controller.on(TransmuxingEvents.PES_PRIVATE_DATA_ARRIVED, onPESPrivateDataArrived.bind(this));
                 controller.on(TransmuxingEvents.STATISTICS_INFO, onStatisticsInfo.bind(this));
                 controller.on(TransmuxingEvents.RECOMMEND_SEEKPOINT, onRecommendSeekpoint.bind(this));
                 break;
@@ -156,62 +149,6 @@ let TransmuxingWorker = function (self) {
     function onTimedID3MetadataArrived (data) {
         let obj = {
             msg: TransmuxingEvents.TIMED_ID3_METADATA_ARRIVED,
-            data: data
-        };
-        self.postMessage(obj);
-    }
-
-    function onPGSSubtitleDataArrived (data) {
-        let obj = {
-            msg: TransmuxingEvents.PGS_SUBTITLE_ARRIVED,
-            data: data
-        };
-        self.postMessage(obj);
-    }
-
-    function onSynchronousKLVMetadataArrived (data) {
-        let obj = {
-            msg: TransmuxingEvents.SYNCHRONOUS_KLV_METADATA_ARRIVED,
-            data: data
-        };
-        self.postMessage(obj);
-    }
-
-    function onAsynchronousKLVMetadataArrived (data) {
-        let obj = {
-            msg: TransmuxingEvents.ASYNCHRONOUS_KLV_METADATA_ARRIVED,
-            data: data
-        };
-        self.postMessage(obj);
-    }
-
-    function onSMPTE2038MetadataArrived (data) {
-        let obj = {
-            msg: TransmuxingEvents.SMPTE2038_METADATA_ARRIVED,
-            data: data
-        };
-        self.postMessage(obj);
-    }
-
-    function onSCTE35MetadataArrived (data) {
-        let obj = {
-            msg: TransmuxingEvents.SCTE35_METADATA_ARRIVED,
-            data: data
-        };
-        self.postMessage(obj);
-    }
-
-    function onPESPrivateDataDescriptor(data) {
-        let obj = {
-            msg: TransmuxingEvents.PES_PRIVATE_DATA_DESCRIPTOR,
-            data: data
-        };
-        self.postMessage(obj);
-    }
-
-    function onPESPrivateDataArrived(data) {
-        let obj = {
-            msg: TransmuxingEvents.PES_PRIVATE_DATA_ARRIVED,
             data: data
         };
         self.postMessage(obj);
