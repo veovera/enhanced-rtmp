@@ -2274,7 +2274,7 @@ export class FLVDemuxer {
         meta.inputSampleRate = inputSampleRate;
         meta.outputGain = outputGain;
         meta.refFrameDuration = 960 * meta.timescale / 48000;   // The default Opus packet is 20ms = 960 samples at 48 kHz
-        Log.v(FLVDemuxer.TAG, 'Parsed OpusSequenceHeader');
+        //Log.v(FLVDemuxer.TAG, 'Parsed OpusSequenceHeader');
 
         if (this._remuxer.isAudioMetadataDispatched) {
             // Non-initial metadata, force dispatch (or flush) parsed frames to remuxer
@@ -3417,10 +3417,10 @@ export class FLVDemuxer {
             this._onMediaInfo(mi);
         }
         meta.codecConfig = new Uint8Array(arrayBuffer, dataOffset, dataSize).slice();
-        Log.v(FLVDemuxer.TAG, `VP9 codecConfig: ${Array.from(meta.codecConfig).map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
+        //Log.v(FLVDemuxer.TAG, `VP9 codecConfig: ${Array.from(meta.codecConfig).map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
 
         this._dispatchVideoTrackMetadata(meta);
-        Log.v(FLVDemuxer.TAG, `Parsed VP9 codec configuration record: profile=${meta.profile} level=${meta.level}`);
+        //Log.v(FLVDemuxer.TAG, `Parsed VP9 codec configuration record: profile=${meta.profile} level=${meta.level}`);
     }
 
     private _parseVp9FrameData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: VideoFrameType, cts: number, track: VideoTrack) {

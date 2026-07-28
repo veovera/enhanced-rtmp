@@ -576,7 +576,7 @@ class MSEController {
 
                 try {
                     if (segment.kind === SegmentKind.Init) {
-                        Log.v(this.TAG, `_doAppendSegments: append init ${describeInitSegment(segment as MSEInitSegment)} pendingAudio=${pendingSegments.audio.length} pendingVideo=${pendingSegments.video.length}`);
+                        //Log.v(this.TAG, `_doAppendSegments: append init ${describeInitSegment(segment as MSEInitSegment)} pendingAudio=${pendingSegments.audio.length} pendingVideo=${pendingSegments.video.length}`);
                     }
                     // Log buffer info for debugging
                     if (MSEController.TRACE) {
