@@ -114,6 +114,9 @@ export class MP4Remuxer extends Remuxer {
 
         private _audioSegmentInfoList = new MediaSegmentInfoList(TrackType.Audio);
         private _videoSegmentInfoList = new MediaSegmentInfoList(TrackType.Video);
+        // When audio and video are remuxed by separate instances, the router
+        // supplies video history here for the seek-time silent-AAC workaround.
+        private _externalVideoSegmentInfoList: MediaSegmentInfoList | null = null;
 
         private _onInitSegment: Callback = assertCallback;
         private _onMediaSegment: Callback = assertCallback;
@@ -193,6 +196,14 @@ export class MP4Remuxer extends Remuxer {
 
     insertDiscontinuity() {
         this._audioNextDts = this._videoNextDts = Infinity;
+    }
+
+    setTimestampBase(timestampBase: number): void {
+        this._dtsBase = timestampBase;
+    }
+
+    setExternalVideoSegmentInfoList(segmentInfoList: MediaSegmentInfoList | null): void {
+        this._externalVideoSegmentInfoList = segmentInfoList;
     }
 
     clear() {
@@ -366,6 +377,17 @@ export class MP4Remuxer extends Remuxer {
         this._remuxAudio(audioTrack, true);
     }
 
+    flushPendingInitSegments(): void {
+        if (this._pendingVideoInitSegment) {
+            this._onInitSegment(TrackType.Video, this._pendingVideoInitSegment);
+            this._pendingVideoInitSegment = null;
+        }
+        if (this._pendingAudioInitSegment) {
+            this._onInitSegment(TrackType.Audio, this._pendingAudioInitSegment);
+            this._pendingAudioInitSegment = null;
+        }
+    }
+
     _remuxAudio(audioTrack: AudioTrack, force: boolean) {
         if (!this._audioMeta || audioTrack.frames.length === 0) {
             return;
@@ -440,7 +462,8 @@ export class MP4Remuxer extends Remuxer {
         } else {  // this._audioNextDts == Infinity
             if (this._audioSegmentInfoList.isEmpty()) {
                 dtsCorrection = 0;
-                if (this._fillSilentAfterSeek && !this._videoSegmentInfoList.isEmpty()) {
+                const videoSegmentInfoList = this._externalVideoSegmentInfoList ?? this._videoSegmentInfoList;
+                if (this._fillSilentAfterSeek && !videoSegmentInfoList.isEmpty()) {
                     if (this._audioMeta.originalCodec !== 'mp3') {
                         insertPrefixSilentFrame = true;
                     }
@@ -463,7 +486,8 @@ export class MP4Remuxer extends Remuxer {
         if (insertPrefixSilentFrame) {
             // align audio segment beginDts to match with current video segment's beginDts
             let firstFrameDts = firstFrameOriginalDts - dtsCorrection;
-            let videoSegment = this._videoSegmentInfoList.getLastSegmentBefore(firstFrameOriginalDts);
+            const videoSegmentInfoList = this._externalVideoSegmentInfoList ?? this._videoSegmentInfoList;
+            let videoSegment = videoSegmentInfoList.getLastSegmentBefore(firstFrameOriginalDts);
             if (videoSegment != null && videoSegment.beginDts < firstFrameDts) {
                 let silentUnit = AAC.getSilentFrame(this._audioMeta.originalCodec, this._audioMeta.channelCount);
                 if (silentUnit) {

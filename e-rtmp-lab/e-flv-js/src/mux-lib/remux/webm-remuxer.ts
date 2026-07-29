@@ -129,6 +129,10 @@ export class WebMRemuxer extends Remuxer {
   insertDiscontinuity(): void {
     this._audioNextDts = this._videoNextDts = Infinity;
   } 
+
+  setTimestampBase(timestampBase: number): void {
+    this._dtsBase = timestampBase;
+  }
   
   clear(): void {
     this._dtsBase = Infinity;
@@ -186,6 +190,9 @@ export class WebMRemuxer extends Remuxer {
     this._remuxVideo(videoTrack, true);
     this._remuxAudio(audioTrack, true);
   }
+
+  // WebM emits its initialization segment as soon as metadata arrives.
+  flushPendingInitSegments(): void {}
   
   _onTrackData = (audioTrack: AudioTrack, videoTrack: VideoTrack): void => {
     Log.a(WebMRemuxer.TAG, 'onMediaSegment callback must be specificed!', this._onMediaSegment);
@@ -254,6 +261,7 @@ export class WebMRemuxer extends Remuxer {
     const info = new MediaSegmentInfo();
     const firstFrame = this._pendingVideoFrames[0];
     const lastFrame = this._pendingVideoFrames[this._pendingVideoFrames.length - 1];
+    const originalDts = (frame: VideoFrame): number => (frame as VideoFrame & { originalDts?: number }).originalDts ?? frame.dts;
 
     if (!firstFrame.isKeyframe) {
       Log.e(WebMRemuxer.TAG, 'Pending video frames must start with a keyframe');
@@ -265,7 +273,7 @@ export class WebMRemuxer extends Remuxer {
         firstFrame.dts,
         firstFrame.pts,
         0, // duration will be calculated by seeking handler
-        firstFrame.dts,
+        originalDts(firstFrame),
         true
       );
       info.appendSyncPoint(syncPoint);
@@ -276,6 +284,8 @@ export class WebMRemuxer extends Remuxer {
     info.endDts = lastFrame.dts;
     info.beginPts = firstFrame.pts;
     info.endPts = lastFrame.pts;
+    // Keep segment-history coordinates relative to the shared base, matching
+    // MP4Remuxer. Sync points retain the source DTS above for seek resolution.
     info.originalBeginDts = firstFrame.dts;
     info.originalEndDts = lastFrame.dts;
     info.firstFrame = new FrameInfo(
@@ -332,7 +342,20 @@ export class WebMRemuxer extends Remuxer {
       return;
     }
 
-    for (const frame of videoTrack.frames) {
+    // WebM clusters use their frame DTS values directly. Normalize them to the
+    // shared presentation origin before generating clusters, matching MP4's
+    // dts - base behavior.
+    const normalizedFrames = videoTrack.frames.map((frame) => Object.assign({}, frame, {
+      dts: frame.dts - this._dtsBase,
+      pts: frame.pts - this._dtsBase,
+      originalDts: frame.dts
+    })) as VideoFrame[];
+    const normalizedTrack: VideoTrack = {
+      ...videoTrack,
+      frames: normalizedFrames
+    };
+
+    for (const frame of normalizedTrack.frames) {
       if (frame.isKeyframe) {
         this._flushPendingVideoFrames();
         videoTrack.sequenceNumber++;
@@ -359,7 +382,15 @@ export class WebMRemuxer extends Remuxer {
       return;
     }
 
-    let track = audioTrack;
+    const sourceTrack = audioTrack;
+    let track: AudioTrack = {
+      ...audioTrack,
+      frames: audioTrack.frames.map((frame) => ({
+        ...frame,
+        dts: frame.dts - this._dtsBase,
+        pts: frame.pts - this._dtsBase
+      }))
+    };
     let frames: AudioFrame[] = track.frames;
     let firstDts = -1, lastDts = -1;
 
@@ -387,7 +418,7 @@ export class WebMRemuxer extends Remuxer {
       return;
     }
 
-    let firstFrameOriginalDts = frames[0].dts - this._dtsBase;
+    let firstFrameOriginalDts = frames[0].dts;
 
     if (this._audioNextDts !== Infinity) {
       let dtsCorrection = firstFrameOriginalDts - this._audioNextDts;
@@ -415,7 +446,7 @@ export class WebMRemuxer extends Remuxer {
     info.beginPts = firstDts;
     info.endPts = lastDts;
     info.originalBeginDts = firstFrameOriginalDts;
-    info.originalEndDts = frames[frames.length - 1].dts - this._dtsBase;
+    info.originalEndDts = frames[frames.length - 1].dts;
     info.firstFrame = new FrameInfo(firstDts, firstDts, this._refAudioFrameDuration, frames[0].length, false);
     info.lastFrame = new FrameInfo(lastDts, lastDts, this._refAudioFrameDuration, frames[frames.length - 1].length, false);
     this._audioSegmentInfoList.append(info);
@@ -432,7 +463,7 @@ export class WebMRemuxer extends Remuxer {
       this._onMediaSegment(TrackType.Audio, segment);
     }
 
-    track.frames = [];
-    track.length = 0;
+    sourceTrack.frames = [];
+    sourceTrack.length = 0;
   }
 }

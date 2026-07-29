@@ -54,6 +54,14 @@ export abstract class Remuxer {
   abstract insertDiscontinuity(): void;
   abstract clear(): void;
   abstract flushStashedFrames(): void;
+  /** Emit any initialization segment held for batched metadata processing. */
+  abstract flushPendingInitSegments(): void;
+  /**
+   * Sets the common presentation timeline origin used by all track remuxers.
+   * A controller owns this value so independently-remuxed audio and video
+   * retain their original A/V relationship.
+   */
+  abstract setTimestampBase(timestampBase: number): void;
 
   abstract get timestampBase(): number | undefined;
 
@@ -95,4 +103,4 @@ export abstract class Remuxer {
   get isVideoMetadataDispatched(): boolean {
     return this._isVideoMetadataDispatched;
   }
-} 
+}
