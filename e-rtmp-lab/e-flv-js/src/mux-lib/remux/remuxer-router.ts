@@ -5,7 +5,7 @@
  * @author Slavik Lozben
  */
 
-import { AudioMetadata, AudioTrack, FLVDemuxer, VideoMetadata, VideoTrack } from '../demux/flv-demuxer.js';
+import { AudioMetadata, AudioTrack, VideoMetadata, VideoTrack } from '../demux/flv-demuxer.js';
 import { Callback } from '../utils/common.js';
 import { ConfigOptions } from '../config.js';
 import MP4Remuxer from './mp4-remuxer.js';
@@ -88,12 +88,6 @@ export class RemuxerRouter extends Remuxer {
     this._dtsBase = timestampBase;
     this._audioRemuxer?.setTimestampBase(timestampBase);
     this._videoRemuxer?.setTimestampBase(timestampBase);
-  }
-
-  bindDataSource(producer: FLVDemuxer): this {
-    producer.onTrackData = this._onTrackData.bind(this);
-    producer.onTrackMetadata = this._onTrackMetadata.bind(this);
-    return this;
   }
 
   insertDiscontinuity(): void {

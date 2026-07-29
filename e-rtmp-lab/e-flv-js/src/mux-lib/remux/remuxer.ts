@@ -6,7 +6,7 @@
  */
 
 import { Callback, assertCallback } from '../utils/common.js';
-import { AudioFrame, AudioMetadata, AudioTrack, FLVDemuxer, VideoFrame, VideoMetadata, VideoTrack } from '../demux/flv-demuxer.js';
+import { AudioFrame, AudioMetadata, AudioTrack, VideoFrame, VideoMetadata, VideoTrack } from '../demux/flv-demuxer.js';
 import { ConfigOptions } from '../config.js';
 import { MediaSegmentInfo, MediaSegmentInfoList } from '../core/media-segment-info.js';
 
@@ -97,12 +97,6 @@ export abstract class Remuxer {
 
   get isVideoMetadataDispatched(): boolean {
     return this._isVideoMetadataDispatched;
-  }
-
-  bindDataSource(producer: FLVDemuxer): this {
-    producer.onTrackData = this.remuxTrackData.bind(this);
-    producer.onTrackMetadata = this.remuxTrackMetadata.bind(this);
-    return this;
   }
 
   insertDiscontinuity(): void {
