@@ -21,7 +21,7 @@ import AV1OBUParser from './av1-parser.js';
 import ExpGolomb from './exp-golomb.js';
 import { assertCallback, Callback, noopCallback } from '../utils/common';
 import { Av1ObuType, AV1Metadata } from './av1-parser.js';
-import { Remuxer, TrackType } from '../remux/remuxer.js';
+import { TrackType } from '../remux/remuxer.js';
 import { H264NaluType } from './h264.js';
 import { H265NaluType } from './h265.js';
 import { ConfigOptions } from '../config.js';
@@ -29,6 +29,7 @@ import IOController from '../io/io-controller.js';
 import { VpxParser, Vp9HeaderInfo } from './vpx-parser.js';
 import { AudioSpecificConfig, AACFrame } from './aac.js';
 import { MPEG4AudioObjectTypes, MPEG4SamplingRates, MPEG4SamplingRateIndex } from './mpeg4-audio.js';
+import RemuxerRouter from '../remux/remuxer-router.js';
 
 //
 // you can find enhanced flv specification here: https://veovera.org/docs/enhanced/enhanced-rtmp-v2
@@ -956,7 +957,7 @@ export class FLVDemuxer {
     private static readonly TAG = 'FLVDemuxer';
 
     private _config: ConfigOptions;
-    private _remuxer: Remuxer;
+    private _remuxerRouter: RemuxerRouter;
 
     private _onError = assertCallback;
     private _onMediaInfo = assertCallback;               // Called when complete media information (like codecs, duration, resolution) is available.
@@ -1015,9 +1016,9 @@ export class FLVDemuxer {
     private _hasIgnoredAacMultichannelConfig = false;
     private _aacPayloadProbeFrameIndex = 0;
 
-    constructor(probeData: FlvProbeSuccess, config: ConfigOptions, remuxer: Remuxer) {
+    constructor(probeData: FlvProbeSuccess, config: ConfigOptions, remuxerRouter: RemuxerRouter) {
         this._config = config;
-        this._remuxer = remuxer;
+        this._remuxerRouter = remuxerRouter;
 
         this._dataOffset = probeData.dataOffset;
 
@@ -1124,8 +1125,8 @@ export class FLVDemuxer {
         return this;
     }
 
-    set remuxer(remuxer: Remuxer) {
-        this._remuxer = remuxer;
+    set remuxerRouter(remuxerRouter: RemuxerRouter) {
+        this._remuxerRouter = remuxerRouter;
     }
 
     get onTrackMetadata() {
@@ -1265,8 +1266,8 @@ export class FLVDemuxer {
             this._currentVideoTrackId = meta.trackId;
         }
         if (meta.trackId === this._currentVideoTrackId) {
-            if (this._remuxer.isVideoMetadataDispatched) {
-                // Non-initial metadata, force dispatch (or flush) parsed frames to remuxer
+            if (this._remuxerRouter.isVideoMetadataDispatched) {
+                // Non-initial metadata, force dispatch (or flush) parsed frames to the remuxer router.
                 this._flushPendingTrackDataBeforeMetadataRefresh();
             }
             // notify new metadata
@@ -1369,7 +1370,7 @@ export class FLVDemuxer {
             offset += 11 + dataSize + 4;  // tagBody + dataSize + prevTagSize
         }
 
-        // dispatch parsed frames to consumer (typically, the remuxer)
+        // Dispatch parsed frames to the consumer (typically, the remuxer router).
         this._onTrackData(this._audioTrack, this._getCurrentVideoTrack());
 
         return offset;  // consumed bytes, just equals latest offset index
@@ -1592,8 +1593,8 @@ export class FLVDemuxer {
                 meta.refFrameDuration = 1024 / meta.audioSampleRate * meta.timescale;
                 Log.v(FLVDemuxer.TAG, 'Parsed AudioSpecificConfig');
 
-                if (this._remuxer.isAudioMetadataDispatched) {
-                    // Non-initial metadata, force dispatch (or flush) parsed frames to remuxer
+                if (this._remuxerRouter.isAudioMetadataDispatched) {
+                    // Non-initial metadata, force dispatch (or flush) parsed frames to the remuxer router.
                     Log.v(FLVDemuxer.TAG, 'Dispatching regular AAC track data before metadata refresh');
                     this._flushPendingTrackDataBeforeMetadataRefresh();
                 } 
@@ -1910,7 +1911,7 @@ export class FLVDemuxer {
      *   [if Custom]  audioChannelMapping UI8[channelCount] — AudioChannel values
      *
      * If audio metadata already exists, channelCount is updated immediately and
-     * metadata is re-dispatched so that the downstream remuxer can reinitialize
+     * metadata is re-dispatched so that the downstream remuxing pipeline can reinitialize
      * the init segment with the correct value.
      */
     private _parseAudioMultichannelConfig(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number): void {
@@ -2005,7 +2006,7 @@ export class FLVDemuxer {
         this._mediaInfo.audioChannelCount = channelCount;
 
         log.v(`updated audioMetadata.channelCount → ${channelCount}, re-dispatching metadata`);
-        if (this._remuxer.isAudioMetadataDispatched) {
+        if (this._remuxerRouter.isAudioMetadataDispatched) {
             this._flushPendingTrackDataBeforeMetadataRefresh();
         }
         this._onTrackMetadata(meta);
@@ -2112,7 +2113,7 @@ export class FLVDemuxer {
             meta.refFrameDuration = 1024 / meta.audioSampleRate * meta.timescale;
             Log.v(FLVDemuxer.TAG, 'Parsed Enhanced FLV AAC AudioSpecificConfig');
 
-            if (this._remuxer.isAudioMetadataDispatched) {
+            if (this._remuxerRouter.isAudioMetadataDispatched) {
                 Log.v(FLVDemuxer.TAG, 'Dispatching enhanced AAC track data before metadata refresh');
                 this._flushPendingTrackDataBeforeMetadataRefresh();
             }
@@ -2276,8 +2277,8 @@ export class FLVDemuxer {
         meta.refFrameDuration = 960 * meta.timescale / 48000;   // The default Opus packet is 20ms = 960 samples at 48 kHz
         //Log.v(FLVDemuxer.TAG, 'Parsed OpusSequenceHeader');
 
-        if (this._remuxer.isAudioMetadataDispatched) {
-            // Non-initial metadata, force dispatch (or flush) parsed frames to remuxer
+        if (this._remuxerRouter.isAudioMetadataDispatched) {
+            // Non-initial metadata, force dispatch (or flush) parsed frames to the remuxer router.
             this._flushPendingTrackDataBeforeMetadataRefresh();
         }
 
@@ -2393,8 +2394,8 @@ export class FLVDemuxer {
 
         Log.v(FLVDemuxer.TAG, 'Parsed FlacSequenceHeader');
 
-        if (this._remuxer.isAudioMetadataDispatched) {
-            // Non-initial metadata, force dispatch (or flush) parsed frames to remuxer
+        if (this._remuxerRouter.isAudioMetadataDispatched) {
+            // Non-initial metadata, force dispatch (or flush) parsed frames to the remuxer router.
             this._flushPendingTrackDataBeforeMetadataRefresh();
         }
         // notify new metadata

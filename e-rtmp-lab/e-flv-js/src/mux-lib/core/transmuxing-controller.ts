@@ -33,7 +33,7 @@ class TransmuxingController {
     private _config: ConfigOptions;
     private _mediaDataSource: any;
     private _currentSegmentIndex: number = 0;
-    private _remuxer: RemuxerRouter;
+    private _remuxerRouter: RemuxerRouter;
     private _demuxer: FLVDemuxer | null = null;
     private _mediaInfo: MediaInfo | null = null;
     private _ioctl: IOController | null = null;
@@ -69,7 +69,7 @@ class TransmuxingController {
         this._mediaDataSource = mediaDataSource;
         // Codec metadata configures the router's audio and video remuxers.
         // Until then, the router accepts demuxer callbacks without emitting.
-        this._remuxer = new RemuxerRouter(this._config);
+        this._remuxerRouter = new RemuxerRouter(this._config);
 
         let totalDuration = 0;
 
@@ -137,7 +137,7 @@ class TransmuxingController {
     }
 
     private _configureRemuxerRouter(audioType: RemuxerType, videoType: RemuxerType): void {
-        this._remuxer.configure(
+        this._remuxerRouter.configure(
             this._createRemuxer(audioType),
             this._createRemuxer(videoType)
         );
@@ -161,16 +161,16 @@ class TransmuxingController {
         }
     }
 
-    private _bindRemuxerToDemuxer() {
+    private _bindRemuxerRouterToDemuxer() {
         if (!this._demuxer) {
             return;
         }
 
-        this._demuxer.remuxer = this._remuxer;
+        this._demuxer.remuxerRouter = this._remuxerRouter;
         this._demuxer.onTrackData = this._onTrackData.bind(this);
         this._demuxer.onTrackMetadata = this._onTrackMetadata.bind(this);
-        this._remuxer.onInitSegment = this._onRemuxerInitSegmentArrival.bind(this);
-        this._remuxer.onMediaSegment = this._onRemuxerMediaSegmentArrival.bind(this);
+        this._remuxerRouter.onInitSegment = this._onRemuxerInitSegmentArrival.bind(this);
+        this._remuxerRouter.onMediaSegment = this._onRemuxerMediaSegmentArrival.bind(this);
     }
 
     private _switchRemuxersIfNeeded(metadata: Array<AudioMetadata | VideoMetadata>) {
@@ -181,7 +181,7 @@ class TransmuxingController {
 
         Log.i(this.TAG, `Selected remuxers: audio=${audioType}${audioMetadata ? ` (${audioMetadata.codec})` : ''}, video=${videoType}${videoMetadata ? ` (${videoMetadata.codec})` : ''}`);
         this._configureRemuxerRouter(audioType, videoType);
-        this._bindRemuxerToDemuxer();
+        this._bindRemuxerRouterToDemuxer();
     }
 
     private _hasMetadataForAllTracks(): boolean {
@@ -204,8 +204,8 @@ class TransmuxingController {
             this._demuxer.destroy();
             this._demuxer = null;
         }
-        if (this._remuxer) {
-            this._remuxer.destroy();
+        if (this._remuxerRouter) {
+            this._remuxerRouter.destroy();
         }
 
         this._emitter.removeAllListeners();
@@ -287,7 +287,7 @@ class TransmuxingController {
                 this._pendingSeekTime = milliseconds;
             } else {
                 let keyframe = segmentInfo.getNearestKeyframe(milliseconds);
-                this._remuxer.clear();
+                this._remuxerRouter.clear();
                 this._ioctl!.seek(keyframe!.fileposition);
                 // Will be resolved in _onRemuxerMediaSegmentArrival()
                 this._pendingResolveSeekPoint = keyframe!.milliseconds;
@@ -300,16 +300,16 @@ class TransmuxingController {
                 // target segment hasn't been loaded. We need metadata then seek to expected time
                 this._pendingSeekTime = milliseconds;
                 this._internalAbort();
-                this._remuxer.clear();
-                this._remuxer.insertDiscontinuity();
+                this._remuxerRouter.clear();
+                this._remuxerRouter.insertDiscontinuity();
                 this._loadSegment(targetSegmentIndex);
                 // Here we wait for the metadata loaded, then seek to expected position
             } else {
                 // We have target segment's metadata, direct seek to target position
                 let keyframe = targetSegmentInfo.getNearestKeyframe(milliseconds);
                 this._internalAbort();
-                this._remuxer.clear();
-                this._remuxer.insertDiscontinuity();
+                this._remuxerRouter.clear();
+                this._remuxerRouter.insertDiscontinuity();
                 this._demuxer!.resetMediaInfo();
                 this._demuxer!.timestampBase = this._mediaDataSource.segments[targetSegmentIndex].timestampBase;
                 this._loadSegment(targetSegmentIndex, keyframe!.fileposition);
@@ -368,7 +368,7 @@ class TransmuxingController {
     }
 
     _setupFLVDemuxerRemuxer(probeData: FlvProbeSuccess) {
-        this._demuxer = new FLVDemuxer(probeData, this._config, this._remuxer);
+        this._demuxer = new FLVDemuxer(probeData, this._config, this._remuxerRouter);
 
         let mds = this._mediaDataSource;
         this._hasAudioTrack = probeData.hasAudioTrack;
@@ -395,7 +395,7 @@ class TransmuxingController {
         this._demuxer.onScriptData = this._onScriptData.bind(this);
 
         this._demuxer.bindDataSource(this._ioctl!);
-        this._bindRemuxerToDemuxer();
+        this._bindRemuxerRouterToDemuxer();
     }
 
     _onTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack) {
@@ -405,7 +405,7 @@ class TransmuxingController {
             return;
         }
 
-        this._remuxer.remuxTrackData(audioTrack, videoTrack);
+        this._remuxerRouter.remuxTrackData(audioTrack, videoTrack);
     }
 
     _onTrackMetadata(metadata: AudioMetadata | VideoMetadata) {
@@ -424,16 +424,16 @@ class TransmuxingController {
             // remuxTrackMetadata() may emit init segments, so the remuxer must
             // already be selected before flushing the buffered metadata.
             while (this._pendingTrackMetadata.length > 0) {
-                this._remuxer.remuxTrackMetadata(this._pendingTrackMetadata.shift()!);
+                this._remuxerRouter.remuxTrackMetadata(this._pendingTrackMetadata.shift()!);
             }
             // MP4 batches initialization segments until data arrives. With
             // separate remuxers, emit both track inits now so MSE creates all
             // SourceBuffers before either audio or video media is appended.
-            this._remuxer.flushPendingInitSegments();
+            this._remuxerRouter.flushPendingInitSegments();
             return;
         }
 
-        this._remuxer.remuxTrackMetadata(metadata);
+        this._remuxerRouter.remuxTrackMetadata(metadata);
     }
 
     //!!@ is this ever called?
@@ -472,7 +472,7 @@ class TransmuxingController {
     }
 
     _onTimedID3Metadata(timed_id3_metadata: any) {
-        let timestamp_base = this._remuxer.timestampBase;
+        let timestamp_base = this._remuxerRouter.timestampBase;
         if (timestamp_base == undefined) { return; }
 
         if (timed_id3_metadata.pts != undefined) {
@@ -487,7 +487,7 @@ class TransmuxingController {
     }
 
     _onIOSeeked() {
-        this._remuxer.insertDiscontinuity();
+        this._remuxerRouter.insertDiscontinuity();
     }
 
     _onIOComplete(extraData: number) {
@@ -496,13 +496,13 @@ class TransmuxingController {
 
         if (nextSegmentIndex < this._mediaDataSource.segments.length) {
             this._internalAbort();
-            if (this._remuxer) {
-                this._remuxer.flushStashedFrames();
+            if (this._remuxerRouter) {
+                this._remuxerRouter.flushStashedFrames();
             }
             this._loadSegment(nextSegmentIndex);
         } else {
-            if (this._remuxer) {
-                this._remuxer.flushStashedFrames();
+            if (this._remuxerRouter) {
+                this._remuxerRouter.flushStashedFrames();
             }
             this._emitter.emit(TransmuxingEvents.LOADING_COMPLETE);
             this._disableStatisticsReporter();
