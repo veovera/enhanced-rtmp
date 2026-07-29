@@ -67,125 +67,32 @@
 
 import { Remuxer, MSEInitSegment, MSEMediaSegment, TrackType, SegmentKind } from './remuxer.js';
 import { WebMGenerator } from './webm-generator.js';
-import { Callback, assertCallback } from '../utils/common.js';
-import { FLVDemuxer, AudioTrack, VideoTrack, VideoFrame, AudioFrame, AudioMetadata, VideoMetadata } from '../demux/flv-demuxer.js';
+import { AudioTrack, VideoTrack, VideoFrame, AudioFrame, AudioMetadata, VideoMetadata } from '../demux/flv-demuxer.js';
 import Log from '../utils/logger.js';
-import { MediaSegmentInfoList } from '../core/media-segment-info.js';
 import { MediaSegmentInfo, FrameInfo } from '../core/media-segment-info.js';
 
 export class WebMRemuxer extends Remuxer {
   static readonly TAG = 'WebMRemuxer';
 
-  private _dtsBase = Infinity;
-  private _audioDtsBase = Infinity;
-  private _videoDtsBase = Infinity;
-  private _audioNextDts = Infinity;                           // !!@ do we need this?
-  private _videoNextDts = Infinity;                           // !!@ do we need this?
-  private _audioStashedLastFrame: AudioFrame | null = null;
-  private _videoStashedLastFrame: VideoFrame | null = null;
   private _refVideoFrameDuration = 33.333333333333336;        // Default to 30fps
   private _refAudioFrameDuration = 20;                        // 20ms for Opus (standard frame duration)
-  private _audioSegmentInfoList = new MediaSegmentInfoList(TrackType.Audio);
-  private _videoSegmentInfoList = new MediaSegmentInfoList(TrackType.Video);
   private _pendingVideoFrames: VideoFrame[] = [];
 
-  private _onInitSegment = assertCallback;
-  private _onMediaSegment = assertCallback;
-
   destroy(): void {
-    this._onInitSegment = assertCallback;
-    this._onMediaSegment = assertCallback;
-    this.clear();
-  }
-
-  get onInitSegment(): Callback {
-    return this._onInitSegment;
-  }
-  
-  set onInitSegment(callback: Callback) {
-    this._onInitSegment = callback;
-  }
-
-  get onMediaSegment(): Callback {
-    return this._onMediaSegment;
-  }
-
-  set onMediaSegment(callback: Callback) {
-    this._onMediaSegment = callback;
-  }
-  
-  /**
-   * Binds this remuxer to a data producer (e.g. FLVDemuxer)
-   * Sets up callbacks to handle incoming media data and track metadata
-   * @param producer The data producer to bind to
-   * @returns this instance for chaining
-   */
-  bindDataSource(producer: FLVDemuxer): this {
-    producer.onTrackData = this._onTrackData;
-    producer.onTrackMetadata = this._onTrackMetadata;
-    return this;
-  }
-  
-  insertDiscontinuity(): void {
-    this._audioNextDts = this._videoNextDts = Infinity;
-  } 
-
-  setTimestampBase(timestampBase: number): void {
-    this._dtsBase = timestampBase;
+    this._resetTimelineState();
+    this._clearMetadata();
+    this._pendingVideoFrames = [];
+    this._resetCallbacks();
   }
   
   clear(): void {
-    this._dtsBase = Infinity;
-    this._audioDtsBase = Infinity;
-    this._videoDtsBase = Infinity;
-    this._audioNextDts = Infinity;
-    this._videoNextDts = Infinity;
-    this._videoMeta = null;
-    this._audioMeta = null;
-    this._audioStashedLastFrame = null;
-    this._videoStashedLastFrame = null;
-    this._videoSegmentInfoList.clear();
-    this._audioSegmentInfoList.clear();
+    this._resetTimelineState();
+    this._clearMetadata();
     this._pendingVideoFrames = [];
   }
   
-  // !!@ TODO: try to move away from undefined when dealing with numbers?
-  get timestampBase(): number | undefined {
-    return this._dtsBase !== Infinity ? this._dtsBase : undefined;
-  }
-  
   flushStashedFrames(): void {
-    let videoFrame = this._videoStashedLastFrame;
-    let audioFrame = this._audioStashedLastFrame;
-
-    let videoTrack: VideoTrack = {
-      type: TrackType.Video,
-      id: 1,
-      sequenceNumber: 0,
-      frames: [],
-      length: 0,
-    };
-
-    if (videoFrame != null) {
-      videoTrack.frames.push(videoFrame);
-      videoTrack.length = videoFrame.length;
-    }
-
-    let audioTrack: AudioTrack = {
-      type: TrackType.Audio,
-      id: 2,
-      sequenceNumber: 0,
-      frames: [],
-      length: 0
-    };
-
-    if (audioFrame != null) {
-      audioTrack.frames.push(audioFrame);
-      audioTrack.length = audioFrame.length;
-    }
-
-    this._videoStashedLastFrame = null;
-    this._audioStashedLastFrame = null;
+    const { audioTrack, videoTrack } = this._takeStashedFrames();
 
     this._remuxVideo(videoTrack, true);
     this._remuxAudio(audioTrack, true);
@@ -194,7 +101,7 @@ export class WebMRemuxer extends Remuxer {
   // WebM emits its initialization segment as soon as metadata arrives.
   flushPendingInitSegments(): void {}
   
-  _onTrackData = (audioTrack: AudioTrack, videoTrack: VideoTrack): void => {
+  protected _onTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack): void {
     Log.a(WebMRemuxer.TAG, 'onMediaSegment callback must be specificed!', this._onMediaSegment);
     
     if (this._dtsBase === Infinity) {
@@ -205,7 +112,7 @@ export class WebMRemuxer extends Remuxer {
     this._remuxAudio(audioTrack);
   }
 
-  _onTrackMetadata = (metadata: AudioMetadata | VideoMetadata): void => {
+  protected _onTrackMetadata(metadata: AudioMetadata | VideoMetadata): void {
     Log.a(WebMRemuxer.TAG, 'onTrackMetadata: onInitSegment callback must be specified!', this._onInitSegment);
 
     let segmentRawData: Uint8Array;
@@ -236,21 +143,6 @@ export class WebMRemuxer extends Remuxer {
     };
 
     this._onInitSegment(metadata.type, initSegment);
-  }
-
-  private _calculateDtsBase (audioTrack: AudioTrack, videoTrack: VideoTrack): void {
-    if (this._dtsBase !== Infinity) {
-      return;
-    }
-
-    if (audioTrack.frames.length > 0) {
-      this._audioDtsBase = audioTrack.frames[0].dts;
-    }
-    if (videoTrack.frames.length > 0) {
-      this._videoDtsBase = videoTrack.frames[0].dts;
-    }
-
-    this._dtsBase = Math.min(this._audioDtsBase, this._videoDtsBase);
   }
 
   private _flushPendingVideoFrames() {

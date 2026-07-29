@@ -6,8 +6,7 @@
  */
 
 import { AudioMetadata, AudioTrack, FLVDemuxer, VideoMetadata, VideoTrack } from '../demux/flv-demuxer.js';
-import { MediaSegmentInfoList } from '../core/media-segment-info.js';
-import { Callback, assertCallback } from '../utils/common.js';
+import { Callback } from '../utils/common.js';
 import { ConfigOptions } from '../config.js';
 import MP4Remuxer from './mp4-remuxer.js';
 import { MSEMediaSegment, Remuxer, TrackType } from './remuxer.js';
@@ -29,10 +28,6 @@ function emptyVideoTrack(): VideoTrack {
 export class RemuxerRouter extends Remuxer {
   private _audioRemuxer: Remuxer | null = null;
   private _videoRemuxer: Remuxer | null = null;
-  private _dtsBase = Infinity;
-  private _videoSegmentInfoList = new MediaSegmentInfoList(TrackType.Video);
-  private _onInitSegment: Callback = assertCallback;
-  private _onMediaSegment: Callback = assertCallback;
 
   constructor(config: ConfigOptions) {
     super(config);
@@ -131,8 +126,7 @@ export class RemuxerRouter extends Remuxer {
     this._videoRemuxer = null;
     this._videoSegmentInfoList.clear();
     this._dtsBase = Infinity;
-    this._onInitSegment = assertCallback;
-    this._onMediaSegment = assertCallback;
+    this._resetCallbacks();
   }
 
   protected _onTrackMetadata(metadata: AudioMetadata | VideoMetadata): void {

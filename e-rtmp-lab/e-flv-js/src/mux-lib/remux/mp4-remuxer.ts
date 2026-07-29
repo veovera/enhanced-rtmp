@@ -16,7 +16,6 @@ import AAC from './aac-silent.js';
 import Browser from '../utils/browser.js';
 import { FrameInfo as FrameInfo, MediaSegmentInfo, MediaSegmentInfoList } from '../core/media-segment-info.js';
 import { MSEInitSegment, MSEMediaSegment, Remuxer, SegmentKind, TrackType } from './remuxer.js';
-import { Callback, assertCallback } from '../utils/common.js';
 import { AudioMetadata, AudioTrack, AudioFrame, VideoMetadata, VideoTrack, VideoFrame, VideoCodecKind } from '../demux/flv-demuxer.js';
 import AV1OBUParser from '../demux/av1-parser.js';
 import { ConfigOptions } from '../config.js';
@@ -104,22 +103,9 @@ function formatBytesPrefix(data: ArrayBuffer | ArrayBufferView | ArrayLike<numbe
 export class MP4Remuxer extends Remuxer {
         static readonly TAG = 'MP4Remuxer';
 
-        private _dtsBase = Infinity;
-        private _audioDtsBase = Infinity;
-        private _videoDtsBase = Infinity;
-        private _audioNextDts = Infinity;
-        private _videoNextDts = Infinity;
-        private _audioStashedLastFrame: AudioFrame | null = null;
-        private _videoStashedLastFrame: VideoFrame | null = null;
-
-        private _audioSegmentInfoList = new MediaSegmentInfoList(TrackType.Audio);
-        private _videoSegmentInfoList = new MediaSegmentInfoList(TrackType.Video);
         // When audio and video are remuxed by separate instances, the router
         // supplies video history here for the seek-time silent-AAC workaround.
         private _externalVideoSegmentInfoList: MediaSegmentInfoList | null = null;
-
-        private _onInitSegment: Callback = assertCallback;
-        private _onMediaSegment: Callback = assertCallback;
 
         private _pendingAudioInitSegment: MSEInitSegment | null = null;
         private _pendingVideoInitSegment: MSEInitSegment | null = null;
@@ -157,49 +143,11 @@ export class MP4Remuxer extends Remuxer {
     }
 
     destroy() {
-        this._dtsBase = Infinity;
-        this._audioDtsBase = Infinity;
-        this._videoDtsBase = Infinity;
-        this._audioNextDts = Infinity;
-        this._videoNextDts = Infinity;
-        this._audioMeta = null;
-        this._videoMeta = null;
-        this._audioSegmentInfoList.clear();
-        this._videoSegmentInfoList.clear();
+        this._resetTimelineState();
+        this._clearMetadata();
         this._pendingAudioInitSegment = null;
         this._pendingVideoInitSegment = null;
-        this._onInitSegment = assertCallback;
-        this._onMediaSegment = assertCallback;
-    }
-
-    bindDataSource(producer: any) {
-        producer.onTrackData = this._onTrackData.bind(this);
-        producer.onTrackMetadata = this._onTrackMetadata.bind(this);
-        return this;
-    }
-
-    get onInitSegment() {
-        return this._onInitSegment;
-    }
-
-    set onInitSegment(callback: Callback) {
-        this._onInitSegment = callback;
-    }
-
-    get onMediaSegment() {
-        return this._onMediaSegment;
-    }
-
-    set onMediaSegment(callback: Callback) {
-        this._onMediaSegment = callback;
-    }
-
-    insertDiscontinuity() {
-        this._audioNextDts = this._videoNextDts = Infinity;
-    }
-
-    setTimestampBase(timestampBase: number): void {
-        this._dtsBase = timestampBase;
+        this._resetCallbacks();
     }
 
     setExternalVideoSegmentInfoList(segmentInfoList: MediaSegmentInfoList | null): void {
@@ -207,10 +155,7 @@ export class MP4Remuxer extends Remuxer {
     }
 
     clear() {
-        this._audioStashedLastFrame = null;
-        this._videoStashedLastFrame = null;
-        this._videoSegmentInfoList.clear();
-        this._audioSegmentInfoList.clear();
+        this._clearTrackState();
         this._pendingAudioInitSegment = null;
         this._pendingVideoInitSegment = null;
     }
@@ -318,60 +263,8 @@ export class MP4Remuxer extends Remuxer {
         }
     }
 
-    _calculateDtsBase(audioTrack: AudioTrack, videoTrack: VideoTrack) {
-        if (this._dtsBase !== Infinity) {
-            return;
-        }
-
-        if (audioTrack && audioTrack.frames && audioTrack.frames.length) {
-            this._audioDtsBase = audioTrack.frames[0].dts;
-        }
-        if (videoTrack && videoTrack.frames && videoTrack.frames.length) {
-            this._videoDtsBase = videoTrack.frames[0].dts;
-        }
-
-        this._dtsBase = Math.min(this._audioDtsBase, this._videoDtsBase);
-    }
-
-    get timestampBase() {
-        if (this._dtsBase === Infinity) {
-            return undefined;
-        }
-        return this._dtsBase;
-    }
-
     flushStashedFrames() {
-        let videoFrame = this._videoStashedLastFrame;
-        let audioFrame = this._audioStashedLastFrame;
-
-        let videoTrack: VideoTrack = {
-            type: TrackType.Video,
-            id: 1,
-            sequenceNumber: 0,
-            frames: [],
-            length: 0
-        };
-
-        if (videoFrame != null) {
-            videoTrack.frames.push(videoFrame);
-            videoTrack.length = videoFrame.length;
-        }
-
-        let audioTrack: AudioTrack = {
-            type: TrackType.Audio,
-            id: 2,
-            sequenceNumber: 0,
-            frames: [],
-            length: 0
-        };
-
-        if (audioFrame != null) {
-            audioTrack.frames.push(audioFrame);
-            audioTrack.length = audioFrame.length;
-        }
-
-        this._videoStashedLastFrame = null;
-        this._audioStashedLastFrame = null;
+        const { audioTrack, videoTrack } = this._takeStashedFrames();
 
         this._remuxVideo(videoTrack, true);
         this._remuxAudio(audioTrack, true);
