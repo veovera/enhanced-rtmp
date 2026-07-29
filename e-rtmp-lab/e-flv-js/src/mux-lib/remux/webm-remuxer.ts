@@ -86,8 +86,7 @@ export class WebMRemuxer extends Remuxer {
   }
   
   clear(): void {
-    this._resetTimelineState();
-    this._clearMetadata();
+    this._clearTrackState();
     this._pendingVideoFrames = [];
   }
   
