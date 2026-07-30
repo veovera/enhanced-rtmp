@@ -42,7 +42,25 @@ export interface MSEMediaSegment {
 
 export type MSESegment = MSEMediaSegment | MSEInitSegment;
 
-export abstract class Remuxer {
+/** Public surface shared by a remuxer and the remuxer router. */
+export interface RemuxingTarget {
+  destroy(): void;
+  clear(): void;
+  flushStashedFrames(): void;
+  flushPendingInitSegments(): void;
+  remuxTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack): void;
+  remuxTrackMetadata(metadata: AudioMetadata | VideoMetadata): void;
+  insertDiscontinuity(): void;
+  setTimestampBase(timestampBase: number): void;
+  onInitSegment: Callback;
+  onMediaSegment: Callback;
+
+  readonly isAudioMetadataDispatched: boolean;
+  readonly isVideoMetadataDispatched: boolean;
+  readonly timestampBase: number | undefined;
+}
+
+export abstract class Remuxer implements RemuxingTarget {
   // Set to true to enable downloading of remuxed video data segment buffers for debugging
   static readonly DEBUG_BUFFER = false; 
 

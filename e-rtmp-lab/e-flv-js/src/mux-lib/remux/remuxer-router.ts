@@ -6,10 +6,10 @@
  */
 
 import { AudioMetadata, AudioTrack, VideoMetadata, VideoTrack } from '../demux/flv-demuxer.js';
-import { Callback } from '../utils/common.js';
-import { ConfigOptions } from '../config.js';
+import { assertCallback, Callback } from '../utils/common.js';
+import { MediaSegmentInfoList } from '../core/media-segment-info.js';
 import MP4Remuxer from './mp4-remuxer.js';
-import { MSEMediaSegment, Remuxer, TrackType } from './remuxer.js';
+import { MSEMediaSegment, Remuxer, RemuxingTarget, TrackType } from './remuxer.js';
 
 function emptyAudioTrack(): AudioTrack {
   return { type: TrackType.Audio, id: 2, sequenceNumber: 0, frames: [], length: 0 };
@@ -20,18 +20,18 @@ function emptyVideoTrack(): VideoTrack {
 }
 
 /**
- * Routes audio and video to separate remuxers while presenting one
- * Remuxer-compatible façade to the demuxer. It owns one presentation DTS base
+ * Routes audio and video to separate remuxers while presenting one remuxing
+ * target to the demuxer. It owns one presentation DTS base
  * and applies it to both remuxers, keeping their MSE SourceBuffer timelines
  * aligned.
  */
-export class RemuxerRouter extends Remuxer {
+export class RemuxerRouter implements RemuxingTarget {
   private _audioRemuxer: Remuxer | null = null;
   private _videoRemuxer: Remuxer | null = null;
-
-  constructor(config: ConfigOptions) {
-    super(config);
-  }
+  private _dtsBase = Infinity;
+  private _videoSegmentInfoList = new MediaSegmentInfoList(TrackType.Video);
+  private _onInitSegment: Callback = assertCallback;
+  private _onMediaSegment: Callback = assertCallback;
 
   get audioRemuxer(): Remuxer | null {
     return this._audioRemuxer;
@@ -120,10 +120,11 @@ export class RemuxerRouter extends Remuxer {
     this._videoRemuxer = null;
     this._videoSegmentInfoList.clear();
     this._dtsBase = Infinity;
-    this._resetCallbacks();
+    this._onInitSegment = assertCallback;
+    this._onMediaSegment = assertCallback;
   }
 
-  protected _onTrackMetadata(metadata: AudioMetadata | VideoMetadata): void {
+  remuxTrackMetadata(metadata: AudioMetadata | VideoMetadata): void {
     if (metadata.type === TrackType.Audio) {
       this._audioRemuxer?.remuxTrackMetadata(metadata);
     } else {
@@ -131,7 +132,7 @@ export class RemuxerRouter extends Remuxer {
     }
   }
 
-  protected _onTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack): void {
+  remuxTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack): void {
     this._setTimestampBaseFromTracks(audioTrack, videoTrack);
 
     if (videoTrack.frames.length > 0) {
@@ -151,9 +152,8 @@ export class RemuxerRouter extends Remuxer {
       }
     }
 
-    // WebMRemuxer.clear() resets its local base while MP4Remuxer.clear() does
-    // not. Reapply the router-owned value before every batch so both remain in
-    // the same epoch after any lifecycle operation.
+    // Apply the router-owned value before every batch so both remuxers remain
+    // in the same epoch after configuration or lifecycle operations.
     if (this._dtsBase !== Infinity) {
       this._audioRemuxer?.setTimestampBase(this._dtsBase);
       this._videoRemuxer?.setTimestampBase(this._dtsBase);

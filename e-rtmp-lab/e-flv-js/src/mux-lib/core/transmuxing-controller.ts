@@ -69,7 +69,7 @@ class TransmuxingController {
         this._mediaDataSource = mediaDataSource;
         // Codec metadata configures the router's audio and video remuxers.
         // Until then, the router accepts demuxer callbacks without emitting.
-        this._remuxerRouter = new RemuxerRouter(this._config);
+        this._remuxerRouter = new RemuxerRouter();
 
         let totalDuration = 0;
 
