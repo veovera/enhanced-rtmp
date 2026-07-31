@@ -7,7 +7,7 @@
 
 import { Callback, assertCallback } from '../utils/common.js';
 import { AudioFrame, AudioMetadata, AudioTrack, VideoFrame, VideoMetadata, VideoTrack } from '../demux/flv-demuxer.js';
-import { ConfigOptions } from '../config.js';
+import type { ResolvedPlayerConfig } from '../config.js';
 import { MediaSegmentInfo, MediaSegmentInfoList } from '../core/media-segment-info.js';
 
 export type RemuxerType = 'mp4' | 'webm';
@@ -84,7 +84,7 @@ export abstract class Remuxer implements RemuxingTarget {
   protected abstract _onTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack): void;
   protected abstract _onTrackMetadata(metadata: AudioMetadata | VideoMetadata): void;
 
-  protected _config: ConfigOptions;
+  protected _config: ResolvedPlayerConfig;
   protected _isLive: boolean;
   protected _isAudioMetadataDispatched = false;
   protected _isVideoMetadataDispatched = false;
@@ -104,7 +104,7 @@ export abstract class Remuxer implements RemuxingTarget {
   protected _onMediaSegment: Callback = assertCallback;
   
   
-  constructor(config: ConfigOptions) {
+  constructor(config: ResolvedPlayerConfig) {
     this._config = config;
     this._isLive = config.isLive;
   }

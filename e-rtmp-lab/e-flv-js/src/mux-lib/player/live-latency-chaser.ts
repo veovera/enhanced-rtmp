@@ -7,12 +7,12 @@
  * This file has been modified. See Git history for details.
  */
 
-import { ConfigOptions } from "../config";
+import type { ResolvedPlayerConfig } from "../config";
 
 // Live buffer latency chaser by directly adjusting HTMLMediaElement.currentTime (not recommended)
 class LiveLatencyChaser {
 
-    private _config: ConfigOptions;
+    private _config: ResolvedPlayerConfig;
     private _media_element: HTMLMediaElement;
     private _on_direct_seek: (target: number) => void;
 

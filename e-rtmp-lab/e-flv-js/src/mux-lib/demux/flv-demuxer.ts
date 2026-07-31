@@ -24,7 +24,7 @@ import { Av1ObuType, AV1Metadata } from './av1-parser.js';
 import { TrackType } from '../remux/remuxer.js';
 import { H264NaluType } from './h264.js';
 import { H265NaluType } from './h265.js';
-import { ConfigOptions } from '../config.js';
+import type { ResolvedPlayerConfig } from '../config.js';
 import IOController from '../io/io-controller.js';
 import { VpxParser, Vp9HeaderInfo } from './vpx-parser.js';
 import { AudioSpecificConfig, AACFrame } from './aac.js';
@@ -956,7 +956,7 @@ function readSignedInt24(v: DataView, offset: number) {
 export class FLVDemuxer {
     private static readonly TAG = 'FLVDemuxer';
 
-    private _config: ConfigOptions;
+    private _config: ResolvedPlayerConfig;
     private _remuxerRouter: RemuxerRouter;
 
     private _onError = assertCallback;
@@ -1016,7 +1016,7 @@ export class FLVDemuxer {
     private _hasIgnoredAacMultichannelConfig = false;
     private _aacPayloadProbeFrameIndex = 0;
 
-    constructor(probeData: FlvProbeSuccess, config: ConfigOptions, remuxerRouter: RemuxerRouter) {
+    constructor(probeData: FlvProbeSuccess, config: ResolvedPlayerConfig, remuxerRouter: RemuxerRouter) {
         this._config = config;
         this._remuxerRouter = remuxerRouter;
 

@@ -13,7 +13,8 @@
 import EventEmitter from 'eventemitter3';
 import type PlayerEngine from './player-engine';
 import Log from '../utils/logger';
-import { ConfigOptions, defaultConfig, PlayerConfig } from '../config';
+import { defaultConfig } from '../config';
+import type { PlayerConfig, ResolvedPlayerConfig } from '../config';
 import MSEController from '../core/mse-controller';
 import PlayerEvents from './player-events';
 import Transmuxer from '../core/transmuxer';
@@ -59,7 +60,7 @@ class PlayerEngineMainThread implements PlayerEngine {
 
     private _emitter: EventEmitter | null = new EventEmitter();
     private _media_data_source: MediaDataSource | null;
-    private _config: ConfigOptions;
+    private _config: ResolvedPlayerConfig;
 
     private _media_element?: HTMLMediaElement | null = null;
 

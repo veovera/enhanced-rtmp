@@ -18,7 +18,7 @@ import { FrameInfo as FrameInfo, MediaSegmentInfo, MediaSegmentInfoList } from '
 import { MSEInitSegment, MSEMediaSegment, Remuxer, SegmentKind, TrackType } from './remuxer.js';
 import { AudioMetadata, AudioTrack, AudioFrame, VideoMetadata, VideoTrack, VideoFrame, VideoCodecKind } from '../demux/flv-demuxer.js';
 import AV1OBUParser from '../demux/av1-parser.js';
-import { ConfigOptions } from '../config.js';
+import type { ResolvedPlayerConfig } from '../config.js';
 
 function formatVp9CodecComponent(value: number): string {
     return `${Math.max(0, Math.trunc(value))}`.padStart(2, '0');
@@ -115,7 +115,7 @@ export class MP4Remuxer extends Remuxer {
         private _mp3UseMpegAudio: boolean;
         private _fillAudioTimestampGap: boolean;
 
-    constructor(config: ConfigOptions) {
+    constructor(config: ResolvedPlayerConfig) {
         super(config);
 
 

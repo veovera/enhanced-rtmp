@@ -10,7 +10,7 @@
  * See Git history for full details.
  */
 
-import { ConfigOptions } from '../config';
+import type { ResolvedPlayerConfig } from '../config';
 import Log from '../utils/logger';
 
 class LoadingController {
@@ -21,7 +21,7 @@ class LoadingController {
      */
     static readonly TAG: string = 'LoadingController';
 
-    private _config: ConfigOptions;
+    private _config: ResolvedPlayerConfig;
     private _media_element: HTMLMediaElement;
     private _on_pause_transmuxer: () => void;
     private _on_resume_transmuxer: () => void;
@@ -31,7 +31,7 @@ class LoadingController {
     private _lazyLoadRecoverDuration: number;
 
     public constructor(
-        config: ConfigOptions,
+        config: ResolvedPlayerConfig,
         media_element: HTMLMediaElement,
         on_pause_transmuxer: () => void,
         on_resume_transmuxer: () => void

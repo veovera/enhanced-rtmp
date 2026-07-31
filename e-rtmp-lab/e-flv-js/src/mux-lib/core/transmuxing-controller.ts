@@ -23,14 +23,14 @@ import RemuxerRouter from '../remux/remuxer-router.js';
 import DemuxErrors from '../demux/demux-errors.js';
 import IOController from '../io/io-controller.js';
 import TransmuxingEvents from './transmuxing-events';
-import { ConfigOptions } from '../config.js';
+import type { ResolvedPlayerConfig } from '../config.js';
 import { RemuxerType, TrackType } from '../remux/remuxer.js';
 
 // Transmuxing (IO, Demuxing, Remuxing) controller, with multipart support
 class TransmuxingController {
     private TAG: string = 'TransmuxingController';
     private _emitter: EventEmitter = new EventEmitter();
-    private _config: ConfigOptions;
+    private _config: ResolvedPlayerConfig;
     private _mediaDataSource: any;
     private _currentSegmentIndex: number = 0;
     private _remuxerRouter: RemuxerRouter;
@@ -46,7 +46,7 @@ class TransmuxingController {
     private _pendingResolveSeekPoint: number | null = null;
     private _statisticsReporter: number | null = null;
 
-    constructor(mediaDataSource: any, config: ConfigOptions) {
+    constructor(mediaDataSource: any, config: ResolvedPlayerConfig) {
         this._config = config;
 
         // treat single part media as multipart media, which has only one segment

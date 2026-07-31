@@ -126,7 +126,7 @@ export const defaultConfig = {
 type Constructor = new (...args: any[]) => any;
 
 /** Runtime configuration after every public option has been defaulted. */
-export interface ConfigOptions {
+export interface ResolvedPlayerConfig {
     enableWorker: boolean;
     enableWorkerForMSE: boolean;
     enableStashBuffer: boolean;
@@ -163,8 +163,8 @@ export interface ConfigOptions {
 }
 
 /** Public configuration overrides accepted by createPlayer(). */
-export type PlayerConfig = Partial<ConfigOptions>;
+export type PlayerConfig = Partial<ResolvedPlayerConfig>;
 
-export function createDefaultConfig(): ConfigOptions {
+export function createDefaultConfig(): ResolvedPlayerConfig {
     return { ...defaultConfig };
 }

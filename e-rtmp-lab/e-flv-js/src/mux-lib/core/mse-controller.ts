@@ -17,7 +17,7 @@ import MSEEvents from './mse-events';
 import {IllegalStateException} from '../utils/exception';
 import { MediaErrorName } from '../utils/exception';
 import { MSESegment, MSEInitSegment, MSEMediaSegment, TrackType, SegmentKind } from '../remux/remuxer';
-import { ConfigOptions } from '../config';
+import type { ResolvedPlayerConfig } from '../config';
 
 export interface MediaElementProxy {
     getCurrentTime(): number;
@@ -62,7 +62,7 @@ function describeMediaError(error: MediaError | null): string {
 class MSEController {
     private static readonly TRACE = false;                  // Set to true to enable detailed trace logs for debugging
     private readonly TAG = 'MSEController';
-    private _config: ConfigOptions;
+    private _config: ResolvedPlayerConfig;
     private _emitter: EventEmitter = new EventEmitter();
     private events: any;
     private _mediaSource: MediaSource | null;
@@ -96,7 +96,7 @@ class MSEController {
     private _pendingSourceBufferInit: MSEInitSegment[] = []; // Array of pending init segments to be added to source buffers
 
     //!!@ fix any
-    constructor(config: ConfigOptions, mediaElementProxy: MediaElementProxy) {
+    constructor(config: ResolvedPlayerConfig, mediaElementProxy: MediaElementProxy) {
         this._config = config;
 
         if (this._config.isLive && this._config.autoCleanupSourceBuffer == undefined) {
