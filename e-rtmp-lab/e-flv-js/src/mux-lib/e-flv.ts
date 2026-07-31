@@ -22,12 +22,31 @@ import type {PlayerConfig} from './config.js';
 
 // here are all the interfaces
 
-// Minimal shape required by createPlayer(); the rest of the object is passed
-// through untouched to MSEPlayer/NativePlayer (and ultimately TransmuxingController).
-interface MediaDataSource {
+interface MediaDataSourceBase {
     type: string;
+    duration?: number;
+    filesize?: number;
+    hasAudio?: boolean;
+    hasVideo?: boolean;
+    cors?: boolean;
+    withCredentials?: boolean;
+    isLive?: boolean;
     [key: string]: unknown;
 }
+
+/** A single media file, or one part of a multipart media source. */
+export interface MediaDataSourceSegment {
+    url: string;
+    duration?: number;
+    filesize?: number;
+}
+
+/**
+ * The media input accepted by {@link createPlayer}.
+ *
+ * Provide a URL for a single stream, or `segments` for multipart playback.
+ */
+export type MediaDataSource = MediaDataSourceBase & ({ url: string } | { segments: MediaDataSourceSegment[] });
 
 function createPlayer(mediaDataSource: MediaDataSource, optionalConfig?: PlayerConfig): MSEPlayer | NativePlayer {
     // TypeScript callers get the MediaDataSource shape at compile time, but

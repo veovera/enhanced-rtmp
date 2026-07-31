@@ -13,7 +13,7 @@
 import EventEmitter from 'eventemitter3';
 import type PlayerEngine from './player-engine';
 import Log from '../utils/logger';
-import { ConfigOptions, createDefaultConfig } from '../config';
+import { ConfigOptions, defaultConfig, PlayerConfig } from '../config';
 import MSEController from '../core/mse-controller';
 import PlayerEvents from './player-events';
 import Transmuxer from '../core/transmuxer';
@@ -28,13 +28,37 @@ import StartupStallJumper from './startup-stall-jumper';
 import LiveLatencyChaser from './live-latency-chaser';
 import LiveLatencySynchronizer from './live-latency-synchronizer';
 import { MediaElementProxy } from '../core/mse-controller';
+import { MSEInitSegment, MSEMediaSegment } from '../remux/remuxer';
+import type { MediaDataSource } from '../e-flv';
+
+interface StatisticsInfo {
+    url: string;
+    hasRedirect: boolean;
+    redirectedURL?: string;
+    speed: number;
+    loaderType: string;
+    currentSegmentIndex: number;
+    totalSegmentCount: number;
+    playerType?: string;
+    decodedFrames?: number;
+    droppedFrames?: number;
+}
+
+interface EventHandlers {
+    onMediaLoadedMetadata: (event: Event) => void;
+}
+
+interface WebkitVideoPlaybackQuality {
+    webkitDecodedFrameCount?: number;
+    webkitDroppedFrameCount?: number;
+}
 
 class PlayerEngineMainThread implements PlayerEngine {
 
     private readonly TAG: string = 'PlayerEngineMainThread';
 
     private _emitter: EventEmitter | null = new EventEmitter();
-    private _media_data_source: any;
+    private _media_data_source: MediaDataSource | null;
     private _config: ConfigOptions;
 
     private _media_element?: HTMLMediaElement | null = null;
@@ -55,16 +79,16 @@ class PlayerEngineMainThread implements PlayerEngine {
     private _loaded_metadata_received: boolean = false;
 
     private _media_info?: MediaInfo | null = null;
-    private _statistics_info?: any | null = null;
+    private _statistics_info?: StatisticsInfo | null = null;
 
-    private e?: any = null;
+    private e: EventHandlers | null = null;
 
-    public constructor(mediaDataSource: any, optionalConfig: any) {
+    public constructor(mediaDataSource: MediaDataSource, optionalConfig?: PlayerConfig) {
         this._media_data_source = mediaDataSource;
-        this._config = { 
-            ...createDefaultConfig(), 
+        this._config = {
+            ...defaultConfig,
             ...optionalConfig,
-            ...(mediaDataSource.isLive === true && { isLive: true }),
+            isLive: mediaDataSource.isLive === true || optionalConfig?.isLive === true,
         };
 
         this.e = {
@@ -87,7 +111,7 @@ class PlayerEngineMainThread implements PlayerEngine {
         this._emitter = null;
     }
 
-    public on(event: string, listener: (...args: any[]) => void): void {
+    public on(event: string, listener: (...args: unknown[]) => void): void {
         this._emitter?.addListener(event, listener);
         // For media_info / statistics_info event, trigger it immediately
         if (event === PlayerEvents.MEDIA_INFO && this._media_info) {
@@ -97,7 +121,7 @@ class PlayerEngineMainThread implements PlayerEngine {
         }
     }
 
-    public off(event: string, listener: (...args: any[]) => void): void {
+    public off(event: string, listener: (...args: unknown[]) => void): void {
         this._emitter?.removeListener(event, listener);
     }
 
@@ -110,7 +134,7 @@ class PlayerEngineMainThread implements PlayerEngine {
         mediaElement.srcObject = null;
         mediaElement.load();
 
-        mediaElement.addEventListener('loadedmetadata', this.e.onMediaLoadedMetadata);
+        mediaElement.addEventListener('loadedmetadata', this.e!.onMediaLoadedMetadata);
         const mediaElementProxy: MediaElementProxy = {
             getCurrentTime: () => mediaElement.currentTime,
             getReadyState: () => mediaElement.readyState,
@@ -145,7 +169,7 @@ class PlayerEngineMainThread implements PlayerEngine {
             this._mse_controller?.shutdown();
 
             // Remove all appended event listeners
-            this._media_element.removeEventListener('loadedmetadata', this.e.onMediaLoadedMetadata);
+            this._media_element.removeEventListener('loadedmetadata', this.e!.onMediaLoadedMetadata);
 
             // Detach media source from media element
             this._media_element.src = '';
@@ -181,10 +205,10 @@ class PlayerEngineMainThread implements PlayerEngine {
 
         this._transmuxer = new Transmuxer(this._media_data_source, this._config);
 
-        this._transmuxer.on(TransmuxingEvents.INIT_SEGMENT, (type: string, is: any) => {
+        this._transmuxer.on(TransmuxingEvents.INIT_SEGMENT, (type: string, is: MSEInitSegment) => {
             this._mse_controller?.appendInitSegment(is);
         });
-        this._transmuxer.on(TransmuxingEvents.MEDIA_SEGMENT, (type: string, ms: any) => {
+        this._transmuxer.on(TransmuxingEvents.MEDIA_SEGMENT, (type: string, ms: MSEMediaSegment) => {
             this._mse_controller?.appendMediaSegment(ms);
             if (!this._config.isLive && type === 'video' && ms.data && ms.data.byteLength > 0 && ('info' in ms)) {
                 this._seeking_handler?.appendSyncPoints(ms.info.syncPoints);
@@ -198,17 +222,17 @@ class PlayerEngineMainThread implements PlayerEngine {
         this._transmuxer.on(TransmuxingEvents.RECOVERED_EARLY_EOF, () => {
             this._emitter?.emit(PlayerEvents.RECOVERED_EARLY_EOF);
         });
-        this._transmuxer.on(TransmuxingEvents.IO_ERROR, (detail: any, info: any) => {
+        this._transmuxer.on(TransmuxingEvents.IO_ERROR, (detail: unknown, info: unknown) => {
             this._emitter?.emit(PlayerEvents.ERROR, ErrorTypes.NETWORK_ERROR, detail, info);
         });
-        this._transmuxer.on(TransmuxingEvents.DEMUX_ERROR, (detail: any, info: any) => {
+        this._transmuxer.on(TransmuxingEvents.DEMUX_ERROR, (detail: unknown, info: unknown) => {
             this._emitter?.emit(PlayerEvents.ERROR, ErrorTypes.MEDIA_ERROR, detail, info);
         });
         this._transmuxer.on(TransmuxingEvents.MEDIA_INFO, (mediaInfo: MediaInfo) => {
             this._media_info = mediaInfo;
             this._emitter?.emit(PlayerEvents.MEDIA_INFO, Object.assign({}, mediaInfo));
         });
-        this._transmuxer.on(TransmuxingEvents.STATISTICS_INFO, (statInfo: any) => {
+        this._transmuxer.on(TransmuxingEvents.STATISTICS_INFO, (statInfo: StatisticsInfo) => {
             this._statistics_info = this._fillStatisticsInfo(statInfo);
             this._emitter?.emit(PlayerEvents.STATISTICS_INFO, Object.assign({}, statInfo));
         });
@@ -217,13 +241,13 @@ class PlayerEngineMainThread implements PlayerEngine {
                 this._seeking_handler?.directSeek(milliseconds / 1000);
             }
         });
-        this._transmuxer.on(TransmuxingEvents.METADATA_ARRIVED, (metadata: any) => {
+        this._transmuxer.on(TransmuxingEvents.METADATA_ARRIVED, (metadata: unknown) => {
             this._emitter?.emit(PlayerEvents.METADATA_ARRIVED, metadata);
         });
-        this._transmuxer.on(TransmuxingEvents.SCRIPTDATA_ARRIVED, (data: any) => {
+        this._transmuxer.on(TransmuxingEvents.SCRIPTDATA_ARRIVED, (data: unknown) => {
             this._emitter?.emit(PlayerEvents.SCRIPTDATA_ARRIVED, data);
         });
-        this._transmuxer.on(TransmuxingEvents.TIMED_ID3_METADATA_ARRIVED, (timed_id3_metadata: any) => {
+        this._transmuxer.on(TransmuxingEvents.TIMED_ID3_METADATA_ARRIVED, (timed_id3_metadata: unknown) => {
             this._emitter?.emit(PlayerEvents.TIMED_ID3_METADATA_ARRIVED, timed_id3_metadata);
         });
 
@@ -313,7 +337,7 @@ class PlayerEngineMainThread implements PlayerEngine {
         return Object.assign({}, this._media_info);
     }
 
-    public get statisticsInfo(): any {
+    public get statisticsInfo(): StatisticsInfo {
         return Object.assign({}, this._statistics_info);
     }
 
@@ -349,7 +373,7 @@ class PlayerEngineMainThread implements PlayerEngine {
         this._loading_controller?.suspendTransmuxer();
     }
 
-    private _onMSEError(info: any): void {
+    private _onMSEError(info: unknown): void {
         this._emitter?.emit(PlayerEvents.ERROR, ErrorTypes.MEDIA_ERROR, ErrorDetails.MEDIA_MSE_ERROR, info);
     }
 
@@ -375,7 +399,7 @@ class PlayerEngineMainThread implements PlayerEngine {
         this._loading_controller?.suspendTransmuxer();
     }
 
-    private _onMediaLoadedMetadata(e: any): void {
+    private _onMediaLoadedMetadata(_event: Event): void {
         this._loaded_metadata_received = true;
         if (this._pending_seek_time != null) {
             this._seeking_handler?.seek(this._pending_seek_time);
@@ -400,7 +424,7 @@ class PlayerEngineMainThread implements PlayerEngine {
         this._transmuxer?.resume();
     }
 
-    private _fillStatisticsInfo(stat_info: any): any {
+    private _fillStatisticsInfo(stat_info: StatisticsInfo): StatisticsInfo {
         stat_info.playerType = 'MSEPlayer';
 
         if (!(this._media_element instanceof HTMLVideoElement)) {
@@ -415,11 +439,14 @@ class PlayerEngineMainThread implements PlayerEngine {
             const quality = this._media_element.getVideoPlaybackQuality();
             decoded = quality.totalVideoFrames;
             dropped = quality.droppedVideoFrames;
-        } else if ((this._media_element as any)['webkitDecodedFrameCount'] != undefined) {
-            decoded = (this._media_element as any)['webkitDecodedFrameCount'];
-            dropped = (this._media_element as any)['webkitDroppedFrameCount'];
         } else {
-            has_quality_info = false;
+            const webkitVideoElement = this._media_element as HTMLVideoElement & WebkitVideoPlaybackQuality;
+            if (webkitVideoElement.webkitDecodedFrameCount !== undefined) {
+                decoded = webkitVideoElement.webkitDecodedFrameCount;
+                dropped = webkitVideoElement.webkitDroppedFrameCount ?? 0;
+            } else {
+                has_quality_info = false;
+            }
         }
 
         if (has_quality_info) {

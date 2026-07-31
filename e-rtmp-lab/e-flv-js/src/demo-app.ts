@@ -6,7 +6,8 @@
  * 
  */
 
-import { eflv, NativePlayer,  MSEPlayer, TransmuxingEvents, Remuxer, defaultConfig } from "@/mux-lib";
+import { eflv, NativePlayer, MSEPlayer, TransmuxingEvents, Remuxer, defaultConfig } from '@/mux-lib';
+import type { MediaDataSource, PlayerConfig } from '@/mux-lib';
 
 const hasAudioLabel: HTMLLabelElement = document.createElement('label');
 const hasAudioCheckbox: HTMLInputElement = document.createElement('input');
@@ -390,14 +391,14 @@ function createPlayer(): MSEPlayer | NativePlayer | null {
     hasVideo: hasVideoCheckbox.checked,
     cors: true,
     withCredentials: false,
-  };
+  } satisfies MediaDataSource;
 
   const config = {
     enableStashBuffer: false,               // when true improves performance for network jitter
     fixAudioTimestampGap: false,            // when true fixes gaps in audio timestamps to improve sync
     rangeLoadZeroStart: true,               // Always start range requests from 0
     preferWebM: preferWebMCheckbox.checked, // Prefer WebM format when compatible
-  };
+  } satisfies PlayerConfig;
 
   const _player = eflv.createPlayer(mediaDataSource, config);
   updateConfigInfoBox({mediaDataSource, ...config});
@@ -524,7 +525,8 @@ window.addEventListener('load', () => {
     return;
   }
   videoElement.controls = true;
-  videoElement.src = "/assets/testsrc.webm"; // Default video source for native playback
+  //videoElement.src = "/assets/testsrc.webm"; // Default video source for native playback
+  videoElement.src = "/e-flv-js/assets/gray/bbb-gray-vp9.mp4"; // Default video source for native playback
   initLayout();
 });
 
@@ -539,7 +541,8 @@ interface FlvFileLists {
 }
 
 const ASSETS_DIR = '/assets';
-const LOCAL_ASSETS_DIR = '/e-flv-js/assets';
+const GRAY_ASSETS_DIR = '/e-flv-js/assets/gray'; 
+const LOCAL_ASSETS_DIR = GRAY_ASSETS_DIR; //'/e-flv-js/assets';
 
 async function fetchAndExtractList(path: string): Promise<FlvListing> {
   const res = await fetch(path, { cache: 'no-cache' });
