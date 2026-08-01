@@ -1,23 +1,16 @@
 /*
- * Copyright (C) 2016 Bilibili. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
  *
- * This file is derived from C++ project libWinTF8 (https://github.com/m13253/libWinTF8)
+ * Copyright (C) 2016 Bilibili
  * @author zheng qian <xqq@xqq.im>
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Modified and migrated to TypeScript by Slavik Lozben.
+ * Additional changes Copyright (C) 2025 Veovera Software Organization.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * See Git history for full details.
  */
 
-function checkContinuation(uint8array, start, checkLength) {
+function checkContinuation(uint8array: Uint8Array, start: number, checkLength: number): boolean {
     let array = uint8array;
     if (start + checkLength < array.length) {
         while (checkLength--) {
@@ -30,7 +23,7 @@ function checkContinuation(uint8array, start, checkLength) {
     }
 }
 
-function decodeUTF8(uint8array) {
+function decodeUTF8(uint8array: Uint8Array): string {
     let out = [];
     let input = uint8array;
     let i = 0;
