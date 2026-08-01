@@ -11,7 +11,7 @@
  */
 
 import Log from '../utils/logger';
-import LoggingControl from '../utils/logging-control';
+import { LoggingControl } from '../utils/logger';
 import { IllegalStateException } from '../utils/exception';
 import MediaInfo from '../core/media-info';
 import MSEEvents from '../core/mse-events';

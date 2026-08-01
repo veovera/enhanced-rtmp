@@ -10,7 +10,7 @@
 import EventEmitter from 'eventemitter3';
 import type PlayerEngine from './player-engine';
 import Log from '../utils/logger';
-import LoggingControl from '../utils/logging-control.js';
+import { LoggingControl } from '../utils/logger.js';
 import { createDefaultConfig } from '../config';
 import MediaInfo from '../core/media-info';
 import MSEEvents from '../core/mse-events';

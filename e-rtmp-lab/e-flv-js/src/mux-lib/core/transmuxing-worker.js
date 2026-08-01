@@ -10,7 +10,7 @@
  * See Git history for full details. 
  */
 
-import LoggingControl from '../utils/logging-control.js';
+import { LoggingControl } from '../utils/logger.js';
 import TransmuxingController from './transmuxing-controller.js';
 import TransmuxingEvents from './transmuxing-events';
 

@@ -12,7 +12,7 @@
 
 import EventEmitter from 'eventemitter3';
 import Log from '../utils/logger.js';
-import LoggingControl from '../utils/logging-control.js';
+import { LoggingControl } from '../utils/logger.js';
 import TransmuxingController from './transmuxing-controller.js';
 import TransmuxingEvents from './transmuxing-events';
 import MediaInfo from './media-info.js';

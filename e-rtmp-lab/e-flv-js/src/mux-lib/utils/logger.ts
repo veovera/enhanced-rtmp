@@ -200,6 +200,151 @@ class Log {
             throw new Error(str);
         }
     }
+
+    // Nested so it can reach Log's private static members (TS privacy is lexical, not nominal).
+    static LoggingControl = class LoggingControl {
+
+        private static emitter = new EventEmitter();
+
+        static get forceGlobalTag() {
+            return Log.FORCE_GLOBAL_TAG;
+        }
+
+        static set forceGlobalTag(enable: boolean) {
+            Log.FORCE_GLOBAL_TAG = enable;
+            LoggingControl._notifyChange();
+        }
+
+        static get globalTag() {
+            return Log.GLOBAL_TAG;
+        }
+
+        static set globalTag(tag: string) {
+            Log.GLOBAL_TAG = tag;
+            LoggingControl._notifyChange();
+        }
+
+        static get enableAll() {
+            return Log.ENABLE_VERBOSE
+                && Log.ENABLE_DEBUG
+                && Log.ENABLE_INFO
+                && Log.ENABLE_WARN
+                && Log.ENABLE_ERROR;
+        }
+
+        static set enableAll(enable: boolean) {
+            Log.ENABLE_VERBOSE = enable;
+            Log.ENABLE_DEBUG = enable;
+            Log.ENABLE_INFO = enable;
+            Log.ENABLE_WARN = enable;
+            Log.ENABLE_ERROR = enable;
+            LoggingControl._notifyChange();
+        }
+
+        static get enableDebug() {
+            return Log.ENABLE_DEBUG;
+        }
+
+        static set enableDebug(enable: boolean) {
+            Log.ENABLE_DEBUG = enable;
+            LoggingControl._notifyChange();
+        }
+
+        static get enableVerbose() {
+            return Log.ENABLE_VERBOSE;
+        }
+
+        static set enableVerbose(enable: boolean) {
+            Log.ENABLE_VERBOSE = enable;
+            LoggingControl._notifyChange();
+        }
+
+        static get enableInfo() {
+            return Log.ENABLE_INFO;
+        }
+
+        static set enableInfo(enable: boolean) {
+            Log.ENABLE_INFO = enable;
+            LoggingControl._notifyChange();
+        }
+
+        static get enableWarn() {
+            return Log.ENABLE_WARN;
+        }
+
+        static set enableWarn(enable: boolean) {
+            Log.ENABLE_WARN = enable;
+            LoggingControl._notifyChange();
+        }
+
+        static get enableError() {
+            return Log.ENABLE_ERROR;
+        }
+
+        static set enableError(enable: boolean) {
+            Log.ENABLE_ERROR = enable;
+            LoggingControl._notifyChange();
+        }
+
+        static getConfig() {
+            return {
+                globalTag: Log.GLOBAL_TAG,
+                forceGlobalTag: Log.FORCE_GLOBAL_TAG,
+                enableVerbose: Log.ENABLE_VERBOSE,
+                enableDebug: Log.ENABLE_DEBUG,
+                enableInfo: Log.ENABLE_INFO,
+                enableWarn: Log.ENABLE_WARN,
+                enableError: Log.ENABLE_ERROR,
+                enableCallback: Log.ENABLE_CALLBACK
+            };
+        }
+
+        static applyConfig(config: ReturnType<typeof LoggingControl.getConfig>) {
+            Log.GLOBAL_TAG = config.globalTag;
+            Log.FORCE_GLOBAL_TAG = config.forceGlobalTag;
+            Log.ENABLE_VERBOSE = config.enableVerbose;
+            Log.ENABLE_DEBUG = config.enableDebug;
+            Log.ENABLE_INFO = config.enableInfo;
+            Log.ENABLE_WARN = config.enableWarn;
+            Log.ENABLE_ERROR = config.enableError;
+            Log.ENABLE_CALLBACK = config.enableCallback;
+        }
+
+        static _notifyChange() {
+            let emitter = LoggingControl.emitter;
+
+            if (emitter.listenerCount('change') > 0) {
+                let config = LoggingControl.getConfig();
+                emitter.emit('change', config);
+            }
+        }
+
+        static registerListener(listener: (...args: any[]) => void) {
+            LoggingControl.emitter.addListener('change', listener);
+        }
+
+        static removeListener(listener: (...args: any[]) => void) {
+            LoggingControl.emitter.removeListener('change', listener);
+        }
+
+        static addLogListener(listener: (...args: any[]) => void) {
+            Log.emitter.addListener('log', listener);
+            if (Log.emitter.listenerCount('log') > 0) {
+                Log.ENABLE_CALLBACK = true;
+                LoggingControl._notifyChange();
+            }
+        }
+
+        static removeLogListener(listener: (...args: any[]) => void) {
+            Log.emitter.removeListener('log', listener);
+            if (Log.emitter.listenerCount('log') === 0) {
+                Log.ENABLE_CALLBACK = false;
+                LoggingControl._notifyChange();
+            }
+        }
+
+    };
 }
 
 export default Log;
+export const LoggingControl = Log.LoggingControl;
