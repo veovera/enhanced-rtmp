@@ -1,26 +1,20 @@
 /*
- * Copyright (C) 2022 もにょてっく. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
  *
- * @author もにょ〜ん <monyone.teihen@gmail.com>
+ * Copyright (C) 2022 MonyoTech
+ * @author Monyo~n <monyone.teihen@gmail.com>
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Modified and migrated to TypeScript by Slavik Lozben.
+ * Additional changes Copyright (C) 2026 Veovera Software Organization.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * See Git history for full details.
  */
 
 import ExpGolomb from './exp-golomb.js';
 
 class H265NaluParser {
 
-    static _ebsp2rbsp(uint8array) {
+    static _ebsp2rbsp(uint8array: Uint8Array): Uint8Array {
         let src = uint8array;
         let src_length = src.byteLength;
         let dst = new Uint8Array(src_length);
@@ -40,7 +34,7 @@ class H265NaluParser {
         return new Uint8Array(dst.buffer, 0, dst_idx);
     }
 
-    static parseVPS(uint8array) {
+    static parseVPS(uint8array: Uint8Array): { num_temporal_layers: number, temporal_id_nested: boolean } {
         let rbsp = H265NaluParser._ebsp2rbsp(uint8array);
         let gb = new ExpGolomb(rbsp);
 
@@ -62,7 +56,7 @@ class H265NaluParser {
         }
     }
 
-    static parseSPS(uint8array) {
+    static parseSPS(uint8array: Uint8Array) {
         let rbsp = H265NaluParser._ebsp2rbsp(uint8array);
         let gb = new ExpGolomb(rbsp);
 
@@ -367,10 +361,9 @@ class H265NaluParser {
         }
 
         gb.destroy();
-        gb = null;
 
         return {
-            codec_mimetype,
+            codec_mimetype: codec_mimetype,
             profile_string: H265NaluParser.getProfileString(general_profile_idc),
             level_string: H265NaluParser.getLevelString(general_level_idc),
             profile_idc: general_profile_idc,
@@ -423,7 +416,7 @@ class H265NaluParser {
         };
     }
 
-    static parsePPS(uint8array) {
+    static parsePPS(uint8array: Uint8Array): { parallelismType: number } {
         let rbsp = H265NaluParser._ebsp2rbsp(uint8array);
         let gb = new ExpGolomb(rbsp);
 
@@ -472,7 +465,7 @@ class H265NaluParser {
         }
     }
 
-    static getChromaFormatString(chroma_idc) {
+    static getChromaFormatString(chroma_idc: number) {
         switch (chroma_idc) {
             case 0: return '4:0:0';
             case 1: return '4:2:0';
@@ -482,7 +475,7 @@ class H265NaluParser {
         }
     }
 
-    static getProfileString(profile_idc) {
+    static getProfileString(profile_idc: number) {
         switch (profile_idc) {
             case 1: return 'Main';
             case 2: return 'Main10';
@@ -493,7 +486,7 @@ class H265NaluParser {
         }
     }
 
-    static getLevelString(level_idc) {
+    static getLevelString(level_idc: number) {
         return (level_idc / 30).toFixed(1);
     }
 }

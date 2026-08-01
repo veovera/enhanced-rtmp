@@ -1,39 +1,46 @@
 /*
- * Copyright (C) 2016 Bilibili. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
  *
+ * Copyright (C) 2016 Bilibili
  * @author zheng qian <xqq@xqq.im>
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Modified and migrated to TypeScript by Slavik Lozben.
+ * Additional changes Copyright (C) 2026 Veovera Software Organization.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * See Git history for full details.
  */
 
 import {IllegalStateException, InvalidArgumentException} from '../utils/exception.js';
 
 // Exponential-Golomb buffer decoder
 class ExpGolomb {
+    private TAG: string;
+    private _buffer: Uint8Array;
+    private _buffer_index: number;
+    private _total_bytes: number;
+    private _current_word: number;
+    private _current_word_bits_left: number;
 
-    constructor(uint8array) {
+    constructor(uint8array: Uint8Array) {
         this.TAG = 'ExpGolomb';
 
         this._buffer = uint8array;
         this._buffer_index = 0;
         this._total_bytes = uint8array.byteLength;
-        this._total_bits = uint8array.byteLength * 8;
         this._current_word = 0;
         this._current_word_bits_left = 0;
     }
 
     destroy() {
-        this._buffer = null;
+        this._buffer = new Uint8Array(0);
+    }
+
+    get bitsConsumed(): number {
+        return this._buffer_index * 8 - this._current_word_bits_left;
+    }
+
+    get bitsRemaining(): number {
+        return (this._total_bytes - this._buffer_index) * 8 + this._current_word_bits_left;
     }
 
     _fillCurrentWord() {
@@ -50,9 +57,13 @@ class ExpGolomb {
         this._current_word_bits_left = bytes_read * 8;
     }
 
-    readBits(bits) {
+    readBits(bits: number): number {
         if (bits > 32)
             throw new InvalidArgumentException('ExpGolomb: readBits() bits exceeded max 32bits!');
+
+        if (bits === 0) {
+            return 0;
+        }
 
         if (bits <= this._current_word_bits_left) {
             let result = this._current_word >>> (32 - bits);
@@ -76,15 +87,15 @@ class ExpGolomb {
         return result;
     }
 
-    readBool() {
+    readBool(): boolean {
         return this.readBits(1) === 1;
     }
 
-    readByte() {
+    readByte(): number {
         return this.readBits(8);
     }
 
-    _skipLeadingZero() {
+    _skipLeadingZero(): number {
         let zero_count;
         for (zero_count = 0; zero_count < this._current_word_bits_left; zero_count++) {
             if (0 !== (this._current_word & (0x80000000 >>> zero_count))) {
@@ -97,12 +108,12 @@ class ExpGolomb {
         return zero_count + this._skipLeadingZero();
     }
 
-    readUEG() {  // unsigned exponential golomb
+    readUEG(): number {  // unsigned exponential golomb
         let leading_zeros = this._skipLeadingZero();
         return this.readBits(leading_zeros + 1) - 1;
     }
 
-    readSEG() {  // signed exponential golomb
+    readSEG(): number {  // signed exponential golomb
         let value = this.readUEG();
         if (value & 0x01) {
             return (value + 1) >>> 1;

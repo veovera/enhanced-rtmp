@@ -1,26 +1,20 @@
 /*
- * Copyright (C) 2016 Bilibili. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
  *
+ * Copyright (C) 2016 Bilibili
  * @author zheng qian <xqq@xqq.im>
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Modified and migrated to TypeScript by Slavik Lozben.
+ * Additional changes Copyright (C) 2026 Veovera Software Organization.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * See Git history for full details.
  */
 
 import ExpGolomb from './exp-golomb.js';
 
 class SPSParser {
 
-    static _ebsp2rbsp(uint8array) {
+    static _ebsp2rbsp(uint8array: Uint8Array): Uint8Array {
         let src = uint8array;
         let src_length = src.byteLength;
         let dst = new Uint8Array(src_length);
@@ -40,7 +34,7 @@ class SPSParser {
         return new Uint8Array(dst.buffer, 0, dst_idx);
     }
 
-    static parseSPS(uint8array) {
+    static parseSPS(uint8array: Uint8Array){
         let codec_array = uint8array.subarray(1, 4);
         let codec_mimetype = 'avc1.';
         for (let j = 0; j < 3; j++) {
@@ -203,7 +197,6 @@ class SPSParser {
         let present_width = Math.ceil(codec_width * sarScale);
 
         gb.destroy();
-        gb = null;
 
         return {
             codec_mimetype,
@@ -243,7 +236,7 @@ class SPSParser {
         };
     }
 
-    static _skipScalingList(gb, count) {
+    static _skipScalingList(gb: ExpGolomb, count: number) {
         let last_scale = 8, next_scale = 8;
         let delta_scale = 0;
         for (let i = 0; i < count; i++) {
@@ -255,7 +248,7 @@ class SPSParser {
         }
     }
 
-    static getProfileString(profile_idc) {
+    static getProfileString(profile_idc: number) {
         switch (profile_idc) {
             case 66:
                 return 'Baseline';
@@ -276,11 +269,11 @@ class SPSParser {
         }
     }
 
-    static getLevelString(level_idc) {
+    static getLevelString(level_idc: number): string {
         return (level_idc / 10).toFixed(1);
     }
 
-    static getChromaFormatString(chroma) {
+    static getChromaFormatString(chroma: number): string {
         switch (chroma) {
             case 420:
                 return '4:2:0';

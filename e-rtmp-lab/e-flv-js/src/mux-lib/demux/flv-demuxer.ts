@@ -231,22 +231,12 @@ function describeAacSyntaxElement(elementId: number): string {
     }
 }
 
-function aacProbeBitsConsumed(gb: ExpGolomb): number {
-    const state = gb as any;
-    return state._buffer_index * 8 - state._current_word_bits_left;
-}
-
-function aacProbeBitsRemaining(gb: ExpGolomb): number {
-    const state = gb as any;
-    return state._total_bits - aacProbeBitsConsumed(gb);
-}
-
 function readAacProbeBits(gb: ExpGolomb, bits: number): number | null {
     if (bits < 0 || bits > 32) {
         return null;
     }
 
-    if (aacProbeBitsRemaining(gb) < bits) {
+    if (gb.bitsRemaining < bits) {
         return null;
     }
 
@@ -396,7 +386,7 @@ function parseAacProgramConfigElementChannelCount(
         if (!skipAacProbeBits(gb, 5)) return null;
     }
 
-    const paddingBits = (8 - (aacProbeBitsConsumed(gb) % 8)) % 8;
+    const paddingBits = (8 - (gb.bitsConsumed % 8)) % 8;
     if (paddingBits > 0) {
         if (!skipAacProbeBits(gb, paddingBits)) return null;
     }
@@ -565,7 +555,7 @@ function describeAacRawDataBlockElements(data: Uint8Array): string {
     let stopReason = '';
 
     try {
-        while (aacProbeBitsRemaining(gb) >= 3) {
+        while (gb.bitsRemaining >= 3) {
             const elementId = readAacProbeBits(gb, 3);
             if (elementId === null) {
                 stopReason = 'truncated-element-id';
@@ -2581,6 +2571,8 @@ export class FLVDemuxer {
             this._parseAvcFrameData(arrayBuffer, dataOffset, dataSize, tagTimestamp, tagPosition, frameType, cts, track);
         } else if (packetType === VideoPacketType.SequenceEnd) {
             // empty, AVC end of sequence
+        } else if (packetType === VideoPacketType.Metadata) {
+            Log.w(FLVDemuxer.TAG, `_parseLegacyAvcVideoPacket(): unsupported AVC video packet type ${packetType} (FlvVideoPacketType.Metadata) ts=${tagTimestamp} offset=${dataOffset} size=${dataSize} action=drop`);
         } else {
             this._onError(DemuxErrors.FORMAT_ERROR, `Flv: Invalid video packet type ${packetType}`);
             return;
@@ -2605,6 +2597,8 @@ export class FLVDemuxer {
             this._parseHevcFrameData(arrayBuffer, dataOffset, dataSize, tagTimestamp, tagPosition, frameType, cts, track);
         } else if (packetType === VideoPacketType.SequenceEnd) {
             // empty, HEVC end of sequence
+        } else if (packetType === VideoPacketType.Metadata) {
+            Log.w(FLVDemuxer.TAG, `_parseLegacyHevcVideoPacket(): unsupported HEVC video packet type ${packetType} (FlvVideoPacketType.Metadata) ts=${tagTimestamp} offset=${dataOffset} size=${dataSize} action=drop`);
         } else {
             this._onError(DemuxErrors.FORMAT_ERROR, `Flv: Invalid video packet type ${packetType}`);
             return;
@@ -2631,6 +2625,8 @@ export class FLVDemuxer {
             this._parseHevcFrameData(arrayBuffer, dataOffset, dataSize, tagTimestamp, tagPosition, frameType, 0, track);
         } else if (packetType === VideoPacketType.SequenceEnd) {
             // empty, HEVC end of sequence
+        } else if (packetType === VideoPacketType.Metadata) {
+            Log.w(FLVDemuxer.TAG, `_parseEnhancedHevcVideoPacket(): unsupported HEVC video packet type ${packetType} (FlvVideoPacketType.Metadata) ts=${tagTimestamp} offset=${dataOffset} size=${dataSize} action=drop`);
         } else {
             this._onError(DemuxErrors.FORMAT_ERROR, `Flv: Invalid video packet type ${packetType}`);
             return;
