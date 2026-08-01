@@ -11,22 +11,21 @@
  */
 
 import Log from '../utils/logger';
+import type {MediaDataSource} from '../e-flv.js';
 import MediaInfo from '../core/media-info';
 import PlayerEngine from './player-engine';
 import PlayerEngineMainThread from './player-engine-main-thread';
 import PlayerEngineDedicatedThread from './player-engine-dedicated-thread';
 import {InvalidArgumentException} from '../utils/exception';
+import { PlayerConfig } from '../config';
 
 class MSEPlayer {
-
     private readonly TAG: string = 'MSEPlayer';
-
     private _type: string = 'MSEPlayer';
-
     private _media_element: HTMLMediaElement | null = null;
     private _player_engine: PlayerEngine | null = null;
 
-    public constructor(mediaDataSource: any, optionalConfig?: any) {
+    public constructor(mediaDataSource: MediaDataSource, optionalConfig?: PlayerConfig) {
         const typeLowerCase: string = mediaDataSource.type.toLowerCase();
         if (typeLowerCase !== 'mse' && typeLowerCase !== 'flv') {
             throw new InvalidArgumentException('MSEPlayer requires an mse/flv MediaDataSource input!');

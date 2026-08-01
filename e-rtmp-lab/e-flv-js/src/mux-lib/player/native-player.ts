@@ -12,17 +12,29 @@
 
 import EventEmitter from 'eventemitter3';
 import PlayerEvents from './player-events';
-import {createDefaultConfig} from '../config.js';
+import {createDefaultConfig, type PlayerConfig, type ResolvedPlayerConfig} from '../config.js';
+import type {MediaDataSource} from '../e-flv.js';
 import {InvalidArgumentException, IllegalStateException} from '../utils/exception.js';
 
 // Player wrapper for browser's native player (HTMLVideoElement) without MediaSource src.
+type SingleFileMediaDataSource = MediaDataSource & {url: string};
+
+function isSingleFileMediaDataSource(mediaDataSource: MediaDataSource): mediaDataSource is SingleFileMediaDataSource {
+    return typeof mediaDataSource.url === 'string';
+}
+
 class NativePlayer {
+    private readonly TAG = 'NativePlayer';
+    private _type = 'NativePlayer';
+    private _emitter = new EventEmitter();
+    private _config: ResolvedPlayerConfig;
+    private e: {onvLoadedMetadata: (event: Event) => void} | null;
+    private _pendingSeekTime: number | null;
+    private _statisticsReporter: number | null;
+    private _mediaDataSource: SingleFileMediaDataSource;
+    private _mediaElement: HTMLMediaElement | null;
 
-    constructor(mediaDataSource, config) {
-        this.TAG = 'NativePlayer';
-        this._type = 'NativePlayer';
-        this._emitter = new EventEmitter();
-
+    constructor(mediaDataSource: MediaDataSource, config?: PlayerConfig) {
         this._config = createDefaultConfig();
         if (typeof config === 'object') {
             Object.assign(this._config, config);
@@ -33,7 +45,7 @@ class NativePlayer {
         if (typeLowerCase === 'mse' || typeLowerCase === 'flv') {
             throw new InvalidArgumentException('NativePlayer does\'t support mse/flv MediaDataSource input!');
         }
-        if (mediaDataSource.hasOwnProperty('segments')) {
+        if (!isSingleFileMediaDataSource(mediaDataSource)) {
             throw new InvalidArgumentException(`NativePlayer(${mediaDataSource.type}) doesn't support multipart playback!`);
         }
 
@@ -55,12 +67,10 @@ class NativePlayer {
             this.detachMediaElement();
         }
         this.e = null;
-        this._mediaDataSource = null;
         this._emitter.removeAllListeners();
-        this._emitter = null;
     }
 
-    on(event, listener) {
+    on(event: string, listener: (...args: unknown[]) => void) {
         if (event === PlayerEvents.MEDIA_INFO) {
             if (this._mediaElement != null && this._mediaElement.readyState !== 0) {  // HAVE_NOTHING
                 Promise.resolve().then(() => {
@@ -77,13 +87,13 @@ class NativePlayer {
         this._emitter.addListener(event, listener);
     }
 
-    off(event, listener) {
+    off(event: string, listener: (...args: unknown[]) => void) {
         this._emitter.removeListener(event, listener);
     }
 
-    attachMediaElement(mediaElement) {
+    attachMediaElement(mediaElement: HTMLMediaElement) {
         this._mediaElement = mediaElement;
-        mediaElement.addEventListener('loadedmetadata', this.e.onvLoadedMetadata);
+        mediaElement.addEventListener('loadedmetadata', this.e!.onvLoadedMetadata);
 
         if (this._pendingSeekTime != null) {
             try {
@@ -100,7 +110,7 @@ class NativePlayer {
         if (this._mediaElement) {
             this._mediaElement.src = '';
             this._mediaElement.removeAttribute('src');
-            this._mediaElement.removeEventListener('loadedmetadata', this.e.onvLoadedMetadata);
+            this._mediaElement.removeEventListener('loadedmetadata', this.e!.onvLoadedMetadata);
             this._mediaElement = null;
         }
         if (this._statisticsReporter != null) {
@@ -138,11 +148,11 @@ class NativePlayer {
     }
 
     play() {
-        return this._mediaElement.play();
+        return this._mediaElement!.play();
     }
 
     pause() {
-        this._mediaElement.pause();
+        this._mediaElement!.pause();
     }
 
     get type() {
@@ -150,27 +160,27 @@ class NativePlayer {
     }
 
     get buffered() {
-        return this._mediaElement.buffered;
+        return this._mediaElement!.buffered;
     }
 
     get duration() {
-        return this._mediaElement.duration;
+        return this._mediaElement!.duration;
     }
 
     get volume() {
-        return this._mediaElement.volume;
+        return this._mediaElement!.volume;
     }
 
-    set volume(value) {
-        this._mediaElement.volume = value;
+    set volume(value: number) {
+        this._mediaElement!.volume = value;
     }
 
     get muted() {
-        return this._mediaElement.muted;
+        return this._mediaElement!.muted;
     }
 
-    set muted(muted) {
-        this._mediaElement.muted = muted;
+    set muted(muted: boolean) {
+        this._mediaElement!.muted = muted;
     }
 
     get currentTime() {
@@ -180,7 +190,7 @@ class NativePlayer {
         return 0;
     }
 
-    set currentTime(seconds) {
+    set currentTime(seconds: number) {
         if (this._mediaElement) {
             this._mediaElement.currentTime = seconds;
         } else {
@@ -190,7 +200,7 @@ class NativePlayer {
 
     get mediaInfo() {
         let mediaPrefix = (this._mediaElement instanceof HTMLAudioElement) ? 'audio/' : 'video/';
-        let info = {
+        let info: {mimeType: string; duration?: number; width?: number; height?: number} = {
             mimeType: mediaPrefix + this._mediaDataSource.type
         };
         if (this._mediaElement) {
@@ -204,7 +214,7 @@ class NativePlayer {
     }
 
     get statisticsInfo() {
-        let info = {
+        let info: {playerType: string; url: string; decodedFrames?: number; droppedFrames?: number} = {
             playerType: this._type,
             url: this._mediaDataSource.url
         };
@@ -221,9 +231,13 @@ class NativePlayer {
             let quality = this._mediaElement.getVideoPlaybackQuality();
             decoded = quality.totalVideoFrames;
             dropped = quality.droppedVideoFrames;
-        } else if (this._mediaElement.webkitDecodedFrameCount != undefined) {
-            decoded = this._mediaElement.webkitDecodedFrameCount;
-            dropped = this._mediaElement.webkitDroppedFrameCount;
+        } else if ((this._mediaElement as HTMLVideoElement & {webkitDecodedFrameCount?: number}).webkitDecodedFrameCount != undefined) {
+            const webkitMediaElement = this._mediaElement as HTMLVideoElement & {
+                webkitDecodedFrameCount: number;
+                webkitDroppedFrameCount: number;
+            };
+            decoded = webkitMediaElement.webkitDecodedFrameCount;
+            dropped = webkitMediaElement.webkitDroppedFrameCount;
         } else {
             hasQualityInfo = false;
         }
@@ -236,9 +250,9 @@ class NativePlayer {
         return info;
     }
 
-    _onvLoadedMetadata(e) {
+    _onvLoadedMetadata(_event: Event) {
         if (this._pendingSeekTime != null) {
-            this._mediaElement.currentTime = this._pendingSeekTime;
+            this._mediaElement!.currentTime = this._pendingSeekTime;
             this._pendingSeekTime = null;
         }
         this._emitter.emit(PlayerEvents.MEDIA_INFO, this.mediaInfo);

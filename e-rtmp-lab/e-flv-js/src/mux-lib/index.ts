@@ -15,5 +15,6 @@ export { default as TransmuxingEvents } from './core/transmuxing-events.js';
 export { Remuxer } from './remux/remuxer';
 export { defaultConfig } from './config.js';
 export type { PlayerConfig } from './config.js';
+export type { AMFScriptData } from './demux/amf-parser.js';
 export { default as eflv } from './e-flv.js';
 export type { MediaDataSource, MediaDataSourceSegment } from './e-flv.js';

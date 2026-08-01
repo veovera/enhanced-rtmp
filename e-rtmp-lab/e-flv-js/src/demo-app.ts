@@ -7,7 +7,7 @@
  */
 
 import { eflv, NativePlayer, MSEPlayer, TransmuxingEvents, Remuxer, defaultConfig } from '@/mux-lib';
-import type { MediaDataSource, PlayerConfig } from '@/mux-lib';
+import type { MediaDataSource, PlayerConfig, AMFScriptData } from '@/mux-lib';
 
 const hasAudioLabel: HTMLLabelElement = document.createElement('label');
 const hasAudioCheckbox: HTMLInputElement = document.createElement('input');
@@ -433,16 +433,17 @@ function createPlayer(): MSEPlayer | NativePlayer | null {
   };
   videoElement.addEventListener('loadedmetadata', loadedMetadataHandler, { once: true });
 
-  _player.on(TransmuxingEvents.SCRIPTDATA_ARRIVED, (scriptData) => {
+  _player.on(TransmuxingEvents.SCRIPTDATA_ARRIVED, (scriptData: AMFScriptData) => {
     const traceBox = document.getElementById('videoMetadataBox') as HTMLTextAreaElement;
+    const onMetaData = scriptData.onMetaData;
 
     traceBox.value  = "*** Metadata (onMetaData) arrived ***\n";
     traceBox.value += "=====================================\n";
 
     traceBox.value += `json: ${JSON.stringify(scriptData, null, 2)}\n`;
     traceBox.value += '\nnote:\n';
-    if (scriptData?.onMetaData.videocodecid) {
-      const code = scriptData.onMetaData.videocodecid;
+    if (typeof onMetaData?.videocodecid === 'number') {
+      const code = onMetaData.videocodecid;
       let fourcc: string;
       if (code < 16) {
         // Legacy FLV codec IDs (not fourcc)
@@ -468,8 +469,8 @@ function createPlayer(): MSEPlayer | NativePlayer | null {
       traceBox.value += `Video codec: ${fourcc} (${code})\n`;
     }
 
-    if (scriptData?.onMetaData.audiocodecid) {
-      const code = scriptData.onMetaData.audiocodecid;
+    if (typeof onMetaData?.audiocodecid === 'number') {
+      const code = onMetaData.audiocodecid;
       let fourcc: string;
       if (code < 16) {
         // Legacy FLV codec IDs (not fourcc)
