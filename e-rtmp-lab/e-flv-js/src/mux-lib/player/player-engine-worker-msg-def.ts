@@ -18,7 +18,7 @@
 
 import MSEEvents from '../core/mse-events';
 import PlayerEvents from './player-events';
-import TransmuxingEvents from '../core/transmuxing-events';
+import TransmuxingEvents, { type TransmuxingEvent } from '../core/transmuxing-events';
 
 export type WorkerMessageType =
     | 'destroyed'
@@ -68,18 +68,18 @@ export type WorkerMessagePacketPlayerEventExtraData = WorkerMessagePacketPlayerE
 
 export type WorkerMessagePacketTransmuxingEvent = WorkerMessagePacket & {
     msg: 'transmuxing_event',
-    event: TransmuxingEvents,
+    event: TransmuxingEvent,
 };
 
 export type WorkerMessagePacketTransmuxingEventInfo = WorkerMessagePacketTransmuxingEvent & {
     msg: 'transmuxing_event',
-    event: TransmuxingEvents.MEDIA_INFO | TransmuxingEvents.STATISTICS_INFO,
+    event: typeof TransmuxingEvents.MEDIA_INFO | typeof TransmuxingEvents.STATISTICS_INFO,
     info: any,
 };
 
 export type WorkerMessagePacketTransmuxingEventRecommendSeekpoint = WorkerMessagePacketTransmuxingEvent & {
     msg: 'transmuxing_event',
-    event: TransmuxingEvents.RECOMMEND_SEEKPOINT,
+    event: typeof TransmuxingEvents.RECOMMEND_SEEKPOINT,
     milliseconds: number,
 };
 

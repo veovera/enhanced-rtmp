@@ -4,23 +4,48 @@
  * Copyright (C) 2016 Bilibili
  * @author zheng qian <xqq@xqq.im>
  * 
- * Modified by Slavik Lozben.
+ * Modified and migrated to TypeScript by Slavik Lozben.
  * Additional changes Copyright (C) 2025 Veovera Software Organization.
  *
  * See Git history for full details.
  */
 
 import EventEmitter from 'eventemitter3';
-import Log from '../utils/logger.js';
-import { LoggingControl } from '../utils/logger.js';
+import Log, { LoggingControl } from '../utils/logger.js';
 import TransmuxingController from './transmuxing-controller.js';
-import TransmuxingEvents from './transmuxing-events';
+import TransmuxingEvents, { type TransmuxingEvent, type TransmuxingEventMap, type TransmuxingStatisticsInfo } from './transmuxing-events.js';
 import MediaInfo from './media-info.js';
+import type { ResolvedPlayerConfig } from '../config.js';
+import type { MediaDataSource } from '../e-flv.js';
+import type { MSEInitSegment, MSEMediaSegment, TrackType } from '../remux/remuxer.js';
+
+type LoggingConfig = ReturnType<typeof LoggingControl.getConfig>;
+
+type WorkerMessage =
+    | { msg: 'destroyed' }
+    | { msg: 'logcat_callback'; data: { type: string; logcat: string } }
+    | { msg: typeof TransmuxingEvents.INIT_SEGMENT; data: { type: TrackType; data: MSEInitSegment } }
+    | { msg: typeof TransmuxingEvents.MEDIA_SEGMENT; data: { type: TrackType; data: MSEMediaSegment } }
+    | { msg: typeof TransmuxingEvents.LOADING_COMPLETE }
+    | { msg: typeof TransmuxingEvents.RECOVERED_EARLY_EOF }
+    | { msg: typeof TransmuxingEvents.MEDIA_INFO; data: MediaInfo }
+    | { msg: typeof TransmuxingEvents.METADATA_ARRIVED; data: unknown }
+    | { msg: typeof TransmuxingEvents.SCRIPTDATA_ARRIVED; data: unknown }
+    | { msg: typeof TransmuxingEvents.TIMED_ID3_METADATA_ARRIVED; data: unknown }
+    | { msg: typeof TransmuxingEvents.STATISTICS_INFO; data: TransmuxingStatisticsInfo }
+    | { msg: typeof TransmuxingEvents.IO_ERROR; data: { type: string; info: unknown } }
+    | { msg: typeof TransmuxingEvents.DEMUX_ERROR; data: { type: string; info: string } }
+    | { msg: typeof TransmuxingEvents.RECOMMEND_SEEKPOINT; data: number };
 
 class Transmuxer {
+    private readonly TAG = 'Transmuxer';
+    private _emitter: EventEmitter;
+    private _worker: Worker | null = null;
+    private _workerDestroying = false;
+    private _controller: TransmuxingController | null = null;
+    private e: { onLoggingConfigChanged: (config: LoggingConfig) => void } | null = null;
 
-    constructor(mediaDataSource, config) {
-        this.TAG = 'Transmuxer';
+    constructor(mediaDataSource: MediaDataSource, config: ResolvedPlayerConfig) {
         this._emitter = new EventEmitter();
 
         if (config.enableWorker && typeof (Worker) !== 'undefined') {
@@ -60,160 +85,160 @@ class Transmuxer {
         }
     }
 
-    destroy() {
+    destroy(): void {
         if (this._worker) {
             if (!this._workerDestroying) {
                 this._workerDestroying = true;
                 this._worker.postMessage({cmd: 'destroy'});
-                LoggingControl.removeListener(this.e.onLoggingConfigChanged);
+                if (this.e) {
+                    LoggingControl.removeListener(this.e.onLoggingConfigChanged);
+                }
                 this.e = null;
             }
-        } else {
+        } else if (this._controller) {
             this._controller.destroy();
             this._controller = null;
         }
         this._emitter.removeAllListeners();
-        this._emitter = null;
     }
 
-    on(event, listener) {
+    on<K extends TransmuxingEvent>(event: K, listener: (...args: TransmuxingEventMap[K]) => void): void {
         this._emitter.addListener(event, listener);
     }
 
-    off(event, listener) {
+    off<K extends TransmuxingEvent>(event: K, listener: (...args: TransmuxingEventMap[K]) => void): void {
         this._emitter.removeListener(event, listener);
     }
 
-    hasWorker() {
+    hasWorker(): boolean {
         return this._worker != null;
     }
 
-    open() {
+    open(): void {
         if (this._worker) {
             this._worker.postMessage({cmd: 'start'});
         } else {
-            this._controller.start();
+            this._controller?.start();
         }
     }
 
-    close() {
+    close(): void {
         if (this._worker) {
             this._worker.postMessage({cmd: 'stop'});
         } else {
-            this._controller.stop();
+            this._controller?.stop();
         }
     }
 
-    seek(milliseconds) {
+    seek(milliseconds: number): void {
         if (this._worker) {
             this._worker.postMessage({cmd: 'seek', param: milliseconds});
         } else {
-            this._controller.seek(milliseconds);
+            this._controller?.seek(milliseconds);
         }
     }
 
-    pause() {
+    pause(): void {
         if (this._worker) {
             this._worker.postMessage({cmd: 'pause'});
         } else {
-            this._controller.pause();
+            this._controller?.pause();
         }
     }
 
-    resume() {
+    resume(): void {
         if (this._worker) {
             this._worker.postMessage({cmd: 'resume'});
         } else {
-            this._controller.resume();
+            this._controller?.resume();
         }
     }
 
-    _onInitSegment(type, initSegment) {
+    _onInitSegment(type: TrackType, initSegment: MSEInitSegment): void {
         // do async invoke
         Promise.resolve().then(() => {
             this._emitter.emit(TransmuxingEvents.INIT_SEGMENT, type, initSegment);
         });
     }
 
-    _onMediaSegment(type, mediaSegment) {
+    _onMediaSegment(type: TrackType, mediaSegment: MSEMediaSegment): void {
         Promise.resolve().then(() => {
             this._emitter.emit(TransmuxingEvents.MEDIA_SEGMENT, type, mediaSegment);
         });
     }
 
-    _onLoadingComplete() {
+    _onLoadingComplete(): void {
         Promise.resolve().then(() => {
             this._emitter.emit(TransmuxingEvents.LOADING_COMPLETE);
         });
     }
 
-    _onRecoveredEarlyEof() {
+    _onRecoveredEarlyEof(): void {
         Promise.resolve().then(() => {
             this._emitter.emit(TransmuxingEvents.RECOVERED_EARLY_EOF);
         });
     }
 
-    _onMediaInfo(mediaInfo) {
+    _onMediaInfo(mediaInfo: MediaInfo): void {
         Promise.resolve().then(() => {
             this._emitter.emit(TransmuxingEvents.MEDIA_INFO, mediaInfo);
         });
     }
 
-    _onScriptMetadata(metadata) {
+    _onScriptMetadata(metadata: unknown): void {
         Promise.resolve().then(() => {
             this._emitter.emit(TransmuxingEvents.METADATA_ARRIVED, metadata);
         });
     }
 
-    _onScriptData(data) {
+    _onScriptData(data: unknown): void {
         Promise.resolve().then(() => {
             this._emitter.emit(TransmuxingEvents.SCRIPTDATA_ARRIVED, data);
         });
     }
 
-    _onTimedID3MetadataArrived (data) {
+    _onTimedID3MetadataArrived(data: unknown): void {
         Promise.resolve().then(() => {
             this._emitter.emit(TransmuxingEvents.TIMED_ID3_METADATA_ARRIVED, data);
         });
     }
 
-    _onStatisticsInfo(statisticsInfo) {
+    _onStatisticsInfo(statisticsInfo: TransmuxingStatisticsInfo): void {
         Promise.resolve().then(() => {
             this._emitter.emit(TransmuxingEvents.STATISTICS_INFO, statisticsInfo);
         });
     }
 
-    _onIOError(type, info) {
+    _onIOError(type: string, info: unknown): void {
         Promise.resolve().then(() => {
             this._emitter.emit(TransmuxingEvents.IO_ERROR, type, info);
         });
     }
 
-    _onDemuxError(type, info) {
+    _onDemuxError(type: string, info: string): void {
         Promise.resolve().then(() => {
             this._emitter.emit(TransmuxingEvents.DEMUX_ERROR, type, info);
         });
     }
 
-    _onRecommendSeekpoint(milliseconds) {
+    _onRecommendSeekpoint(milliseconds: number): void {
         Promise.resolve().then(() => {
             this._emitter.emit(TransmuxingEvents.RECOMMEND_SEEKPOINT, milliseconds);
         });
     }
 
-    _onLoggingConfigChanged(config) {
+    _onLoggingConfigChanged(config: LoggingConfig): void {
         if (this._worker) {
             this._worker.postMessage({cmd: 'logging_config', param: config});
         }
     }
 
-    _onWorkerMessage(e) {
-        let message = e.data;
-        let data = message.data;
+    _onWorkerMessage(event: MessageEvent<WorkerMessage>): void {
+        const message = event.data;
 
         if (message.msg === 'destroyed' || this._workerDestroying) {
             this._workerDestroying = false;
-            this._worker.terminate();
+            this._worker?.terminate();
             this._worker = null;
             return;
         }
@@ -221,31 +246,31 @@ class Transmuxer {
         switch (message.msg) {
             case TransmuxingEvents.INIT_SEGMENT:
             case TransmuxingEvents.MEDIA_SEGMENT:
-                this._emitter.emit(message.msg, data.type, data.data);
+                this._emitter.emit(message.msg, message.data.type, message.data.data);
                 break;
             case TransmuxingEvents.LOADING_COMPLETE:
             case TransmuxingEvents.RECOVERED_EARLY_EOF:
                 this._emitter.emit(message.msg);
                 break;
             case TransmuxingEvents.MEDIA_INFO:
-                Object.setPrototypeOf(data, MediaInfo.prototype);
-                this._emitter.emit(message.msg, data);
+                Object.setPrototypeOf(message.data, MediaInfo.prototype);
+                this._emitter.emit(message.msg, message.data);
                 break;
             case TransmuxingEvents.METADATA_ARRIVED:
             case TransmuxingEvents.SCRIPTDATA_ARRIVED:
             case TransmuxingEvents.TIMED_ID3_METADATA_ARRIVED:
             case TransmuxingEvents.STATISTICS_INFO:
-                this._emitter.emit(message.msg, data);
+                this._emitter.emit(message.msg, message.data);
                 break;
             case TransmuxingEvents.IO_ERROR:
             case TransmuxingEvents.DEMUX_ERROR:
-                this._emitter.emit(message.msg, data.type, data.info);
+                this._emitter.emit(message.msg, message.data.type, message.data.info);
                 break;
             case TransmuxingEvents.RECOMMEND_SEEKPOINT:
-                this._emitter.emit(message.msg, data);
+                this._emitter.emit(message.msg, message.data);
                 break;
             case 'logcat_callback':
-                Log.emitter.emit('log', data.type, data.logcat);
+                Log.emitLog(message.data.type, message.data.logcat);
                 break;
             default:
                 break;

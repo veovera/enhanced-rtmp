@@ -319,7 +319,7 @@ const PlayerEngineWorker = (self: DedicatedWorkerGlobalScope) => {
         } as WorkerMessagePacketTransmuxingEventRecommendSeekpoint);
     }
 
-    function emitTransmuxingEventsInfo(event: TransmuxingEvents, info: any) {
+    function emitTransmuxingEventsInfo(event: WorkerMessagePacketTransmuxingEventInfo['event'], info: any) {
         self.postMessage({
             msg: 'transmuxing_event',
             event: event,

@@ -23,23 +23,17 @@ import MSEEvents from '../core/mse-events';
 import { ErrorTypes, ErrorDetails } from './player-errors';
 import { IllegalStateException } from '../utils/exception';
 import TransmuxingEvents from '../core/transmuxing-events';
+import type { TransmuxingStatisticsInfo } from '../core/transmuxing-events';
 import SeekingHandler from './seeking-handler';
 import LoadingController from './loading-controller';
 import StartupStallJumper from './startup-stall-jumper';
 import LiveLatencyChaser from './live-latency-chaser';
 import LiveLatencySynchronizer from './live-latency-synchronizer';
 import { MediaElementProxy } from '../core/mse-controller';
-import { MSEInitSegment, MSEMediaSegment } from '../remux/remuxer';
+import { MSEInitSegment, MSEMediaSegment, TrackType } from '../remux/remuxer';
 import type { MediaDataSource } from '../e-flv';
 
-interface StatisticsInfo {
-    url: string;
-    hasRedirect: boolean;
-    redirectedURL?: string;
-    speed: number;
-    loaderType: string;
-    currentSegmentIndex: number;
-    totalSegmentCount: number;
+interface StatisticsInfo extends TransmuxingStatisticsInfo {
     playerType?: string;
     decodedFrames?: number;
     droppedFrames?: number;
@@ -204,14 +198,18 @@ class PlayerEngineMainThread implements PlayerEngine {
             return;
         }
 
+        if (!this._media_data_source) {
+            throw new IllegalStateException('MediaDataSource has been released, load() is no longer allowed!');
+        }
+
         this._transmuxer = new Transmuxer(this._media_data_source, this._config);
 
-        this._transmuxer.on(TransmuxingEvents.INIT_SEGMENT, (type: string, is: MSEInitSegment) => {
+        this._transmuxer.on(TransmuxingEvents.INIT_SEGMENT, (type: TrackType, is: MSEInitSegment) => {
             this._mse_controller?.appendInitSegment(is);
         });
-        this._transmuxer.on(TransmuxingEvents.MEDIA_SEGMENT, (type: string, ms: MSEMediaSegment) => {
+        this._transmuxer.on(TransmuxingEvents.MEDIA_SEGMENT, (type: TrackType, ms: MSEMediaSegment) => {
             this._mse_controller?.appendMediaSegment(ms);
-            if (!this._config.isLive && type === 'video' && ms.data && ms.data.byteLength > 0 && ('info' in ms)) {
+            if (!this._config.isLive && type === TrackType.Video && ms.data && ms.data.byteLength > 0 && ('info' in ms)) {
                 this._seeking_handler?.appendSyncPoints(ms.info.syncPoints);
             }
             this._loading_controller?.notifyBufferedPositionChanged(ms.info.endDts / 1000);

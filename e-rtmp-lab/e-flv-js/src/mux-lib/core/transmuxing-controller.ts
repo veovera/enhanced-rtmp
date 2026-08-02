@@ -22,9 +22,10 @@ import { WebMRemuxer } from '../remux/webm-remuxer.js';
 import RemuxerRouter from '../remux/remuxer-router.js';
 import DemuxErrors from '../demux/demux-errors.js';
 import IOController from '../io/io-controller.js';
-import TransmuxingEvents from './transmuxing-events';
+import TransmuxingEvents, { type TransmuxingEvent, type TransmuxingEventMap } from './transmuxing-events';
 import type { ResolvedPlayerConfig } from '../config.js';
 import { RemuxerType, TrackType } from '../remux/remuxer.js';
+import type { MSEInitSegment } from '../remux/remuxer.js';
 
 // Transmuxing (IO, Demuxing, Remuxing) controller, with multipart support
 class TransmuxingController {
@@ -211,11 +212,11 @@ class TransmuxingController {
         this._emitter.removeAllListeners();
     }
 
-    on(event: TransmuxingEvents, listener: (...args: unknown[]) => void) {
+    on<K extends TransmuxingEvent>(event: K, listener: (...args: TransmuxingEventMap[K]) => void) {
         this._emitter.addListener(event, listener);
     }
 
-    off(event: TransmuxingEvents, listener: (...args: unknown[]) => void) {
+    off<K extends TransmuxingEvent>(event: K, listener: (...args: TransmuxingEventMap[K]) => void) {
         this._emitter.removeListener(event, listener);
     }
 
@@ -536,7 +537,7 @@ class TransmuxingController {
         }
     }
 
-    _onRemuxerInitSegmentArrival(type: string, initSegment: ArrayBuffer) {
+    _onRemuxerInitSegmentArrival(type: TrackType, initSegment: MSEInitSegment) {
         this._emitter.emit(TransmuxingEvents.INIT_SEGMENT, type, initSegment);
     }
 

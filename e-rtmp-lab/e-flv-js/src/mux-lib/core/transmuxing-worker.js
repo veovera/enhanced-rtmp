@@ -94,7 +94,7 @@ let TransmuxingWorker = function (self) {
                 data: initSegment
             }
         };
-        self.postMessage(obj, [initSegment.data]);  // data: ArrayBuffer
+        self.postMessage(obj, [initSegment.data.buffer]);
     }
 
     function onMediaSegment(type, mediaSegment) {
@@ -105,7 +105,7 @@ let TransmuxingWorker = function (self) {
                 data: mediaSegment
             }
         };
-        self.postMessage(obj, [mediaSegment.data]);  // data: ArrayBuffer
+        self.postMessage(obj, [mediaSegment.data.buffer]);
     }
 
     function onLoadingComplete() {
