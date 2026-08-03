@@ -1,4 +1,5 @@
 # Minimal ignore file for e-flv-js folder (for independent clones)
+.claude/
 .vscode/
 assets/
 dist/
