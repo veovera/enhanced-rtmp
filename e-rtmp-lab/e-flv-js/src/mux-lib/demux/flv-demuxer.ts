@@ -217,18 +217,23 @@ enum AudioChannel {
 //   6  FIL  Fill Element              — padding / backward-compatible SBR extension data
 //   7  END  End of raw_data_block     — no instance tag follows; terminates the frame
 // Elements 0–6 are followed by a 4-bit instance tag, so the full element header is 7 bits.
+const AacSyntaxElement = {
+    SCE: 0,
+    CPE: 1,
+    CCE: 2,
+    LFE: 3,
+    DSE: 4,
+    PCE: 5,
+    FIL: 6,
+    END: 7,
+} as const;
+
+const AacSyntaxElementNames = [
+    'SCE', 'CPE', 'CCE', 'LFE', 'DSE', 'PCE', 'FIL', 'END',
+] as const;
+
 function describeAacSyntaxElement(elementId: number): string {
-    switch (elementId) {
-        case 0: return 'SCE';
-        case 1: return 'CPE';
-        case 2: return 'CCE';
-        case 3: return 'LFE';
-        case 4: return 'DSE';
-        case 5: return 'PCE';
-        case 6: return 'FIL';
-        case 7: return 'END';
-        default: return `unknown(${elementId})`;
-    }
+    return AacSyntaxElementNames[elementId] ?? `unknown(${elementId})`;
 }
 
 function readAacProbeBits(gb: ExpGolomb, bits: number): number | null {
@@ -475,11 +480,11 @@ function describeFirstAacPayload(data: Uint8Array): string {
         const elementId = gb.readBits(3);
         const elementName = describeAacSyntaxElement(elementId);
 
-        if (elementId === 5) {
+        if (elementId === AacSyntaxElement.PCE) {
             return `firstElement=${describeAacProgramConfigElement(gb)}`;
         }
 
-        if (elementId !== 6) {
+        if (elementId !== AacSyntaxElement.FIL) {
             return `firstElement=${elementName}`;
         }
 
@@ -528,10 +533,10 @@ function describeFirstAacPayload(data: Uint8Array): string {
 
         const nextElementId = gb.readBits(3);
         const nextElementName = describeAacSyntaxElement(nextElementId);
-        const nextDesc = nextElementId === 1 ? `${nextElementName}(stereo-pair)` :
-                         nextElementId === 0 ? `${nextElementName}(mono)` :
-                         nextElementId === 3 ? `${nextElementName}(low-freq)` : nextElementName;
-        if (nextElementId === 5) {
+        const nextDesc = nextElementId === AacSyntaxElement.CPE ? `${nextElementName}(stereo-pair)` :
+                         nextElementId === AacSyntaxElement.SCE ? `${nextElementName}(mono)` :
+                         nextElementId === AacSyntaxElement.LFE ? `${nextElementName}(low-freq)` : nextElementName;
+        if (nextElementId === AacSyntaxElement.PCE) {
             return `firstElement=FIL fillBytes=${fillCount}${sbrTag}${fillNote} nextElement=${describeAacProgramConfigElement(gb)}`;
         }
 
@@ -563,13 +568,13 @@ function describeAacRawDataBlockElements(data: Uint8Array): string {
             }
 
             const elementName = describeAacSyntaxElement(elementId);
-            if (elementId === 7) {
+            if (elementId === AacSyntaxElement.END) {
                 elements.push('END(7)');
                 complete = true;
                 break;
             }
 
-            if (elementId === 6) {
+            if (elementId === AacSyntaxElement.FIL) {
                 let fillCount = readAacProbeBits(gb, 4);
                 if (fillCount === null) {
                     elements.push('FIL(6,truncated-count)');
@@ -607,7 +612,11 @@ function describeAacRawDataBlockElements(data: Uint8Array): string {
                 continue;
             }
 
-            if (elementId === 0 || elementId === 1 || elementId === 3) {
+            if (
+                elementId === AacSyntaxElement.SCE ||
+                elementId === AacSyntaxElement.CPE ||
+                elementId === AacSyntaxElement.LFE
+            ) {
                 const tag = readAacProbeBits(gb, 4);
                 if (tag === null) {
                     elements.push(`${elementName}(${elementId},truncated-tag)`);
@@ -615,7 +624,7 @@ function describeAacRawDataBlockElements(data: Uint8Array): string {
                     break;
                 }
 
-                knownChannels += elementId === 1 ? 2 : 1;
+                knownChannels += elementId === AacSyntaxElement.CPE ? 2 : 1;
                 elements.push(`${elementName}(${elementId},tag=${tag})`);
 
                 // SCE/CPE/LFE payloads are individual_channel_stream data with
@@ -625,7 +634,7 @@ function describeAacRawDataBlockElements(data: Uint8Array): string {
                 break;
             }
 
-            if (elementId === 5) {
+            if (elementId === AacSyntaxElement.PCE) {
                 elements.push(`PCE(5,${describeAacProgramConfigElement(gb)})`);
                 stopReason = 'pce-payload-not-skipped';
                 break;
