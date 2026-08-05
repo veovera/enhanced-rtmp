@@ -765,7 +765,7 @@ export interface AudioFrame {
 }
 
 export interface AudioTrack {
-    type: TrackType.Audio;
+    type: typeof TrackType.Audio;
     id: number;
     sequenceNumber: number;
     frames: AudioFrame[];
@@ -784,7 +784,7 @@ export const AudioCodecKind = {
 export type AudioCodecKind = typeof AudioCodecKind[keyof typeof AudioCodecKind];
 
 export interface AudioMetadata {
-    type: TrackType.Audio;
+    type: typeof TrackType.Audio;
     codecKind: AudioCodecKind;
     codec: string;
     codecConfig?: Uint8Array;  // Audio specific config / codec private data
@@ -836,7 +836,7 @@ export const VideoCodecKind = {
 export type VideoCodecKind = typeof VideoCodecKind[keyof typeof VideoCodecKind];
 
 export interface VideoMetadata {
-    type: TrackType.Video;
+    type: typeof TrackType.Video;
     codecKind: VideoCodecKind;
     codec: string;
     av1Extra?: AV1Metadata;
@@ -899,7 +899,7 @@ export interface VideoFrame {
 }
 
 export interface VideoTrack {
-    type: TrackType.Video;
+    type: typeof TrackType.Video; 
     id: number;
     sequenceNumber: number;
     frames: VideoFrame[];

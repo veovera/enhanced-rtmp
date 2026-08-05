@@ -12,10 +12,12 @@ import { MediaSegmentInfo, MediaSegmentInfoList } from '../core/media-segment-in
 
 export type RemuxerType = 'mp4' | 'webm';
 
-export enum TrackType {
-  Audio = 'audio',
-  Video = 'video'
-};
+export const TrackType = {
+  Audio: 'audio',
+  Video: 'video'
+} as const;
+
+export type TrackType = typeof TrackType[keyof typeof TrackType];
 
 export enum SegmentKind {
   Init,
