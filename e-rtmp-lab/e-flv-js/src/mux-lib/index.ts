@@ -11,7 +11,7 @@
 // Re-export frequently used classes/types to avoid deep paths in consumers
 export { default as NativePlayer } from './player/native-player.js';
 export { default as MSEPlayer } from './player/mse-player.js';
-export { default as TransmuxingEvents } from './core/transmuxing-events.js';
+export { default as TransmuxingEvent } from './core/transmuxing-events.js';
 export type { DiscoveredTrackInfo, DiscoveredTracks } from './core/transmuxing-events.js';
 export { Remuxer } from './remux/remuxer';
 export { defaultConfig } from './config.js';

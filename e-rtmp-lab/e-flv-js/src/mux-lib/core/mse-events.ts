@@ -10,14 +10,14 @@
  * See Git history for full details.
  */
 
-enum MSEEvents {
-    ERROR = 'error',
-    SOURCE_OPEN = 'source_open',
-    UPDATE_END = 'update_end',
-    BUFFER_FULL = 'buffer_full',
-    QUOTA_EXCEEDED_BUFFER_FULL = 'quota_exceeded_buffer_full',
-    START_STREAMING = 'start_streaming',
-    END_STREAMING = 'end_streaming',
+enum MSEEvent {
+    ERROR                       = 'error',
+    SOURCE_OPEN                 = 'source_open',
+    UPDATE_END                  = 'update_end',
+    BUFFER_FULL                 = 'buffer_full',
+    QUOTA_EXCEEDED_BUFFER_FULL  = 'quota_exceeded_buffer_full',
+    START_STREAMING             = 'start_streaming',
+    END_STREAMING               = 'end_streaming',
 };
 
-export default MSEEvents;
+export default MSEEvent;

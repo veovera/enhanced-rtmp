@@ -14,10 +14,10 @@ import Log from '../utils/logger';
 import { LoggingControl } from '../utils/logger';
 import { IllegalStateException } from '../utils/exception';
 import MediaInfo from '../core/media-info';
-import MSEEvents from '../core/mse-events';
+import MSEEvent from '../core/mse-events';
 import MSEController, { MediaElementProxy } from '../core/mse-controller';
 import Transmuxer from "../core/transmuxer";
-import TransmuxingEvents from '../core/transmuxing-events';
+import TransmuxingEvent from '../core/transmuxing-events';
 import PlayerEvents from './player-events';
 import { ErrorTypes, ErrorDetails } from './player-errors';
 import {
@@ -151,11 +151,11 @@ const PlayerEngineWorker = (self: DedicatedWorkerGlobalScope) => {
             },
         };
         mse_controller = new MSEController(config, mediaElementProxy);
-        mse_controller.on(MSEEvents.SOURCE_OPEN, onMSESourceOpen);
-        mse_controller.on(MSEEvents.UPDATE_END, onMSEUpdateEnd);
-        mse_controller.on(MSEEvents.BUFFER_FULL, onMSEBufferFull);
-        mse_controller.on(MSEEvents.QUOTA_EXCEEDED_BUFFER_FULL, onMSEQuotaExceededBufferFull);
-        mse_controller.on(MSEEvents.ERROR, onMSEError);
+        mse_controller.on(MSEEvent.SOURCE_OPEN, onMSESourceOpen);
+        mse_controller.on(MSEEvent.UPDATE_END, onMSEUpdateEnd);
+        mse_controller.on(MSEEvent.BUFFER_FULL, onMSEBufferFull);
+        mse_controller.on(MSEEvent.QUOTA_EXCEEDED_BUFFER_FULL, onMSEQuotaExceededBufferFull);
+        mse_controller.on(MSEEvent.ERROR, onMSEError);
 
         let handle = mse_controller.getHandle();
         const transferList = handle ? [handle] : [];
@@ -190,30 +190,30 @@ const PlayerEngineWorker = (self: DedicatedWorkerGlobalScope) => {
 
         transmuxer = new Transmuxer(media_data_source, config);
 
-        transmuxer.on(TransmuxingEvents.INIT_SEGMENT, (type: string, is: any) => {
+        transmuxer.on(TransmuxingEvent.INIT_SEGMENT, (type: string, is: any) => {
             mse_controller!.appendInitSegment(is);
         });
-        transmuxer.on(TransmuxingEvents.MEDIA_SEGMENT, (type: string, ms: any) => {
+        transmuxer.on(TransmuxingEvent.MEDIA_SEGMENT, (type: string, ms: any) => {
             mse_controller!.appendMediaSegment(ms);
             self.postMessage({
                 msg: 'buffered_position_changed',
                 buffered_position_milliseconds: ms.info.endDts,
             } as WorkerMessagePacketBufferedPositionChanged);
         });
-        transmuxer.on(TransmuxingEvents.LOADING_COMPLETE, () => {
+        transmuxer.on(TransmuxingEvent.LOADING_COMPLETE, () => {
             mse_controller!.endOfStream();
             self.postMessage({
                 msg: 'player_event',
                 event: PlayerEvents.LOADING_COMPLETE,
             } as WorkerMessagePacketPlayerEvent);
         });
-        transmuxer.on(TransmuxingEvents.RECOVERED_EARLY_EOF, () => {
+        transmuxer.on(TransmuxingEvent.RECOVERED_EARLY_EOF, () => {
             self.postMessage({
                 msg: 'player_event',
                 event: PlayerEvents.RECOVERED_EARLY_EOF,
             } as WorkerMessagePacketPlayerEvent);
         });
-        transmuxer.on(TransmuxingEvents.IO_ERROR, (detail: any, info: any) => {
+        transmuxer.on(TransmuxingEvent.IO_ERROR, (detail: any, info: any) => {
             self.postMessage({
                 msg: 'player_event',
                 event: PlayerEvents.ERROR,
@@ -222,7 +222,7 @@ const PlayerEngineWorker = (self: DedicatedWorkerGlobalScope) => {
                 info: info,
             } as WorkerMessagePacketPlayerEventError);
         });
-        transmuxer.on(TransmuxingEvents.DEMUX_ERROR, (detail: any, info: any) => {
+        transmuxer.on(TransmuxingEvent.DEMUX_ERROR, (detail: any, info: any) => {
             self.postMessage({
                 msg: 'player_event',
                 event: PlayerEvents.ERROR,
@@ -232,28 +232,28 @@ const PlayerEngineWorker = (self: DedicatedWorkerGlobalScope) => {
             } as WorkerMessagePacketPlayerEventError);
         });
 
-        transmuxer.on(TransmuxingEvents.MEDIA_INFO, (mediaInfo: MediaInfo) => {
-            emitTransmuxingEventsInfo(TransmuxingEvents.MEDIA_INFO, mediaInfo);
+        transmuxer.on(TransmuxingEvent.MEDIA_INFO, (mediaInfo: MediaInfo) => {
+            emitTransmuxingEventInfo(TransmuxingEvent.MEDIA_INFO, mediaInfo);
         });
-        transmuxer.on(TransmuxingEvents.STATISTICS_INFO, (statInfo: any) => {
-            emitTransmuxingEventsInfo(TransmuxingEvents.STATISTICS_INFO, statInfo);
-        });
-
-        transmuxer.on(TransmuxingEvents.TRACKS_DISCOVERED, (tracks: any) => {
-            emitTransmuxingEventsTracksDiscovered(tracks);
+        transmuxer.on(TransmuxingEvent.STATISTICS_INFO, (statInfo: any) => {
+            emitTransmuxingEventInfo(TransmuxingEvent.STATISTICS_INFO, statInfo);
         });
 
-        transmuxer.on(TransmuxingEvents.RECOMMEND_SEEKPOINT, (milliseconds: number) => {
-            emitTransmuxingEventsRecommendSeekpoint(milliseconds);
+        transmuxer.on(TransmuxingEvent.TRACKS_DISCOVERED, (tracks: any) => {
+            emitTransmuxingEventTracksDiscovered(tracks);
         });
 
-        transmuxer.on(TransmuxingEvents.METADATA_ARRIVED, (metadata: any) => {
+        transmuxer.on(TransmuxingEvent.RECOMMEND_SEEKPOINT, (milliseconds: number) => {
+            emitTransmuxingEventRecommendSeekpoint(milliseconds);
+        });
+
+        transmuxer.on(TransmuxingEvent.METADATA_ARRIVED, (metadata: any) => {
             emitPlayerEventsExtraData(PlayerEvents.METADATA_ARRIVED, metadata);
         });
-        transmuxer.on(TransmuxingEvents.SCRIPTDATA_ARRIVED, (data: any) => {
+        transmuxer.on(TransmuxingEvent.SCRIPTDATA_ARRIVED, (data: any) => {
             emitPlayerEventsExtraData(PlayerEvents.SCRIPTDATA_ARRIVED, data);
         });
-        transmuxer.on(TransmuxingEvents.TIMED_ID3_METADATA_ARRIVED, (timed_id3_metadata: any) => {
+        transmuxer.on(TransmuxingEvent.TIMED_ID3_METADATA_ARRIVED, (timed_id3_metadata: any) => {
             emitPlayerEventsExtraData(PlayerEvents.TIMED_ID3_METADATA_ARRIVED, timed_id3_metadata);
         });
 
@@ -282,7 +282,7 @@ const PlayerEngineWorker = (self: DedicatedWorkerGlobalScope) => {
     function onMSEUpdateEnd(): void {
         self.postMessage({
             msg: 'mse_event',
-            event: MSEEvents.UPDATE_END,
+            event: MSEEvent.UPDATE_END,
         } as WorkerMessagePacketMSEEvent);
     }
 
@@ -290,7 +290,7 @@ const PlayerEngineWorker = (self: DedicatedWorkerGlobalScope) => {
         Log.v(TAG, 'MSE SourceBuffer is full, report to main thread');
         self.postMessage({
             msg: 'mse_event',
-            event: MSEEvents.BUFFER_FULL,
+            event: MSEEvent.BUFFER_FULL,
         } as WorkerMessagePacketMSEEvent);
     }
 
@@ -300,7 +300,7 @@ const PlayerEngineWorker = (self: DedicatedWorkerGlobalScope) => {
         // Send message to main thread about quota exceeded
         self.postMessage({
             msg: 'mse_event',
-            event: MSEEvents.QUOTA_EXCEEDED_BUFFER_FULL,
+            event: MSEEvent.QUOTA_EXCEEDED_BUFFER_FULL,
             data: data,
         } as WorkerMessagePacketMSEEvent);
     }
@@ -315,15 +315,15 @@ const PlayerEngineWorker = (self: DedicatedWorkerGlobalScope) => {
         } as WorkerMessagePacketPlayerEventError);
     }
 
-    function emitTransmuxingEventsRecommendSeekpoint(milliseconds: number) {
+    function emitTransmuxingEventRecommendSeekpoint(milliseconds: number) {
         self.postMessage({
             msg: 'transmuxing_event',
-            event: TransmuxingEvents.RECOMMEND_SEEKPOINT,
+            event: TransmuxingEvent.RECOMMEND_SEEKPOINT,
             milliseconds: milliseconds,
         } as WorkerMessagePacketTransmuxingEventRecommendSeekpoint);
     }
 
-    function emitTransmuxingEventsInfo(event: WorkerMessagePacketTransmuxingEventInfo['event'], info: any) {
+    function emitTransmuxingEventInfo(event: WorkerMessagePacketTransmuxingEventInfo['event'], info: any) {
         self.postMessage({
             msg: 'transmuxing_event',
             event: event,
@@ -331,10 +331,10 @@ const PlayerEngineWorker = (self: DedicatedWorkerGlobalScope) => {
         } as WorkerMessagePacketTransmuxingEventInfo);
     }
 
-    function emitTransmuxingEventsTracksDiscovered(tracks: any) {
+    function emitTransmuxingEventTracksDiscovered(tracks: any) {
         self.postMessage({
             msg: 'transmuxing_event',
-            event: TransmuxingEvents.TRACKS_DISCOVERED,
+            event: TransmuxingEvent.TRACKS_DISCOVERED,
             tracks: tracks,
         });
     }

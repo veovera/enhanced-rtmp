@@ -13,9 +13,9 @@ import Log from '../utils/logger';
 import { LoggingControl } from '../utils/logger.js';
 import { createDefaultConfig } from '../config';
 import MediaInfo from '../core/media-info';
-import MSEEvents from '../core/mse-events';
+import MSEEvent from '../core/mse-events';
 import PlayerEvents from './player-events';
-import TransmuxingEvents from '../core/transmuxing-events';
+import TransmuxingEvent from '../core/transmuxing-events';
 import SeekingHandler from './seeking-handler';
 import LoadingController from './loading-controller';
 import StartupStallJumper from './startup-stall-jumper';
@@ -373,33 +373,33 @@ class PlayerEngineDedicatedThread implements PlayerEngine {
             }
             case 'mse_event': {
                 const packet = message_packet as WorkerMessagePacketMSEEvent;
-                if (packet.event == MSEEvents.UPDATE_END) {
+                if (packet.event == MSEEvent.UPDATE_END) {
                     this._onMSEUpdateEnd();
-                } else if (packet.event == MSEEvents.BUFFER_FULL) {
+                } else if (packet.event == MSEEvent.BUFFER_FULL) {
                     this._onMSEBufferFull();
-                } else if (packet.event == MSEEvents.QUOTA_EXCEEDED_BUFFER_FULL) {
+                } else if (packet.event == MSEEvent.QUOTA_EXCEEDED_BUFFER_FULL) {
                     this._onMSEQuotaExceededBufferFull(packet.data);
                 }
                 break;
             }
             case 'transmuxing_event': {
                 const packet = message_packet as WorkerMessagePacketTransmuxingEvent;
-                if (packet.event == TransmuxingEvents.MEDIA_INFO) {
+                if (packet.event == TransmuxingEvent.MEDIA_INFO) {
                     const packet = message_packet as WorkerMessagePacketTransmuxingEventInfo;
                     this._media_info = packet.info;
                     this._emitter.emit(PlayerEvents.MEDIA_INFO, Object.assign({}, packet.info));
-                } else if (packet.event == TransmuxingEvents.STATISTICS_INFO) {
+                } else if (packet.event == TransmuxingEvent.STATISTICS_INFO) {
                     const packet = message_packet as WorkerMessagePacketTransmuxingEventInfo;
                     this._statistics_info = this._fillStatisticsInfo(packet.info);
                     this._emitter.emit(PlayerEvents.STATISTICS_INFO, Object.assign({}, packet.info));
-                } else if (packet.event == TransmuxingEvents.RECOMMEND_SEEKPOINT) {
+                } else if (packet.event == TransmuxingEvent.RECOMMEND_SEEKPOINT) {
                     const packet = message_packet as WorkerMessagePacketTransmuxingEventRecommendSeekpoint;
                     if (this._media_element && !this._config.accurateSeek) {
                         this._seeking_handler?.directSeek(packet.milliseconds / 1000);
                     }
-                } else if (packet.event == TransmuxingEvents.TRACKS_DISCOVERED) {
+                } else if (packet.event == TransmuxingEvent.TRACKS_DISCOVERED) {
                     const packet = message_packet as WorkerMessagePacketTransmuxingEventTracksDiscovered;
-                    this._emitter.emit(TransmuxingEvents.TRACKS_DISCOVERED, packet.tracks);
+                    this._emitter.emit(TransmuxingEvent.TRACKS_DISCOVERED, packet.tracks);
                 }
                 break;
             }

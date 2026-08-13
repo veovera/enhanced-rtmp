@@ -6,7 +6,7 @@
  * 
  */
 
-import { eflv, NativePlayer, MSEPlayer, TransmuxingEvents, Remuxer, defaultConfig } from '@/mux-lib';
+import { eflv, NativePlayer, MSEPlayer, TransmuxingEvent, Remuxer, defaultConfig } from '@/mux-lib';
 import type { MediaDataSource, PlayerConfig, AMFScriptData, DiscoveredTrackInfo, DiscoveredTracks } from '@/mux-lib';
 
 const hasAudioLabel: HTMLLabelElement = document.createElement('label');
@@ -472,7 +472,7 @@ function createPlayer(): MSEPlayer | NativePlayer | null {
     console.log('Player statistics:', stats);
   });
 
-  _player.on(TransmuxingEvents.TRACKS_DISCOVERED, updateTrackSelects);
+  _player.on(TransmuxingEvent.TRACKS_DISCOVERED, updateTrackSelects);
 
   // Auto-play when metadata is ready on the media element
   loadedMetadataHandler = () => {
@@ -482,7 +482,7 @@ function createPlayer(): MSEPlayer | NativePlayer | null {
   };
   videoElement.addEventListener('loadedmetadata', loadedMetadataHandler, { once: true });
 
-  _player.on(TransmuxingEvents.SCRIPTDATA_ARRIVED, (scriptData: AMFScriptData) => {
+  _player.on(TransmuxingEvent.SCRIPTDATA_ARRIVED, (scriptData: AMFScriptData) => {
     const traceBox = document.getElementById('videoMetadataBox') as HTMLTextAreaElement;
     const onMetaData = scriptData.onMetaData;
 

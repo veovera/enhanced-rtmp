@@ -13,23 +13,21 @@
 import type MediaInfo from './media-info.js';
 import type { MSEInitSegment, MSEMediaSegment, TrackType } from '../remux/remuxer.js';
 
-const TransmuxingEvents = {
-    IO_ERROR: 'io_error',
-    DEMUX_ERROR: 'demux_error',
-    INIT_SEGMENT: 'init_segment',
-    MEDIA_SEGMENT: 'media_segment',
-    LOADING_COMPLETE: 'loading_complete',
-    RECOVERED_EARLY_EOF: 'recovered_early_eof',
-    MEDIA_INFO: 'media_info',
-    METADATA_ARRIVED: 'metadata_arrived',
-    SCRIPTDATA_ARRIVED: 'scriptdata_arrived',
-    TIMED_ID3_METADATA_ARRIVED: 'timed_id3_metadata_arrived',
-    STATISTICS_INFO: 'statistics_info',
-    TRACKS_DISCOVERED: 'tracks_discovered',
-    RECOMMEND_SEEKPOINT: 'recommend_seekpoint'
-} as const;
-
-export type TransmuxingEvent = typeof TransmuxingEvents[keyof typeof TransmuxingEvents];
+export enum TransmuxingEvent {
+    IO_ERROR =                      'io_error',
+    DEMUX_ERROR =                   'demux_error',
+    INIT_SEGMENT =                  'init_segment',
+    MEDIA_SEGMENT =                 'media_segment',
+    LOADING_COMPLETE =              'loading_complete',
+    RECOVERED_EARLY_EOF =           'recovered_early_eof',
+    MEDIA_INFO =                    'media_info',
+    METADATA_ARRIVED =              'metadata_arrived',
+    SCRIPTDATA_ARRIVED =            'scriptdata_arrived',
+    TIMED_ID3_METADATA_ARRIVED =    'timed_id3_metadata_arrived',
+    STATISTICS_INFO =               'statistics_info',
+    TRACKS_DISCOVERED =             'tracks_discovered',
+    RECOMMEND_SEEKPOINT =           'recommend_seekpoint'
+}
 
 /** Loading statistics reported by the transmuxing controller. */
 export interface TransmuxingStatisticsInfo {
@@ -55,19 +53,19 @@ export interface DiscoveredTracks {
 
 /** Listener argument tuple for each transmuxing event. */
 export interface TransmuxingEventMap {
-    [TransmuxingEvents.IO_ERROR]: [type: string, info: unknown];
-    [TransmuxingEvents.DEMUX_ERROR]: [type: string, info: string];
-    [TransmuxingEvents.INIT_SEGMENT]: [type: TrackType, initSegment: MSEInitSegment];
-    [TransmuxingEvents.MEDIA_SEGMENT]: [type: TrackType, mediaSegment: MSEMediaSegment];
-    [TransmuxingEvents.LOADING_COMPLETE]: [];
-    [TransmuxingEvents.RECOVERED_EARLY_EOF]: [];
-    [TransmuxingEvents.MEDIA_INFO]: [mediaInfo: MediaInfo];
-    [TransmuxingEvents.METADATA_ARRIVED]: [metadata: unknown];
-    [TransmuxingEvents.SCRIPTDATA_ARRIVED]: [data: unknown];
-    [TransmuxingEvents.TIMED_ID3_METADATA_ARRIVED]: [metadata: unknown];
-    [TransmuxingEvents.STATISTICS_INFO]: [statisticsInfo: TransmuxingStatisticsInfo];
-    [TransmuxingEvents.TRACKS_DISCOVERED]: [tracks: DiscoveredTracks];
-    [TransmuxingEvents.RECOMMEND_SEEKPOINT]: [milliseconds: number];
+    [TransmuxingEvent.IO_ERROR]: [type: string, info: unknown];
+    [TransmuxingEvent.DEMUX_ERROR]: [type: string, info: string];
+    [TransmuxingEvent.INIT_SEGMENT]: [type: TrackType, initSegment: MSEInitSegment];
+    [TransmuxingEvent.MEDIA_SEGMENT]: [type: TrackType, mediaSegment: MSEMediaSegment];
+    [TransmuxingEvent.LOADING_COMPLETE]: [];
+    [TransmuxingEvent.RECOVERED_EARLY_EOF]: [];
+    [TransmuxingEvent.MEDIA_INFO]: [mediaInfo: MediaInfo];
+    [TransmuxingEvent.METADATA_ARRIVED]: [metadata: unknown];
+    [TransmuxingEvent.SCRIPTDATA_ARRIVED]: [data: unknown];
+    [TransmuxingEvent.TIMED_ID3_METADATA_ARRIVED]: [metadata: unknown];
+    [TransmuxingEvent.STATISTICS_INFO]: [statisticsInfo: TransmuxingStatisticsInfo];
+    [TransmuxingEvent.TRACKS_DISCOVERED]: [tracks: DiscoveredTracks];
+    [TransmuxingEvent.RECOMMEND_SEEKPOINT]: [milliseconds: number];
 }
 
-export default TransmuxingEvents;
+export default TransmuxingEvent;

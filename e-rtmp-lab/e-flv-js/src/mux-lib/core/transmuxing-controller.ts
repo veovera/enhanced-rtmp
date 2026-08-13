@@ -22,7 +22,7 @@ import { WebMRemuxer } from '../remux/webm-remuxer.js';
 import RemuxerRouter from '../remux/remuxer-router.js';
 import DemuxErrors from '../demux/demux-errors.js';
 import IOController from '../io/io-controller.js';
-import TransmuxingEvents, { type DiscoveredTrackInfo, type DiscoveredTracks, type TransmuxingEvent, type TransmuxingEventMap } from './transmuxing-events';
+import TransmuxingEvent, { type DiscoveredTrackInfo, type DiscoveredTracks, type TransmuxingEventMap } from './transmuxing-events';
 import type { ResolvedPlayerConfig } from '../config.js';
 import { RemuxerType, TrackType } from '../remux/remuxer.js';
 import type { MSEInitSegment } from '../remux/remuxer.js';
@@ -230,7 +230,7 @@ class TransmuxingController {
             return;
         }
         this._lastDiscoveredTracksSignature = signature;
-        this._emitter.emit(TransmuxingEvents.TRACKS_DISCOVERED, tracks);
+        this._emitter.emit(TransmuxingEvent.TRACKS_DISCOVERED, tracks);
     }
 
     private _isSelectedTrackMetadata(metadata: AudioMetadata | VideoMetadata): boolean {
@@ -410,7 +410,7 @@ class TransmuxingController {
                 Promise.resolve().then(() => {
                     this._internalAbort();
                 });
-                this._emitter.emit(TransmuxingEvents.DEMUX_ERROR, DemuxErrors.FORMAT_UNSUPPORTED, 'Non MPEG-TS/FLV, Unsupported media type!');
+                this._emitter.emit(TransmuxingEvent.DEMUX_ERROR, DemuxErrors.FORMAT_UNSUPPORTED, 'Non MPEG-TS/FLV, Unsupported media type!');
                 // Leave consumed as 0
             }
         }
@@ -522,11 +522,11 @@ class TransmuxingController {
     }
 
     _onScriptMetadata(metadata: any) {
-        this._emitter.emit(TransmuxingEvents.METADATA_ARRIVED, metadata);
+        this._emitter.emit(TransmuxingEvent.METADATA_ARRIVED, metadata);
     }
 
     _onScriptData(data: any) {
-        this._emitter.emit(TransmuxingEvents.SCRIPTDATA_ARRIVED, data);
+        this._emitter.emit(TransmuxingEvent.SCRIPTDATA_ARRIVED, data);
     }
 
     _onTimedID3Metadata(timed_id3_metadata: any) {
@@ -541,7 +541,7 @@ class TransmuxingController {
             timed_id3_metadata.dts -= timestamp_base;
         }
 
-        this._emitter.emit(TransmuxingEvents.TIMED_ID3_METADATA_ARRIVED, timed_id3_metadata);
+        this._emitter.emit(TransmuxingEvent.TIMED_ID3_METADATA_ARRIVED, timed_id3_metadata);
     }
 
     _onIOSeeked() {
@@ -562,7 +562,7 @@ class TransmuxingController {
             if (this._remuxerRouter) {
                 this._remuxerRouter.flushStashedFrames();
             }
-            this._emitter.emit(TransmuxingEvents.LOADING_COMPLETE);
+            this._emitter.emit(TransmuxingEvent.LOADING_COMPLETE);
             this._disableStatisticsReporter();
         }
     }
@@ -573,18 +573,18 @@ class TransmuxingController {
     }
 
     _onIORecoveredEarlyEof() {
-        this._emitter.emit(TransmuxingEvents.RECOVERED_EARLY_EOF);
+        this._emitter.emit(TransmuxingEvent.RECOVERED_EARLY_EOF);
     }
 
     _onIOException(type: string, info: any) {
         Log.e(this.TAG, `IOException: type = ${type}, code = ${info.code}, msg = ${info.msg}`);
-        this._emitter.emit(TransmuxingEvents.IO_ERROR, type, info);
+        this._emitter.emit(TransmuxingEvent.IO_ERROR, type, info);
         this._disableStatisticsReporter();
     }
 
     _onDemuxException(type: string, info: string) {
         Log.e(this.TAG, `DemuxException: type = ${type}, info = ${info}`);
-        this._emitter.emit(TransmuxingEvents.DEMUX_ERROR, type, info);
+        this._emitter.emit(TransmuxingEvent.DEMUX_ERROR, type, info);
 
         // An unsupported format cannot become playable by reading more input.
         // Abort after notifying listeners so no additional packets are parsed and
@@ -595,7 +595,7 @@ class TransmuxingController {
     }
 
     _onRemuxerInitSegmentArrival(type: TrackType, initSegment: MSEInitSegment) {
-        this._emitter.emit(TransmuxingEvents.INIT_SEGMENT, type, initSegment);
+        this._emitter.emit(TransmuxingEvent.INIT_SEGMENT, type, initSegment);
     }
 
     _onRemuxerMediaSegmentArrival(type: string, mediaSegment: any) {
@@ -603,7 +603,7 @@ class TransmuxingController {
             // Media segments after new-segment cross-seeking should be dropped.
             return;
         }
-        this._emitter.emit(TransmuxingEvents.MEDIA_SEGMENT, type, mediaSegment);
+        this._emitter.emit(TransmuxingEvent.MEDIA_SEGMENT, type, mediaSegment);
 
         // Resolve pending seekPoint
         if (this._pendingResolveSeekPoint != null && type === 'video') {
@@ -617,7 +617,7 @@ class TransmuxingController {
             }
             // else: use original DTS (keyframe.milliseconds)
 
-            this._emitter.emit(TransmuxingEvents.RECOMMEND_SEEKPOINT, seekpoint);
+            this._emitter.emit(TransmuxingEvent.RECOMMEND_SEEKPOINT, seekpoint);
         }
     }
 
@@ -652,7 +652,7 @@ class TransmuxingController {
             segmentCount: mediaInfo.segmentCount,
         };
 
-        this._emitter.emit(TransmuxingEvents.MEDIA_INFO, exportInfo);
+        this._emitter.emit(TransmuxingEvent.MEDIA_INFO, exportInfo);
     }
 
     _reportStatisticsInfo() {
@@ -669,7 +669,7 @@ class TransmuxingController {
         info.currentSegmentIndex = this._currentSegmentIndex;
         info.totalSegmentCount = this._mediaDataSource.segments.length;
 
-        this._emitter.emit(TransmuxingEvents.STATISTICS_INFO, info);
+        this._emitter.emit(TransmuxingEvent.STATISTICS_INFO, info);
     }
 
 }

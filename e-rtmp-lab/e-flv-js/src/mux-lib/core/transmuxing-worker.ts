@@ -12,7 +12,7 @@
 
 import { LoggingControl } from '../utils/logger.js';
 import TransmuxingController from './transmuxing-controller.js';
-import TransmuxingEvents, { type DiscoveredTracks, type TransmuxingStatisticsInfo } from './transmuxing-events.js';
+import TransmuxingEvent, { type DiscoveredTracks, type TransmuxingStatisticsInfo } from './transmuxing-events.js';
 import type MediaInfo from './media-info.js';
 import type { ResolvedPlayerConfig } from '../config.js';
 import type { MediaDataSource } from '../e-flv.js';
@@ -52,19 +52,19 @@ function TransmuxingWorker(self: DedicatedWorkerGlobalScope): void {
         switch (command.cmd) {
             case 'init':
                 controller = new TransmuxingController(command.param[0], command.param[1]);
-                controller.on(TransmuxingEvents.IO_ERROR, onIOError);
-                controller.on(TransmuxingEvents.DEMUX_ERROR, onDemuxError);
-                controller.on(TransmuxingEvents.INIT_SEGMENT, onInitSegment);
-                controller.on(TransmuxingEvents.MEDIA_SEGMENT, onMediaSegment);
-                controller.on(TransmuxingEvents.LOADING_COMPLETE, onLoadingComplete);
-                controller.on(TransmuxingEvents.RECOVERED_EARLY_EOF, onRecoveredEarlyEof);
-                controller.on(TransmuxingEvents.MEDIA_INFO, onMediaInfo);
-                controller.on(TransmuxingEvents.METADATA_ARRIVED, onScriptMetadata);
-                controller.on(TransmuxingEvents.SCRIPTDATA_ARRIVED, onScriptData);
-                controller.on(TransmuxingEvents.TIMED_ID3_METADATA_ARRIVED, onTimedID3MetadataArrived);
-                controller.on(TransmuxingEvents.STATISTICS_INFO, onStatisticsInfo);
-                controller.on(TransmuxingEvents.TRACKS_DISCOVERED, onTracksDiscovered);
-                controller.on(TransmuxingEvents.RECOMMEND_SEEKPOINT, onRecommendSeekpoint);
+                controller.on(TransmuxingEvent.IO_ERROR, onIOError);
+                controller.on(TransmuxingEvent.DEMUX_ERROR, onDemuxError);
+                controller.on(TransmuxingEvent.INIT_SEGMENT, onInitSegment);
+                controller.on(TransmuxingEvent.MEDIA_SEGMENT, onMediaSegment);
+                controller.on(TransmuxingEvent.LOADING_COMPLETE, onLoadingComplete);
+                controller.on(TransmuxingEvent.RECOVERED_EARLY_EOF, onRecoveredEarlyEof);
+                controller.on(TransmuxingEvent.MEDIA_INFO, onMediaInfo);
+                controller.on(TransmuxingEvent.METADATA_ARRIVED, onScriptMetadata);
+                controller.on(TransmuxingEvent.SCRIPTDATA_ARRIVED, onScriptData);
+                controller.on(TransmuxingEvent.TIMED_ID3_METADATA_ARRIVED, onTimedID3MetadataArrived);
+                controller.on(TransmuxingEvent.STATISTICS_INFO, onStatisticsInfo);
+                controller.on(TransmuxingEvent.TRACKS_DISCOVERED, onTracksDiscovered);
+                controller.on(TransmuxingEvent.RECOMMEND_SEEKPOINT, onRecommendSeekpoint);
                 break;
             case 'destroy':
                 if (controller) {
@@ -104,7 +104,7 @@ function TransmuxingWorker(self: DedicatedWorkerGlobalScope): void {
 
     function onInitSegment(type: TrackType, initSegment: MSEInitSegment): void {
         const obj = {
-            msg: TransmuxingEvents.INIT_SEGMENT,
+            msg: TransmuxingEvent.INIT_SEGMENT,
             data: {
                 type: type,
                 data: initSegment
@@ -115,7 +115,7 @@ function TransmuxingWorker(self: DedicatedWorkerGlobalScope): void {
 
     function onMediaSegment(type: TrackType, mediaSegment: MSEMediaSegment): void {
         const obj = {
-            msg: TransmuxingEvents.MEDIA_SEGMENT,
+            msg: TransmuxingEvent.MEDIA_SEGMENT,
             data: {
                 type: type,
                 data: mediaSegment
@@ -126,21 +126,21 @@ function TransmuxingWorker(self: DedicatedWorkerGlobalScope): void {
 
     function onLoadingComplete(): void {
         const obj = {
-            msg: TransmuxingEvents.LOADING_COMPLETE
+            msg: TransmuxingEvent.LOADING_COMPLETE
         };
         self.postMessage(obj);
     }
 
     function onRecoveredEarlyEof(): void {
         const obj = {
-            msg: TransmuxingEvents.RECOVERED_EARLY_EOF
+            msg: TransmuxingEvent.RECOVERED_EARLY_EOF
         };
         self.postMessage(obj);
     }
 
     function onMediaInfo(mediaInfo: MediaInfo): void {
         const obj = {
-            msg: TransmuxingEvents.MEDIA_INFO,
+            msg: TransmuxingEvent.MEDIA_INFO,
             data: mediaInfo
         };
         self.postMessage(obj);
@@ -148,7 +148,7 @@ function TransmuxingWorker(self: DedicatedWorkerGlobalScope): void {
 
     function onScriptMetadata(metadata: unknown): void {
         const obj = {
-            msg: TransmuxingEvents.METADATA_ARRIVED,
+            msg: TransmuxingEvent.METADATA_ARRIVED,
             data: metadata
         };
         self.postMessage(obj);
@@ -156,7 +156,7 @@ function TransmuxingWorker(self: DedicatedWorkerGlobalScope): void {
 
     function onScriptData(data: unknown): void {
         const obj = {
-            msg: TransmuxingEvents.SCRIPTDATA_ARRIVED,
+            msg: TransmuxingEvent.SCRIPTDATA_ARRIVED,
             data: data
         };
         self.postMessage(obj);
@@ -164,7 +164,7 @@ function TransmuxingWorker(self: DedicatedWorkerGlobalScope): void {
 
     function onTimedID3MetadataArrived(data: unknown): void {
         const obj = {
-            msg: TransmuxingEvents.TIMED_ID3_METADATA_ARRIVED,
+            msg: TransmuxingEvent.TIMED_ID3_METADATA_ARRIVED,
             data: data
         };
         self.postMessage(obj);
@@ -172,7 +172,7 @@ function TransmuxingWorker(self: DedicatedWorkerGlobalScope): void {
 
     function onStatisticsInfo(statInfo: TransmuxingStatisticsInfo): void {
         const obj = {
-            msg: TransmuxingEvents.STATISTICS_INFO,
+            msg: TransmuxingEvent.STATISTICS_INFO,
             data: statInfo
         };
         self.postMessage(obj);
@@ -180,7 +180,7 @@ function TransmuxingWorker(self: DedicatedWorkerGlobalScope): void {
 
     function onTracksDiscovered(tracks: DiscoveredTracks): void {
         const obj = {
-            msg: TransmuxingEvents.TRACKS_DISCOVERED,
+            msg: TransmuxingEvent.TRACKS_DISCOVERED,
             data: tracks
         };
         self.postMessage(obj);
@@ -188,7 +188,7 @@ function TransmuxingWorker(self: DedicatedWorkerGlobalScope): void {
 
     function onIOError(type: string, info: unknown): void {
         self.postMessage({
-            msg: TransmuxingEvents.IO_ERROR,
+            msg: TransmuxingEvent.IO_ERROR,
             data: {
                 type: type,
                 info: info
@@ -198,7 +198,7 @@ function TransmuxingWorker(self: DedicatedWorkerGlobalScope): void {
 
     function onDemuxError(type: string, info: string): void {
         self.postMessage({
-            msg: TransmuxingEvents.DEMUX_ERROR,
+            msg: TransmuxingEvent.DEMUX_ERROR,
             data: {
                 type: type,
                 info: info
@@ -208,7 +208,7 @@ function TransmuxingWorker(self: DedicatedWorkerGlobalScope): void {
 
     function onRecommendSeekpoint(milliseconds: number): void {
         self.postMessage({
-            msg: TransmuxingEvents.RECOMMEND_SEEKPOINT,
+            msg: TransmuxingEvent.RECOMMEND_SEEKPOINT,
             data: milliseconds
         });
     }

@@ -19,10 +19,10 @@ import MSEController from '../core/mse-controller';
 import PlayerEvents from './player-events';
 import Transmuxer from '../core/transmuxer';
 import MediaInfo from '../core/media-info';
-import MSEEvents from '../core/mse-events';
+import MSEEvent from '../core/mse-events';
 import { ErrorTypes, ErrorDetails } from './player-errors';
 import { IllegalStateException } from '../utils/exception';
-import TransmuxingEvents from '../core/transmuxing-events';
+import TransmuxingEvent from '../core/transmuxing-events';
 import type { DiscoveredTracks, TransmuxingStatisticsInfo } from '../core/transmuxing-events';
 import SeekingHandler from './seeking-handler';
 import LoadingController from './loading-controller';
@@ -140,13 +140,13 @@ class PlayerEngineMainThread implements PlayerEngine {
         };
 
         this._mse_controller = new MSEController(this._config, mediaElementProxy);
-        this._mse_controller.on(MSEEvents.UPDATE_END, this._onMSEUpdateEnd.bind(this));
-        this._mse_controller.on(MSEEvents.BUFFER_FULL, this._onMSEBufferFull.bind(this));
-        this._mse_controller.on(MSEEvents.QUOTA_EXCEEDED_BUFFER_FULL, this._onMSEQuotaExceededBufferFull.bind(this));
-        this._mse_controller.on(MSEEvents.SOURCE_OPEN, this._onMSESourceOpen.bind(this));
-        this._mse_controller.on(MSEEvents.ERROR, this._onMSEError.bind(this));
-        this._mse_controller.on(MSEEvents.START_STREAMING, this._onMSEStartStreaming.bind(this));
-        this._mse_controller.on(MSEEvents.END_STREAMING, this._onMSEEndStreaming.bind(this));
+        this._mse_controller.on(MSEEvent.UPDATE_END, this._onMSEUpdateEnd.bind(this));
+        this._mse_controller.on(MSEEvent.BUFFER_FULL, this._onMSEBufferFull.bind(this));
+        this._mse_controller.on(MSEEvent.QUOTA_EXCEEDED_BUFFER_FULL, this._onMSEQuotaExceededBufferFull.bind(this));
+        this._mse_controller.on(MSEEvent.SOURCE_OPEN, this._onMSESourceOpen.bind(this));
+        this._mse_controller.on(MSEEvent.ERROR, this._onMSEError.bind(this));
+        this._mse_controller.on(MSEEvent.START_STREAMING, this._onMSEStartStreaming.bind(this));
+        this._mse_controller.on(MSEEvent.END_STREAMING, this._onMSEEndStreaming.bind(this));
 
         // Attach media source into media element
         if (this._mse_controller.isManagedMediaSource()) {
@@ -204,52 +204,52 @@ class PlayerEngineMainThread implements PlayerEngine {
 
         this._transmuxer = new Transmuxer(this._media_data_source, this._config);
 
-        this._transmuxer.on(TransmuxingEvents.INIT_SEGMENT, (type: TrackType, is: MSEInitSegment) => {
+        this._transmuxer.on(TransmuxingEvent.INIT_SEGMENT, (type: TrackType, is: MSEInitSegment) => {
             this._mse_controller?.appendInitSegment(is);
         });
-        this._transmuxer.on(TransmuxingEvents.MEDIA_SEGMENT, (type: TrackType, ms: MSEMediaSegment) => {
+        this._transmuxer.on(TransmuxingEvent.MEDIA_SEGMENT, (type: TrackType, ms: MSEMediaSegment) => {
             this._mse_controller?.appendMediaSegment(ms);
             if (!this._config.isLive && type === TrackType.Video && ms.data && ms.data.byteLength > 0 && ('info' in ms)) {
                 this._seeking_handler?.appendSyncPoints(ms.info.syncPoints);
             }
             this._loading_controller?.notifyBufferedPositionChanged(ms.info.endDts / 1000);
         });
-        this._transmuxer.on(TransmuxingEvents.LOADING_COMPLETE, () => {
+        this._transmuxer.on(TransmuxingEvent.LOADING_COMPLETE, () => {
             this._mse_controller?.endOfStream();
             this._emitter?.emit(PlayerEvents.LOADING_COMPLETE);
         });
-        this._transmuxer.on(TransmuxingEvents.RECOVERED_EARLY_EOF, () => {
+        this._transmuxer.on(TransmuxingEvent.RECOVERED_EARLY_EOF, () => {
             this._emitter?.emit(PlayerEvents.RECOVERED_EARLY_EOF);
         });
-        this._transmuxer.on(TransmuxingEvents.IO_ERROR, (detail: unknown, info: unknown) => {
+        this._transmuxer.on(TransmuxingEvent.IO_ERROR, (detail: unknown, info: unknown) => {
             this._emitter?.emit(PlayerEvents.ERROR, ErrorTypes.NETWORK_ERROR, detail, info);
         });
-        this._transmuxer.on(TransmuxingEvents.DEMUX_ERROR, (detail: unknown, info: unknown) => {
+        this._transmuxer.on(TransmuxingEvent.DEMUX_ERROR, (detail: unknown, info: unknown) => {
             this._emitter?.emit(PlayerEvents.ERROR, ErrorTypes.MEDIA_ERROR, detail, info);
         });
-        this._transmuxer.on(TransmuxingEvents.MEDIA_INFO, (mediaInfo: MediaInfo) => {
+        this._transmuxer.on(TransmuxingEvent.MEDIA_INFO, (mediaInfo: MediaInfo) => {
             this._media_info = mediaInfo;
             this._emitter?.emit(PlayerEvents.MEDIA_INFO, Object.assign({}, mediaInfo));
         });
-        this._transmuxer.on(TransmuxingEvents.STATISTICS_INFO, (statInfo: StatisticsInfo) => {
+        this._transmuxer.on(TransmuxingEvent.STATISTICS_INFO, (statInfo: StatisticsInfo) => {
             this._statistics_info = this._fillStatisticsInfo(statInfo);
             this._emitter?.emit(PlayerEvents.STATISTICS_INFO, Object.assign({}, statInfo));
         });
-        this._transmuxer.on(TransmuxingEvents.TRACKS_DISCOVERED, (tracks: DiscoveredTracks) => {
-            this._emitter?.emit(TransmuxingEvents.TRACKS_DISCOVERED, tracks);
+        this._transmuxer.on(TransmuxingEvent.TRACKS_DISCOVERED, (tracks: DiscoveredTracks) => {
+            this._emitter?.emit(TransmuxingEvent.TRACKS_DISCOVERED, tracks);
         });
-        this._transmuxer.on(TransmuxingEvents.RECOMMEND_SEEKPOINT, (milliseconds: number) => {
+        this._transmuxer.on(TransmuxingEvent.RECOMMEND_SEEKPOINT, (milliseconds: number) => {
             if (this._media_element && !this._config.accurateSeek) {
                 this._seeking_handler?.directSeek(milliseconds / 1000);
             }
         });
-        this._transmuxer.on(TransmuxingEvents.METADATA_ARRIVED, (metadata: unknown) => {
+        this._transmuxer.on(TransmuxingEvent.METADATA_ARRIVED, (metadata: unknown) => {
             this._emitter?.emit(PlayerEvents.METADATA_ARRIVED, metadata);
         });
-        this._transmuxer.on(TransmuxingEvents.SCRIPTDATA_ARRIVED, (data: unknown) => {
+        this._transmuxer.on(TransmuxingEvent.SCRIPTDATA_ARRIVED, (data: unknown) => {
             this._emitter?.emit(PlayerEvents.SCRIPTDATA_ARRIVED, data);
         });
-        this._transmuxer.on(TransmuxingEvents.TIMED_ID3_METADATA_ARRIVED, (timed_id3_metadata: unknown) => {
+        this._transmuxer.on(TransmuxingEvent.TIMED_ID3_METADATA_ARRIVED, (timed_id3_metadata: unknown) => {
             this._emitter?.emit(PlayerEvents.TIMED_ID3_METADATA_ARRIVED, timed_id3_metadata);
         });
 

@@ -13,7 +13,7 @@
 import EventEmitter from 'eventemitter3';
 import Log from '../utils/logger';
 import Browser from '../utils/browser';
-import MSEEvents from './mse-events';
+import MSEEvent from './mse-events';
 import {IllegalStateException} from '../utils/exception';
 import { MediaErrorName } from '../utils/exception';
 import { MSESegment, MSEInitSegment, MSEMediaSegment, TrackType, SegmentKind } from '../remux/remuxer';
@@ -307,7 +307,7 @@ class MSEController {
                     sb.addEventListener('updateend', this.events.onSourceBufferUpdateEnd);
                 } catch (error: any) {
                     Log.e(this.TAG, error.message);
-                    this._emitter.emit(MSEEvents.ERROR, {code: error.code, msg: error.message});
+                    this._emitter.emit(MSEEvent.ERROR, {code: error.code, msg: error.message});
                     return;
                 }
             } else {
@@ -617,16 +617,16 @@ class MSEController {
                                 // Don't emit error, just let the video continue playing buffered content
                                 if (!this._isBufferFull) {
                                     this._isBufferFull = true;
-                                    this._emitter.emit(MSEEvents.BUFFER_FULL);
+                                    this._emitter.emit(MSEEvent.BUFFER_FULL);
                                 }
                             }
                         } else if (!this._isBufferFull) {
                             // If we are not at the end of the stream, emit BUFFER_FULL event.                            
                             this._isBufferFull = true;
-                            this._emitter.emit(MSEEvents.BUFFER_FULL);
+                            this._emitter.emit(MSEEvent.BUFFER_FULL);
 
                             // Signal that we need to reduce buffering due to quota limits
-                            this._emitter.emit(MSEEvents.QUOTA_EXCEEDED_BUFFER_FULL, {
+                            this._emitter.emit(MSEEvent.QUOTA_EXCEEDED_BUFFER_FULL, {
                                 type: type,
                                 currentBufferLength: this._sourceBuffers[type]?.buffered.length || 0,
                                 segmentSize: segment.data.byteLength
@@ -634,7 +634,7 @@ class MSEController {
                         }
                     } else {
                         Log.e(this.TAG, error.message);
-                        this._emitter.emit(MSEEvents.ERROR, {code: error.code, msg: error.message});
+                        this._emitter.emit(MSEEvent.ERROR, {code: error.code, msg: error.message});
                     }
                 }
             }
@@ -684,7 +684,7 @@ class MSEController {
         if (this._hasPendingSegments()) {
             this._doAppendSegments();
         }
-        this._emitter.emit(MSEEvents.SOURCE_OPEN);
+        this._emitter.emit(MSEEvent.SOURCE_OPEN);
     }
 
     private _onStartStreaming() {
@@ -693,12 +693,12 @@ class MSEController {
         if (this._hasPendingSegments()) {
             this._doAppendSegments();
         }
-        this._emitter.emit(MSEEvents.START_STREAMING);
+        this._emitter.emit(MSEEvent.START_STREAMING);
     }
 
     private _onEndStreaming() {
         Log.v(this.TAG, 'ManagedMediaSource onEndStreaming');
-        this._emitter.emit(MSEEvents.END_STREAMING);
+        this._emitter.emit(MSEEvent.END_STREAMING);
     }
 
     private _onQualityChange() {
@@ -776,7 +776,7 @@ class MSEController {
             this.endOfStream();
         }
 
-        this._emitter.emit(MSEEvents.UPDATE_END);
+        this._emitter.emit(MSEEvent.UPDATE_END);
     }
 
     private _onSourceBufferError(e: any) {
@@ -791,7 +791,7 @@ class MSEController {
         const mediaErr = this._mediaElementProxy?.getError?.();
         if (mediaErr) {
             // A MediaError on the element means the browser considers the error fatal
-            this._emitter.emit(MSEEvents.ERROR, { code: mediaErr.code, msg: mediaErr.message });
+            this._emitter.emit(MSEEvent.ERROR, { code: mediaErr.code, msg: mediaErr.message });
         }
         // If there is no MediaError the SourceBuffer error may be transient (e.g. a stale
         // updateend race); log it but do not surface it as a fatal player error.

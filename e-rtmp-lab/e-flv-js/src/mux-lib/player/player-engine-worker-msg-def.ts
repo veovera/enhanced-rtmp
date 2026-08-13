@@ -16,9 +16,9 @@
  * limitations under the License.
  */
 
-import MSEEvents from '../core/mse-events';
+import MSEEvent from '../core/mse-events';
 import PlayerEvents from './player-events';
-import TransmuxingEvents, { type DiscoveredTracks, type TransmuxingEvent } from '../core/transmuxing-events';
+import TransmuxingEvent, { type DiscoveredTracks } from '../core/transmuxing-events';
 
 export type WorkerMessageType =
     | 'destroyed'
@@ -40,7 +40,7 @@ export type WorkerMessagePacketMSEInit = WorkerMessagePacket & {
 
 export type WorkerMessagePacketMSEEvent = WorkerMessagePacket & {
     msg: 'mse_event',
-    event: MSEEvents,
+    event: MSEEvent,
     data?: any,
 };
 
@@ -73,19 +73,19 @@ export type WorkerMessagePacketTransmuxingEvent = WorkerMessagePacket & {
 
 export type WorkerMessagePacketTransmuxingEventInfo = WorkerMessagePacketTransmuxingEvent & {
     msg: 'transmuxing_event',
-    event: typeof TransmuxingEvents.MEDIA_INFO | typeof TransmuxingEvents.STATISTICS_INFO,
+    event: typeof TransmuxingEvent.MEDIA_INFO | typeof TransmuxingEvent.STATISTICS_INFO,
     info: any,
 };
 
 export type WorkerMessagePacketTransmuxingEventRecommendSeekpoint = WorkerMessagePacketTransmuxingEvent & {
     msg: 'transmuxing_event',
-    event: typeof TransmuxingEvents.RECOMMEND_SEEKPOINT,
+    event: typeof TransmuxingEvent.RECOMMEND_SEEKPOINT,
     milliseconds: number,
 };
 
 export type WorkerMessagePacketTransmuxingEventTracksDiscovered = WorkerMessagePacketTransmuxingEvent & {
     msg: 'transmuxing_event',
-    event: typeof TransmuxingEvents.TRACKS_DISCOVERED,
+    event: typeof TransmuxingEvent.TRACKS_DISCOVERED,
     tracks: DiscoveredTracks,
 };
 
