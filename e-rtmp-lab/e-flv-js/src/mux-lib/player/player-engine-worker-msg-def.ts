@@ -18,7 +18,7 @@
 
 import MSEEvents from '../core/mse-events';
 import PlayerEvents from './player-events';
-import TransmuxingEvents, { type TransmuxingEvent } from '../core/transmuxing-events';
+import TransmuxingEvents, { type DiscoveredTracks, type TransmuxingEvent } from '../core/transmuxing-events';
 
 export type WorkerMessageType =
     | 'destroyed'
@@ -81,6 +81,12 @@ export type WorkerMessagePacketTransmuxingEventRecommendSeekpoint = WorkerMessag
     msg: 'transmuxing_event',
     event: typeof TransmuxingEvents.RECOMMEND_SEEKPOINT,
     milliseconds: number,
+};
+
+export type WorkerMessagePacketTransmuxingEventTracksDiscovered = WorkerMessagePacketTransmuxingEvent & {
+    msg: 'transmuxing_event',
+    event: typeof TransmuxingEvents.TRACKS_DISCOVERED,
+    tracks: DiscoveredTracks,
 };
 
 export type WorkerMessagePacketBufferedPositionChanged = WorkerMessagePacket & {

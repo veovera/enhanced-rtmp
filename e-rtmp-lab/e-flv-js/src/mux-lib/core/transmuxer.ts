@@ -13,7 +13,7 @@
 import EventEmitter from 'eventemitter3';
 import Log, { LoggingControl } from '../utils/logger.js';
 import TransmuxingController from './transmuxing-controller.js';
-import TransmuxingEvents, { type TransmuxingEvent, type TransmuxingEventMap, type TransmuxingStatisticsInfo } from './transmuxing-events.js';
+import TransmuxingEvents, { type DiscoveredTracks, type TransmuxingEvent, type TransmuxingEventMap, type TransmuxingStatisticsInfo } from './transmuxing-events.js';
 import MediaInfo from './media-info.js';
 import type { ResolvedPlayerConfig } from '../config.js';
 import type { MediaDataSource } from '../e-flv.js';
@@ -33,6 +33,7 @@ type WorkerMessage =
     | { msg: typeof TransmuxingEvents.SCRIPTDATA_ARRIVED; data: unknown }
     | { msg: typeof TransmuxingEvents.TIMED_ID3_METADATA_ARRIVED; data: unknown }
     | { msg: typeof TransmuxingEvents.STATISTICS_INFO; data: TransmuxingStatisticsInfo }
+    | { msg: typeof TransmuxingEvents.TRACKS_DISCOVERED; data: DiscoveredTracks }
     | { msg: typeof TransmuxingEvents.IO_ERROR; data: { type: string; info: unknown } }
     | { msg: typeof TransmuxingEvents.DEMUX_ERROR; data: { type: string; info: string } }
     | { msg: typeof TransmuxingEvents.RECOMMEND_SEEKPOINT; data: number };
@@ -81,6 +82,7 @@ class Transmuxer {
             ctl.on(TransmuxingEvents.SCRIPTDATA_ARRIVED, this._onScriptData.bind(this));
             ctl.on(TransmuxingEvents.TIMED_ID3_METADATA_ARRIVED, this._onTimedID3MetadataArrived.bind(this));
             ctl.on(TransmuxingEvents.STATISTICS_INFO, this._onStatisticsInfo.bind(this));
+            ctl.on(TransmuxingEvents.TRACKS_DISCOVERED, this._onTracksDiscovered.bind(this));
             ctl.on(TransmuxingEvents.RECOMMEND_SEEKPOINT, this._onRecommendSeekpoint.bind(this));
         }
     }
@@ -209,6 +211,12 @@ class Transmuxer {
         });
     }
 
+    _onTracksDiscovered(tracks: DiscoveredTracks): void {
+        Promise.resolve().then(() => {
+            this._emitter.emit(TransmuxingEvents.TRACKS_DISCOVERED, tracks);
+        });
+    }
+
     _onIOError(type: string, info: unknown): void {
         Promise.resolve().then(() => {
             this._emitter.emit(TransmuxingEvents.IO_ERROR, type, info);
@@ -260,6 +268,7 @@ class Transmuxer {
             case TransmuxingEvents.SCRIPTDATA_ARRIVED:
             case TransmuxingEvents.TIMED_ID3_METADATA_ARRIVED:
             case TransmuxingEvents.STATISTICS_INFO:
+            case TransmuxingEvents.TRACKS_DISCOVERED:
                 this._emitter.emit(message.msg, message.data);
                 break;
             case TransmuxingEvents.IO_ERROR:

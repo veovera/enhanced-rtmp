@@ -964,7 +964,6 @@ export class FLVDemuxer {
     private _onScriptData = assertCallback;              // Called when any script data (not just metaData) is parsed.
     private _onTrackMetadata = assertCallback;           // Called when track metadata (like codecs, duration, resolution) is available.
     private _onTrackData = assertCallback;               // Called when parsed audio and video frames are ready to be consumed (e.g., by a remuxer or player).
-    private _onVideoTracksDiscovered = noopCallback;     // Called when video track list changes (new trackId seen with full metadata).
 
     private _dataOffset: number;
     private _firstParse = true;
@@ -1040,7 +1039,6 @@ export class FLVDemuxer {
         this._onScriptData = noopCallback;
         this._onTrackMetadata = noopCallback;
         this._onTrackData = noopCallback;
-        this._onVideoTracksDiscovered = noopCallback;
         this._hasLoggedFirstAacPayloadProbe = false;
         this._hasLoggedAacPceDetection = false;
         this._hasLoggedAacSbrDetection = false;
@@ -1190,14 +1188,6 @@ export class FLVDemuxer {
         this._onTrackData = callback;
     }
 
-    get onVideoTracksDiscovered() {
-        return this._onVideoTracksDiscovered;
-    }
-
-    set onVideoTracksDiscovered(callback: (tracks: VideoMetadata[]) => void) {
-        this._onVideoTracksDiscovered = callback;
-    }
-
     // timestamp base for output frames, must be in milliseconds
     get timestampBase() {
         return this._timestampBase;
@@ -1284,10 +1274,8 @@ export class FLVDemuxer {
                 // Non-initial metadata, force dispatch (or flush) parsed frames to the remuxer router.
                 this._flushPendingTrackDataBeforeMetadataRefresh();
             }
-            // notify new metadata
-            this._onTrackMetadata(meta);
         }
-        this._onVideoTracksDiscovered([...this._videoMetadataByTrackId.values()]);
+        this._onTrackMetadata(meta);
     }
 
     // function parseChunks(chunk: ArrayBuffer, byteStart: number): number;
@@ -1520,8 +1508,8 @@ export class FLVDemuxer {
             if (this._remuxerRouter.isAudioMetadataDispatched) {
                 this._flushPendingTrackDataBeforeMetadataRefresh();
             }
-            this._onTrackMetadata(meta);
         }
+        this._onTrackMetadata(meta);
     }
 
     private _parseEnhancedAudioPacket(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, packetType: AudioPacketType, fourcc: string, track: AudioTrack, skipUnsupported = false): void {

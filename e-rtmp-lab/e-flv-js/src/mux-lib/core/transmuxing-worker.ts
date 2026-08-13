@@ -12,7 +12,7 @@
 
 import { LoggingControl } from '../utils/logger.js';
 import TransmuxingController from './transmuxing-controller.js';
-import TransmuxingEvents, { type TransmuxingStatisticsInfo } from './transmuxing-events.js';
+import TransmuxingEvents, { type DiscoveredTracks, type TransmuxingStatisticsInfo } from './transmuxing-events.js';
 import type MediaInfo from './media-info.js';
 import type { ResolvedPlayerConfig } from '../config.js';
 import type { MediaDataSource } from '../e-flv.js';
@@ -63,6 +63,7 @@ function TransmuxingWorker(self: DedicatedWorkerGlobalScope): void {
                 controller.on(TransmuxingEvents.SCRIPTDATA_ARRIVED, onScriptData);
                 controller.on(TransmuxingEvents.TIMED_ID3_METADATA_ARRIVED, onTimedID3MetadataArrived);
                 controller.on(TransmuxingEvents.STATISTICS_INFO, onStatisticsInfo);
+                controller.on(TransmuxingEvents.TRACKS_DISCOVERED, onTracksDiscovered);
                 controller.on(TransmuxingEvents.RECOMMEND_SEEKPOINT, onRecommendSeekpoint);
                 break;
             case 'destroy':
@@ -173,6 +174,14 @@ function TransmuxingWorker(self: DedicatedWorkerGlobalScope): void {
         const obj = {
             msg: TransmuxingEvents.STATISTICS_INFO,
             data: statInfo
+        };
+        self.postMessage(obj);
+    }
+
+    function onTracksDiscovered(tracks: DiscoveredTracks): void {
+        const obj = {
+            msg: TransmuxingEvents.TRACKS_DISCOVERED,
+            data: tracks
         };
         self.postMessage(obj);
     }

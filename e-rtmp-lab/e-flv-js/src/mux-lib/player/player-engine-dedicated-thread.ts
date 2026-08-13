@@ -41,6 +41,7 @@ import {
     WorkerMessagePacketTransmuxingEvent,
     WorkerMessagePacketTransmuxingEventInfo,
     WorkerMessagePacketTransmuxingEventRecommendSeekpoint,
+    WorkerMessagePacketTransmuxingEventTracksDiscovered,
 } from './player-engine-worker-msg-def.js';
 
 class PlayerEngineDedicatedThread implements PlayerEngine {
@@ -396,6 +397,9 @@ class PlayerEngineDedicatedThread implements PlayerEngine {
                     if (this._media_element && !this._config.accurateSeek) {
                         this._seeking_handler?.directSeek(packet.milliseconds / 1000);
                     }
+                } else if (packet.event == TransmuxingEvents.TRACKS_DISCOVERED) {
+                    const packet = message_packet as WorkerMessagePacketTransmuxingEventTracksDiscovered;
+                    this._emitter.emit(TransmuxingEvents.TRACKS_DISCOVERED, packet.tracks);
                 }
                 break;
             }

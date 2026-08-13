@@ -239,6 +239,10 @@ const PlayerEngineWorker = (self: DedicatedWorkerGlobalScope) => {
             emitTransmuxingEventsInfo(TransmuxingEvents.STATISTICS_INFO, statInfo);
         });
 
+        transmuxer.on(TransmuxingEvents.TRACKS_DISCOVERED, (tracks: any) => {
+            emitTransmuxingEventsTracksDiscovered(tracks);
+        });
+
         transmuxer.on(TransmuxingEvents.RECOMMEND_SEEKPOINT, (milliseconds: number) => {
             emitTransmuxingEventsRecommendSeekpoint(milliseconds);
         });
@@ -325,6 +329,14 @@ const PlayerEngineWorker = (self: DedicatedWorkerGlobalScope) => {
             event: event,
             info: info,
         } as WorkerMessagePacketTransmuxingEventInfo);
+    }
+
+    function emitTransmuxingEventsTracksDiscovered(tracks: any) {
+        self.postMessage({
+            msg: 'transmuxing_event',
+            event: TransmuxingEvents.TRACKS_DISCOVERED,
+            tracks: tracks,
+        });
     }
 
     function emitPlayerEventsExtraData(event: PlayerEvents, extraData: any) {

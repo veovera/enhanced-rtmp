@@ -25,6 +25,7 @@ const TransmuxingEvents = {
     SCRIPTDATA_ARRIVED: 'scriptdata_arrived',
     TIMED_ID3_METADATA_ARRIVED: 'timed_id3_metadata_arrived',
     STATISTICS_INFO: 'statistics_info',
+    TRACKS_DISCOVERED: 'tracks_discovered',
     RECOMMEND_SEEKPOINT: 'recommend_seekpoint'
 } as const;
 
@@ -41,6 +42,17 @@ export interface TransmuxingStatisticsInfo {
     totalSegmentCount: number;
 }
 
+export interface DiscoveredTrackInfo {
+    type: TrackType;
+    trackId: number;
+    codec: string;
+}
+
+export interface DiscoveredTracks {
+    audio: DiscoveredTrackInfo[];
+    video: DiscoveredTrackInfo[];
+}
+
 /** Listener argument tuple for each transmuxing event. */
 export interface TransmuxingEventMap {
     [TransmuxingEvents.IO_ERROR]: [type: string, info: unknown];
@@ -54,6 +66,7 @@ export interface TransmuxingEventMap {
     [TransmuxingEvents.SCRIPTDATA_ARRIVED]: [data: unknown];
     [TransmuxingEvents.TIMED_ID3_METADATA_ARRIVED]: [metadata: unknown];
     [TransmuxingEvents.STATISTICS_INFO]: [statisticsInfo: TransmuxingStatisticsInfo];
+    [TransmuxingEvents.TRACKS_DISCOVERED]: [tracks: DiscoveredTracks];
     [TransmuxingEvents.RECOMMEND_SEEKPOINT]: [milliseconds: number];
 }
 

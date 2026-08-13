@@ -7,7 +7,7 @@
  */
 
 import { eflv, NativePlayer, MSEPlayer, TransmuxingEvents, Remuxer, defaultConfig } from '@/mux-lib';
-import type { MediaDataSource, PlayerConfig, AMFScriptData } from '@/mux-lib';
+import type { MediaDataSource, PlayerConfig, AMFScriptData, DiscoveredTrackInfo, DiscoveredTracks } from '@/mux-lib';
 
 const hasAudioLabel: HTMLLabelElement = document.createElement('label');
 const hasAudioCheckbox: HTMLInputElement = document.createElement('input');
@@ -15,11 +15,17 @@ const hasVideoLabel: HTMLLabelElement = document.createElement('label');
 const hasVideoCheckbox: HTMLInputElement = document.createElement('input');
 const preferWebMLabel: HTMLLabelElement = document.createElement('label');
 const preferWebMCheckbox: HTMLInputElement = document.createElement('input');
+const audioTrackLabel: HTMLLabelElement = document.createElement('label');
+const audioTrackSelect: HTMLSelectElement = document.createElement('select');
+const videoTrackLabel: HTMLLabelElement = document.createElement('label');
+const videoTrackSelect: HTMLSelectElement = document.createElement('select');
 
 let videoElement: HTMLVideoElement;
 let player: MSEPlayer | NativePlayer | null = null;
 let loadedMetadataHandler: (() => void) | null = null;
 let fileSelect: HTMLSelectElement;
+let selectedAudioTrackId: number | null = null;
+let selectedVideoTrackId: number | null = null;
 
 interface FileItem {
   label: string;
@@ -47,6 +53,53 @@ function populateFileList() {
   });
 
   fileSelect.value = selectedFile = fileList[0].path; // Select the first file by default
+}
+
+function resetTrackSelect(select: HTMLSelectElement, placeholder: string) {
+  select.innerHTML = '';
+  const option = document.createElement('option');
+  option.value = '';
+  option.textContent = placeholder;
+  select.appendChild(option);
+  select.disabled = true;
+}
+
+function populateTrackSelect(select: HTMLSelectElement, tracks: DiscoveredTrackInfo[], placeholder: string) {
+  const previousValue = select.value;
+  select.innerHTML = '';
+
+  if (tracks.length === 0) {
+    resetTrackSelect(select, placeholder);
+    return;
+  }
+
+  tracks.forEach(track => {
+    const option = document.createElement('option');
+    option.value = String(track.trackId);
+    option.textContent = `trackId ${track.trackId} - ${track.codec || 'unknown codec'}`;
+    select.appendChild(option);
+  });
+
+  select.disabled = false;
+  if (tracks.some(track => String(track.trackId) === previousValue)) {
+    select.value = previousValue;
+  } else {
+    select.value = String(tracks[0].trackId);
+  }
+}
+
+function resetTrackSelects() {
+  selectedAudioTrackId = null;
+  selectedVideoTrackId = null;
+  resetTrackSelect(audioTrackSelect, 'No audio tracks');
+  resetTrackSelect(videoTrackSelect, 'No video tracks');
+}
+
+function updateTrackSelects(tracks: DiscoveredTracks) {
+  populateTrackSelect(audioTrackSelect, tracks.audio, 'No audio tracks discovered');
+  populateTrackSelect(videoTrackSelect, tracks.video, 'No video tracks discovered');
+  selectedAudioTrackId = audioTrackSelect.value ? Number(audioTrackSelect.value) : null;
+  selectedVideoTrackId = videoTrackSelect.value ? Number(videoTrackSelect.value) : null;
 }
 
 function initLayout() {
@@ -168,12 +221,32 @@ function initLayout() {
   preferWebMLabel.appendChild(preferWebMCheckbox);
   preferWebMLabel.append('Prefer WebM');
 
+  audioTrackSelect.id = 'audioTrackSelect';
+  audioTrackSelect.onchange = () => {
+    selectedAudioTrackId = audioTrackSelect.value ? Number(audioTrackSelect.value) : null;
+  };
+  audioTrackLabel.textContent = '';
+  audioTrackLabel.append('Audio Track ');
+  audioTrackLabel.appendChild(audioTrackSelect);
+
+  videoTrackSelect.id = 'videoTrackSelect';
+  videoTrackSelect.onchange = () => {
+    selectedVideoTrackId = videoTrackSelect.value ? Number(videoTrackSelect.value) : null;
+  };
+  videoTrackLabel.textContent = '';
+  videoTrackLabel.append('Video Track ');
+  videoTrackLabel.appendChild(videoTrackSelect);
+
+  resetTrackSelects();
+
   // Append the button to the controlsDiv
   controlsDiv.appendChild(fileSelect);
   controlsDiv.appendChild(createPlayerButton);
   controlsDiv.appendChild(hasAudioLabel);
   controlsDiv.appendChild(hasVideoLabel);
   controlsDiv.appendChild(preferWebMLabel);
+  controlsDiv.appendChild(audioTrackLabel);
+  controlsDiv.appendChild(videoTrackLabel);
 
   document.body.appendChild(controlsDiv)
 
@@ -336,6 +409,7 @@ function createPlayer(): MSEPlayer | NativePlayer | null {
     playerErrorBox.textContent = '';
     playerErrorBox.hidden = true;
   }
+  resetTrackSelects();
 
   // A failed player may never emit loadedmetadata, leaving its once-listener
   // attached. Remove it before replacing the player so a later successful
@@ -397,6 +471,8 @@ function createPlayer(): MSEPlayer | NativePlayer | null {
   _player.on('statistics_info', (stats) => {
     console.log('Player statistics:', stats);
   });
+
+  _player.on(TransmuxingEvents.TRACKS_DISCOVERED, updateTrackSelects);
 
   // Auto-play when metadata is ready on the media element
   loadedMetadataHandler = () => {

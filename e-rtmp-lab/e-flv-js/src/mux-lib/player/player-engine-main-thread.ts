@@ -23,7 +23,7 @@ import MSEEvents from '../core/mse-events';
 import { ErrorTypes, ErrorDetails } from './player-errors';
 import { IllegalStateException } from '../utils/exception';
 import TransmuxingEvents from '../core/transmuxing-events';
-import type { TransmuxingStatisticsInfo } from '../core/transmuxing-events';
+import type { DiscoveredTracks, TransmuxingStatisticsInfo } from '../core/transmuxing-events';
 import SeekingHandler from './seeking-handler';
 import LoadingController from './loading-controller';
 import StartupStallJumper from './startup-stall-jumper';
@@ -234,6 +234,9 @@ class PlayerEngineMainThread implements PlayerEngine {
         this._transmuxer.on(TransmuxingEvents.STATISTICS_INFO, (statInfo: StatisticsInfo) => {
             this._statistics_info = this._fillStatisticsInfo(statInfo);
             this._emitter?.emit(PlayerEvents.STATISTICS_INFO, Object.assign({}, statInfo));
+        });
+        this._transmuxer.on(TransmuxingEvents.TRACKS_DISCOVERED, (tracks: DiscoveredTracks) => {
+            this._emitter?.emit(TransmuxingEvents.TRACKS_DISCOVERED, tracks);
         });
         this._transmuxer.on(TransmuxingEvents.RECOMMEND_SEEKPOINT, (milliseconds: number) => {
             if (this._media_element && !this._config.accurateSeek) {

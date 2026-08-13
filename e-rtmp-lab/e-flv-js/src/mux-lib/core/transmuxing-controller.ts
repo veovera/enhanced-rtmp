@@ -22,7 +22,7 @@ import { WebMRemuxer } from '../remux/webm-remuxer.js';
 import RemuxerRouter from '../remux/remuxer-router.js';
 import DemuxErrors from '../demux/demux-errors.js';
 import IOController from '../io/io-controller.js';
-import TransmuxingEvents, { type TransmuxingEvent, type TransmuxingEventMap } from './transmuxing-events';
+import TransmuxingEvents, { type DiscoveredTrackInfo, type DiscoveredTracks, type TransmuxingEvent, type TransmuxingEventMap } from './transmuxing-events';
 import type { ResolvedPlayerConfig } from '../config.js';
 import { RemuxerType, TrackType } from '../remux/remuxer.js';
 import type { MSEInitSegment } from '../remux/remuxer.js';
@@ -43,6 +43,11 @@ class TransmuxingController {
     // Locked after initial metadata has selected a remuxer for each track.
     private _hasSelectedRemuxerForCodecs: boolean = false;
     private _pendingTrackMetadata: Array<AudioMetadata | VideoMetadata> = [];
+    private _selectedAudioTrackId: number | undefined = undefined;
+    private _selectedVideoTrackId: number | undefined = undefined;
+    private _discoveredAudioTracks: Map<number, DiscoveredTrackInfo> = new Map();
+    private _discoveredVideoTracks: Map<number, DiscoveredTrackInfo> = new Map();
+    private _lastDiscoveredTracksSignature = '';
     private _pendingSeekTime: number | null = null;
     private _pendingResolveSeekPoint: number | null = null;
     private _statisticsReporter: number | null = null;
@@ -188,6 +193,51 @@ class TransmuxingController {
     private _hasMetadataForAllTracks(): boolean {
         return (!this._hasAudioTrack || this._pendingTrackMetadata.some((track) => track.type === TrackType.Audio)) &&
             (!this._hasVideoTrack || this._pendingTrackMetadata.some((track) => track.type === TrackType.Video));
+    }
+
+    private _rememberDiscoveredTrack(metadata: AudioMetadata | VideoMetadata): void {
+        const trackInfo: DiscoveredTrackInfo = {
+            type: metadata.type,
+            trackId: metadata.trackId,
+            codec: metadata.codec
+        };
+
+        if (metadata.type === TrackType.Audio) {
+            if (this._selectedAudioTrackId === undefined) {
+                this._selectedAudioTrackId = metadata.trackId;
+            }
+            this._discoveredAudioTracks.set(metadata.trackId, trackInfo);
+        } else {
+            if (this._selectedVideoTrackId === undefined) {
+                this._selectedVideoTrackId = metadata.trackId;
+            }
+            this._discoveredVideoTracks.set(metadata.trackId, trackInfo);
+        }
+    }
+
+    private _getDiscoveredTracks(): DiscoveredTracks {
+        const sortByTrackId = (left: DiscoveredTrackInfo, right: DiscoveredTrackInfo) => left.trackId - right.trackId;
+        return {
+            audio: [...this._discoveredAudioTracks.values()].sort(sortByTrackId),
+            video: [...this._discoveredVideoTracks.values()].sort(sortByTrackId)
+        };
+    }
+
+    private _emitTracksDiscoveredIfChanged(): void {
+        const tracks = this._getDiscoveredTracks();
+        const signature = JSON.stringify(tracks);
+        if (signature === this._lastDiscoveredTracksSignature) {
+            return;
+        }
+        this._lastDiscoveredTracksSignature = signature;
+        this._emitter.emit(TransmuxingEvents.TRACKS_DISCOVERED, tracks);
+    }
+
+    private _isSelectedTrackMetadata(metadata: AudioMetadata | VideoMetadata): boolean {
+        if (metadata.type === TrackType.Audio) {
+            return metadata.trackId === this._selectedAudioTrackId;
+        }
+        return metadata.trackId === this._selectedVideoTrackId;
     }
 
     destroy() {
@@ -410,6 +460,13 @@ class TransmuxingController {
     }
 
     _onTrackMetadata(metadata: AudioMetadata | VideoMetadata) {
+        this._rememberDiscoveredTrack(metadata);
+        this._emitTracksDiscoveredIfChanged();
+
+        if (!this._isSelectedTrackMetadata(metadata)) {
+            return;
+        }
+
         if (!this._hasSelectedRemuxerForCodecs) {
             // Wait for all expected track metadata before creating the two
             // per-track remuxers, so frame queues cannot reach provisional ones.
