@@ -63,12 +63,6 @@ export interface RemuxingTarget {
 }
 
 export abstract class Remuxer implements RemuxingTarget {
-  // Set to true to enable downloading of remuxed video data segment buffers for debugging
-  static readonly DEBUG_BUFFER = false; 
-
-  static dbgVideoBuffer = new Uint8Array();
-  static dbgAudioBuffer = new Uint8Array();
-
   abstract destroy(): void;
   abstract clear(): void;
   abstract flushStashedFrames(): void;

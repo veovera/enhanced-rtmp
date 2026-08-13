@@ -141,26 +141,6 @@ function initLayout() {
     player = createPlayer();
   };
 
-  const mseBuffersButton = document.createElement('button');
-  mseBuffersButton.textContent = 'Download Appended MSE Buffers';
-  mseBuffersButton.disabled = true; // Initially disabled
-  mseBuffersButton.onclick = () => {
-    if (Remuxer.dbgVideoBuffer.length === 0) {
-      console.error('No appended MSE buffers available for download.');
-      return;
-    }
-
-    const blob = new Blob([Remuxer.dbgVideoBuffer as BlobPart], { type: "application/octet-stream" });
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = 'dbgBuffer.bin'; // Name of the downloaded file  
-    a.click();  
-    
-    URL.revokeObjectURL(url);
-  };
-
   // Add checkboxes below the video element
   const controlsDiv: HTMLDivElement = document.createElement('div');
   controlsDiv.className = 'controls-row'; // Use the flex row class
@@ -186,7 +166,7 @@ function initLayout() {
   preferWebMCheckbox.checked = true;
   preferWebMLabel.textContent = '';
   preferWebMLabel.appendChild(preferWebMCheckbox);
-  preferWebMLabel.append('Prefer WebM when compatible');
+  preferWebMLabel.append('Prefer WebM');
 
   // Append the button to the controlsDiv
   controlsDiv.appendChild(fileSelect);
@@ -194,7 +174,6 @@ function initLayout() {
   controlsDiv.appendChild(hasAudioLabel);
   controlsDiv.appendChild(hasVideoLabel);
   controlsDiv.appendChild(preferWebMLabel);
-  controlsDiv.appendChild(mseBuffersButton);
 
   document.body.appendChild(controlsDiv)
 
@@ -268,12 +247,6 @@ function initLayout() {
       }
       const traceBox = document.getElementById('videoInfoBox') as HTMLTextAreaElement;
       videoElement.controls = true; // Ensure controls are enabled for the video element
-
-      if (Remuxer.dbgVideoBuffer.length > 0) {
-        mseBuffersButton.disabled = false;
-      } else {
-        mseBuffersButton.disabled = true;
-      }
 
       traceBox.value = "*** Video Element Properties ***\n";
       traceBox.value += "================================\n";

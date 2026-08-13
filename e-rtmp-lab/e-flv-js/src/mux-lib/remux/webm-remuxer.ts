@@ -128,10 +128,6 @@ export class WebMRemuxer extends Remuxer {
       this._isVideoMetadataDispatched = true;
     }
 
-    if (__DEBUG__ && WebMRemuxer.DEBUG_BUFFER) {
-      Remuxer.dbgVideoBuffer = segmentRawData.slice();
-    }
-
     const initSegment: MSEInitSegment = {
       kind: SegmentKind.Init,
       type: metadata.type,
@@ -201,16 +197,6 @@ export class WebMRemuxer extends Remuxer {
 
     const segmentRawData = WebMGenerator.generateVideoCluster(this._pendingVideoFrames, 0, this._refVideoFrameDuration, this._videoMeta!.codecKind);
     // Log.v(WebMRemuxer.TAG, `Generated video segment, length: ${segment.byteLength} \n${Log.dumpArrayBuffer(segment, 100)}`);
-
-    if (__DEBUG__ && Remuxer.DEBUG_BUFFER) {
-      //Log.d(WebMRemuxer.TAG, `Generating segment - frameCount: ${videoTrack.frames.length} beginDts: ${info.beginDts} dstEnd: ${info.endDts} size: ${segmentRawData.length} `);
-      //Log.d(WebMRemuxer.TAG, `\n${Log.dumpArrayBuffer(segmentRawData, 512)}`);
-
-      const combined = new Uint8Array(Remuxer.dbgVideoBuffer.length + segmentRawData.length);
-      combined.set(Remuxer.dbgVideoBuffer, 0);
-      combined.set(segmentRawData, Remuxer.dbgVideoBuffer.length);
-      Remuxer.dbgVideoBuffer = combined;
-    }
 
     const mediaSegment: MSEMediaSegment = {
       kind: SegmentKind.Media,
@@ -326,10 +312,6 @@ export class WebMRemuxer extends Remuxer {
     this._audioNextDts = lastDts + this._refAudioFrameDuration;
 
     let segmentRawData = WebMGenerator.generateAudioCluster(frames, 0, this._refAudioFrameDuration);
-
-    if (__DEBUG__ && WebMRemuxer.DEBUG_BUFFER) {
-      Remuxer.dbgAudioBuffer = segmentRawData.slice();
-    }
 
     let info = new MediaSegmentInfo();
     info.beginDts = firstDts;
