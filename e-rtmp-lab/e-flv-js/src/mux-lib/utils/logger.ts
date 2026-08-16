@@ -12,6 +12,17 @@
 
 import EventEmitter from 'eventemitter3';
 
+/**
+ * Logging-level guide:
+ *
+ * - `v`: normal operational tracing, such as parsed packets, segments, and
+ *        timestamps. This is the default diagnostic level in this codebase.
+ * - `i`: important but expected lifecycle or configuration facts. Use sparingly
+ *        when a message should remain visible without the detail of verbose logs.
+ * - `w`: recoverable anomalies, unsupported optional input, or fallbacks.
+ * - `e`: failures that prevent an operation from completing normally.
+ * - `d`: debug-only diagnostics that are normally disabled in production.
+ */
 class Log {
     private static GLOBAL_TAG = 'e-rtmp-lab.js';
     private static FORCE_GLOBAL_TAG = false;
@@ -23,10 +34,16 @@ class Log {
     private static ENABLE_VERBOSE = true;
     private static emitter = new EventEmitter();
 
+    /** Emits a preformatted log record to registered log listeners. */
     static emitLog(type: string, logcat: any) {
         Log.emitter.emit('log', type, logcat);
     }
     
+    /**
+     * Logging level: `e` — failures that prevent an operation from completing
+     * normally. Writes an error-level message and forwards it to listeners
+     * when enabled.
+     */
     static e(tag: string, msg: string) {
         if (!Log.ENABLE_ERROR) {
             return;
@@ -51,6 +68,11 @@ class Log {
         }
     }
 
+    /**
+     * Logging level: `i` — important expected lifecycle or configuration facts;
+     * use sparingly. Writes an info-level message and forwards it to listeners
+     * when enabled.
+     */
     static i(tag: string, msg: string) {
         if (!Log.ENABLE_INFO) {
             return;
@@ -73,6 +95,11 @@ class Log {
         }
     }
 
+    /**
+     * Logging level: `w` — recoverable anomalies, unsupported optional input,
+     * or fallbacks. Writes a warning-level message and forwards it to listeners
+     * when enabled.
+     */
     static w(tag: string, msg: string) {
         if (!Log.ENABLE_WARN) {
             return;
@@ -95,6 +122,10 @@ class Log {
         }
     }
 
+    /**
+     * Logging level: `d` — debug-only diagnostics that are normally disabled in
+     * production. Writes a debug-level message when debug logging is enabled.
+     */
     static d(tag: string, msg: string) {
         if (!Log.ENABLE_DEBUG) {
             return;
@@ -117,6 +148,7 @@ class Log {
         }
     }
 
+    /** Formats an ArrayBuffer or typed-array view as a bounded hex/ASCII dump. */
     static dumpArrayBuffer(
        input: ArrayBuffer | ArrayBufferView,
        length: number,
@@ -161,6 +193,11 @@ class Log {
        return result.join('\n');
     }
 
+    /**
+     * Logging level: `v` — normal operational tracing, including packets,
+     * segments, and timestamps. Writes a verbose message while preserving
+     * structured arguments for the console.
+     */
     static v(tag: string, ...args: any[]) {
         if (!Log.ENABLE_VERBOSE) {
             return;
@@ -179,6 +216,7 @@ class Log {
         console.log(str, ...args);
     }
 
+    /** Creates scoped verbose, warning, and error log helpers with aligned prefixes. */
     static scope(tag: string, scope: string) {
         let firstLine = true;
         const nextPrefix = () => {
@@ -194,6 +232,7 @@ class Log {
         };
     }
 
+    /** Throws an error with the logger tag when the provided condition is falsy. */
     static a(tag: string, msg: string, condition?: unknown): asserts condition {
         if (!condition) {
             const str = `[${tag}] ASSERT FAILED: ${msg}`;
