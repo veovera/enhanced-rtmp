@@ -1188,6 +1188,11 @@ export class FLVDemuxer {
         this._onTrackData = callback;
     }
 
+    selectVideoTrack(trackId: number): void {
+        const metadata = this._videoMetadataByTrackId.get(trackId);
+        Log.v(FLVDemuxer.TAG, `Video track selection received: trackId=${trackId}, codec=${metadata?.codec ?? 'unknown'}`);
+    }
+
     // timestamp base for output frames, must be in milliseconds
     get timestampBase() {
         return this._timestampBase;
@@ -1266,6 +1271,7 @@ export class FLVDemuxer {
     }
 
     private _dispatchVideoTrackMetadata(meta: VideoMetadata): void {
+        Log.i(FLVDemuxer.TAG, `Video track discovered: trackId=${meta.trackId}, codec=${meta.codec}`);
         if (this._currentVideoTrackId === undefined) {
             this._currentVideoTrackId = meta.trackId;
         }

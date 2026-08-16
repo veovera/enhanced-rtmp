@@ -76,7 +76,10 @@ function populateTrackSelect(select: HTMLSelectElement, tracks: DiscoveredTrackI
   tracks.forEach(track => {
     const option = document.createElement('option');
     option.value = String(track.trackId);
-    option.textContent = `trackId ${track.trackId} - ${track.codec || 'unknown codec'}`;
+    const codecLabel = track.codecKind === 'unknown'
+      ? 'unknown codec'
+      : track.codecKind.toUpperCase();
+    option.textContent = `trackId ${track.trackId} - ${codecLabel}`;
     select.appendChild(option);
   });
 
@@ -100,6 +103,14 @@ function updateTrackSelects(tracks: DiscoveredTracks) {
   populateTrackSelect(videoTrackSelect, tracks.video, 'No video tracks discovered');
   selectedAudioTrackId = audioTrackSelect.value ? Number(audioTrackSelect.value) : null;
   selectedVideoTrackId = videoTrackSelect.value ? Number(videoTrackSelect.value) : null;
+}
+
+function onVideoTrackSelected(trackId: number): void {
+  const selectedOption = videoTrackSelect.selectedOptions[0];
+  console.info(`[Demo] Video track switch requested: trackId=${trackId}, label=${selectedOption?.textContent ?? 'unknown'}`);
+  if (player instanceof MSEPlayer) {
+    player.selectVideoTrack(trackId);
+  }
 }
 
 function initLayout() {
@@ -232,6 +243,9 @@ function initLayout() {
   videoTrackSelect.id = 'videoTrackSelect';
   videoTrackSelect.onchange = () => {
     selectedVideoTrackId = videoTrackSelect.value ? Number(videoTrackSelect.value) : null;
+    if (selectedVideoTrackId !== null) {
+      onVideoTrackSelected(selectedVideoTrackId);
+    }
   };
   videoTrackLabel.textContent = '';
   videoTrackLabel.append('Video Track ');

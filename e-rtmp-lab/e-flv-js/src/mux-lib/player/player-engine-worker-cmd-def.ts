@@ -28,7 +28,8 @@ export type WorkerCommandOp =
     | 'timeupdate'
     | 'readystatechange'
     | 'pause_transmuxer'
-    | 'resume_transmuxer';
+    | 'resume_transmuxer'
+    | 'select_video_track';
 
 export type WorkerCommandPacket = {
     cmd: WorkerCommandOp,
@@ -40,12 +41,12 @@ export type WorkerCommandPacketInit = WorkerCommandPacket & {
     config: any,
 };
 
-export type WorkerCommandPacketLoggingConfig = WorkerCommandPacket & {
+export type WorkerCommandPacketConfigureLogging = WorkerCommandPacket & {
     cmd: 'logging_config',
     logging_config: any,
 };
 
-export type WorkerCommandPacketUnbufferedSeek = WorkerCommandPacket & {
+export type WorkerCommandPacketSeekUnbuffered = WorkerCommandPacket & {
     cmd: 'unbuffered_seek',
     milliseconds: number,
 };
@@ -58,4 +59,9 @@ export type WorkerCommandPacketTimeUpdate = WorkerCommandPacket & {
 export type WorkerCommandPacketReadyStateChange = WorkerCommandPacket & {
     cmd: 'readystatechange',
     ready_state: number,
+};
+
+export type WorkerCommandPacketSelectVideoTrack = WorkerCommandPacket & {
+    cmd: 'select_video_track',
+    track_id: number,
 };

@@ -29,6 +29,7 @@ export default interface PlayerEngine {
     play(): Promise<void>;
     pause(): void;
     seek(seconds: number): void;
+    selectVideoTrack(trackId: number): void;
     readonly mediaInfo: MediaInfo | undefined;
     readonly statisticsInfo: any | undefined;
 }

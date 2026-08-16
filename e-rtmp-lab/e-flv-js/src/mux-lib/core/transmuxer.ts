@@ -156,6 +156,14 @@ class Transmuxer {
         }
     }
 
+    selectVideoTrack(trackId: number): void {
+        if (this._worker) {
+            this._worker.postMessage({cmd: 'select_video_track', param: trackId});
+        } else {
+            this._controller?.selectVideoTrack(trackId);
+        }
+    }
+
     _onInitSegment(type: TrackType, initSegment: MSEInitSegment): void {
         // do async invoke
         Promise.resolve().then(() => {

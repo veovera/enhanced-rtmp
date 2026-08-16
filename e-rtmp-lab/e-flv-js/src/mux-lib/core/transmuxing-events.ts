@@ -12,6 +12,7 @@
 
 import type MediaInfo from './media-info.js';
 import type { MSEInitSegment, MSEMediaSegment, TrackType } from '../remux/remuxer.js';
+import type { AudioCodecKind, VideoCodecKind } from '../demux/flv-demuxer.js';
 
 export enum TransmuxingEvent {
     IO_ERROR =                      'io_error',
@@ -43,6 +44,9 @@ export interface TransmuxingStatisticsInfo {
 export interface DiscoveredTrackInfo {
     type: TrackType;
     trackId: number;
+    /** Codec family for display and track-selection UI, such as `vp9` or `hevc`. */
+    codecKind: AudioCodecKind | VideoCodecKind;
+    /** Exact RFC 6381 codec string used by MSE, such as `vp09.01.30.08`. */
     codec: string;
 }
 

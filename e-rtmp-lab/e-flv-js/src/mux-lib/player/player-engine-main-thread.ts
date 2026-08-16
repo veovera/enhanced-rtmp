@@ -335,6 +335,10 @@ class PlayerEngineMainThread implements PlayerEngine {
         }
     }
 
+    public selectVideoTrack(trackId: number): void {
+        this._transmuxer?.selectVideoTrack(trackId);
+    }
+
     public get mediaInfo(): MediaInfo {
         return Object.assign({}, this._media_info);
     }

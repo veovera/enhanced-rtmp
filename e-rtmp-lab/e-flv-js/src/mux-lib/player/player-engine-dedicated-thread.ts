@@ -24,10 +24,11 @@ import LiveLatencySynchronizer from './live-latency-synchronizer';
 import {
     WorkerCommandPacket,
     WorkerCommandPacketInit,
-    WorkerCommandPacketLoggingConfig,
+    WorkerCommandPacketConfigureLogging,
     WorkerCommandPacketTimeUpdate,
     WorkerCommandPacketReadyStateChange,
-    WorkerCommandPacketUnbufferedSeek
+    WorkerCommandPacketSeekUnbuffered,
+    WorkerCommandPacketSelectVideoTrack,
 } from './player-engine-worker-cmd-def.js';
 import {
     WorkerMessagePacket,
@@ -118,7 +119,7 @@ class PlayerEngineDedicatedThread implements PlayerEngine {
         this._worker.postMessage({
             cmd: 'logging_config',
             logging_config: LoggingControl.getConfig()
-        } as WorkerCommandPacketLoggingConfig);
+        } as WorkerCommandPacketConfigureLogging);
     }
 
     public destroy(): void {
@@ -275,6 +276,13 @@ class PlayerEngineDedicatedThread implements PlayerEngine {
         }
     }
 
+    public selectVideoTrack(trackId: number): void {
+        this._worker?.postMessage({
+            cmd: 'select_video_track',
+            track_id: trackId,
+        } as WorkerCommandPacketSelectVideoTrack);
+    }
+
     public get mediaInfo(): MediaInfo {
         return Object.assign({}, this._media_info);
     }
@@ -287,7 +295,7 @@ class PlayerEngineDedicatedThread implements PlayerEngine {
         this._worker?.postMessage({
             cmd: 'logging_config',
             logging_config: config,
-        } as WorkerCommandPacketLoggingConfig);
+        } as WorkerCommandPacketConfigureLogging);
     }
 
     private _onMSEUpdateEnd(): void {
@@ -318,7 +326,7 @@ class PlayerEngineDedicatedThread implements PlayerEngine {
         this._worker?.postMessage({
             cmd: 'unbuffered_seek',
             milliseconds: milliseconds
-        } as WorkerCommandPacketUnbufferedSeek);
+        } as WorkerCommandPacketSeekUnbuffered);
     }
 
     private _onRequestPauseTransmuxer(): void {

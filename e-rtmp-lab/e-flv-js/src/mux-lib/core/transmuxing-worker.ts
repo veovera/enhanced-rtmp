@@ -28,6 +28,7 @@ type WorkerCommand =
     | { cmd: 'seek'; param: number }
     | { cmd: 'pause' }
     | { cmd: 'resume' }
+    | { cmd: 'select_video_track'; param: number }
     | { cmd: 'logging_config'; param: LoggingConfig };
 
 /* post message to worker:
@@ -87,6 +88,9 @@ function TransmuxingWorker(self: DedicatedWorkerGlobalScope): void {
                 break;
             case 'resume':
                 controller?.resume();
+                break;
+            case 'select_video_track':
+                controller?.selectVideoTrack(command.param);
                 break;
             case 'logging_config': {
                 const config = command.param;

@@ -123,6 +123,10 @@ class MSEPlayer {
         this._player_engine!.seek(seconds);
     }
 
+    public selectVideoTrack(trackId: number): void {
+        this._player_engine!.selectVideoTrack(trackId);
+    }
+
     public get mediaInfo(): MediaInfo | undefined {
         return this._player_engine!.mediaInfo;
     }

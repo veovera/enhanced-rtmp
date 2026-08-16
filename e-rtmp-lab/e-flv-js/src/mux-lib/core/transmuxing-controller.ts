@@ -199,6 +199,7 @@ class TransmuxingController {
         const trackInfo: DiscoveredTrackInfo = {
             type: metadata.type,
             trackId: metadata.trackId,
+            codecKind: metadata.codecKind,
             codec: metadata.codec
         };
 
@@ -238,6 +239,10 @@ class TransmuxingController {
             return metadata.trackId === this._selectedAudioTrackId;
         }
         return metadata.trackId === this._selectedVideoTrackId;
+    }
+
+    selectVideoTrack(trackId: number): void {
+        this._demuxer?.selectVideoTrack(trackId);
     }
 
     destroy() {

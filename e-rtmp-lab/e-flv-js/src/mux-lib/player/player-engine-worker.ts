@@ -23,10 +23,11 @@ import { ErrorTypes, ErrorDetails } from './player-errors';
 import {
     WorkerCommandPacket,
     WorkerCommandPacketInit,
-    WorkerCommandPacketLoggingConfig,
-    WorkerCommandPacketUnbufferedSeek,
+    WorkerCommandPacketConfigureLogging,
+    WorkerCommandPacketSeekUnbuffered,
     WorkerCommandPacketTimeUpdate,
     WorkerCommandPacketReadyStateChange,
+    WorkerCommandPacketSelectVideoTrack,
 } from './player-engine-worker-cmd-def.js';
 import {
     WorkerMessagePacket,
@@ -70,7 +71,7 @@ const PlayerEngineWorker = (self: DedicatedWorkerGlobalScope) => {
 
         switch (cmd) {
             case 'logging_config': {
-                const packet = command_packet as WorkerCommandPacketLoggingConfig;
+                const packet = command_packet as WorkerCommandPacketConfigureLogging;
                 LoggingControl.applyConfig(packet.logging_config);
 
                 if (packet.logging_config.enableCallback === true) {
@@ -102,7 +103,7 @@ const PlayerEngineWorker = (self: DedicatedWorkerGlobalScope) => {
                 unload();
                 break;
             case 'unbuffered_seek': {
-                const packet = command_packet as WorkerCommandPacketUnbufferedSeek;
+                const packet = command_packet as WorkerCommandPacketSeekUnbuffered;
                 mse_controller!.flush();
                 transmuxer!.seek(packet.milliseconds);
                 break;
@@ -123,6 +124,11 @@ const PlayerEngineWorker = (self: DedicatedWorkerGlobalScope) => {
             case 'resume_transmuxer':
                 transmuxer!.resume();
                 break;
+            case 'select_video_track': {
+                const packet = command_packet as WorkerCommandPacketSelectVideoTrack;
+                transmuxer!.selectVideoTrack(packet.track_id);
+                break;
+            }
         }
     });
 
