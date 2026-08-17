@@ -205,7 +205,7 @@ class PlayerEngineMainThread implements PlayerEngine {
         this._transmuxer = new Transmuxer(this._media_data_source, this._config);
 
         this._transmuxer.on(TransmuxingEvent.INIT_SEGMENT, (type: TrackType, is: MSEInitSegment) => {
-            this._mse_controller?.appendInitSegment(is);
+            this._mse_controller?.addSourceBuffer(is);
         });
         this._transmuxer.on(TransmuxingEvent.MEDIA_SEGMENT, (type: TrackType, ms: MSEMediaSegment) => {
             this._mse_controller?.appendMediaSegment(ms);

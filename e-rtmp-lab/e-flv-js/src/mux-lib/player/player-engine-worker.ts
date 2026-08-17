@@ -197,7 +197,7 @@ const PlayerEngineWorker = (self: DedicatedWorkerGlobalScope) => {
         transmuxer = new Transmuxer(media_data_source, config);
 
         transmuxer.on(TransmuxingEvent.INIT_SEGMENT, (type: string, is: any) => {
-            mse_controller!.appendInitSegment(is);
+            mse_controller!.addSourceBuffer(is);
         });
         transmuxer.on(TransmuxingEvent.MEDIA_SEGMENT, (type: string, ms: any) => {
             mse_controller!.appendMediaSegment(ms);

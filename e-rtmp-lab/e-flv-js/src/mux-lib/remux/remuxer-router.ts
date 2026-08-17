@@ -54,6 +54,20 @@ export class RemuxerRouter implements RemuxingTarget {
     this._configureRemuxers();
   }
 
+  configureVideo(videoRemuxer: Remuxer): void {
+    const timestampBase = this._dtsBase !== Infinity
+      ? this._dtsBase
+      : this._videoRemuxer?.timestampBase;
+    this._videoRemuxer?.destroy();
+    this._videoRemuxer = videoRemuxer;
+
+    if (timestampBase !== undefined) {
+      this._dtsBase = timestampBase;
+      videoRemuxer.setTimestampBase(timestampBase);
+    }
+    this._configureRemuxers();
+  }
+
   get onInitSegment(): Callback {
     return this._onInitSegment;
   }

@@ -1009,6 +1009,7 @@ export class FLVDemuxer {
     private _videoTracksById: Map<number, VideoTrack> = new Map();
     private _audioTracksById: Map<number, AudioTrack> = new Map();
     private _currentVideoTrackId: number | undefined = undefined;
+    private _pendingVideoTrackId: number | undefined = undefined;
     private _currentAudioTrackId: number | undefined = undefined;
     private _hasLoggedFirstAacPayloadProbe = false;
     private _hasLoggedAacPceDetection = false;
@@ -1047,6 +1048,7 @@ export class FLVDemuxer {
         this._hasIgnoredAacMultichannelConfig = false;
         this._aacPayloadProbeFrameIndex = 0;
         this._currentVideoTrackId = undefined;
+        this._pendingVideoTrackId = undefined;
         this._currentAudioTrackId = undefined;
     }
 
@@ -1190,7 +1192,14 @@ export class FLVDemuxer {
 
     selectVideoTrack(trackId: number): void {
         const metadata = this._videoMetadataByTrackId.get(trackId);
-        Log.v(FLVDemuxer.TAG, `Video track selection received: trackId=${trackId}, codec=${metadata?.codec ?? 'unknown'}`);
+        if (trackId === this._currentVideoTrackId) {
+            this._pendingVideoTrackId = undefined;
+            Log.v(FLVDemuxer.TAG, `Video track already active: trackId=${trackId}, codec=${metadata?.codec ?? 'unknown'}`);
+            return;
+        }
+
+        this._pendingVideoTrackId = trackId;
+        Log.v(FLVDemuxer.TAG, `Video track selection received: trackId=${trackId}, codec=${metadata?.codec ?? 'unknown'}; waiting for keyframe`);
     }
 
     // timestamp base for output frames, must be in milliseconds
@@ -1502,8 +1511,26 @@ export class FLVDemuxer {
         return this._currentAudioTrackId === undefined || track.id === this._currentAudioTrackId;
     }
 
-    private _shouldAppendVideoTrack(track: VideoTrack): boolean {
-        return this._currentVideoTrackId === undefined || track.id === this._currentVideoTrackId;
+    private _shouldAppendVideoTrack(track: VideoTrack, isKeyframe: boolean): boolean {
+        if (track.id === this._currentVideoTrackId) {
+            return true;
+        }
+        if (track.id !== this._pendingVideoTrackId || !isKeyframe) {
+            return false;
+        }
+
+        const metadata = this._getVideoMetadata(track);
+        if (!metadata) {
+            Log.w(FLVDemuxer.TAG, `Cannot switch to video track ${track.id}: keyframe arrived before codec configuration`);
+            return false;
+        }
+
+        this._flushPendingTrackDataBeforeMetadataRefresh();
+        this._currentVideoTrackId = track.id;
+        this._pendingVideoTrackId = undefined;
+        Log.i(FLVDemuxer.TAG, `Switching to video track ${track.id} at keyframe; codec=${metadata.codec}`);
+        this._onTrackMetadata(metadata);
+        return true;
     }
 
     private _dispatchAudioTrackMetadata(meta: AudioMetadata): void {
@@ -3238,9 +3265,6 @@ export class FLVDemuxer {
     }
 
     private _parseAvcFrameData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: VideoFrameType, cts: number, track: VideoTrack) {
-        if (!this._shouldAppendVideoTrack(track)) {
-            return;
-        }
         let v = new DataView(arrayBuffer, dataOffset, dataSize);
 
         let units: VideoUnit[] = [], length = 0;
@@ -3279,7 +3303,7 @@ export class FLVDemuxer {
             offset += lengthSize + naluSize;
         }
 
-        if (units.length) {
+        if (units.length && this._shouldAppendVideoTrack(track, keyframe)) {
             let avcSample: VideoFrame = {
                 units: units,
                 length: length,
@@ -3295,9 +3319,6 @@ export class FLVDemuxer {
     }
 
     private _parseHevcFrameData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: number, cts: number, track: VideoTrack) {
-        if (!this._shouldAppendVideoTrack(track)) {
-            return;
-        }
         let v = new DataView(arrayBuffer, dataOffset, dataSize);
 
         let units: VideoUnit[] = [], length = 0;
@@ -3336,7 +3357,7 @@ export class FLVDemuxer {
             offset += lengthSize + naluSize;
         }
 
-        if (units.length) {
+        if (units.length && this._shouldAppendVideoTrack(track, keyframe)) {
             let hevcSample: VideoFrame = {
                 units: units,
                 length: length,
@@ -3353,14 +3374,15 @@ export class FLVDemuxer {
     }
 
     private _parseAv1FrameData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: VideoFrameType, cts: number, track: VideoTrack) {
-        if (!this._shouldAppendVideoTrack(track)) {
-            return;
-        }
         let units: VideoUnit[] = [];
         let length = 0;
         let dts = this._timestampBase + tagTimestamp;
         let keyframe = (frameType === VideoFrameType.KeyFrame);
         const rawData = new Uint8Array(arrayBuffer, dataOffset, dataSize);
+
+        if (!this._shouldAppendVideoTrack(track, keyframe)) {
+            return;
+        }
 
         if (keyframe) {
             const meta = this._getVideoMetadata(track);
@@ -3575,14 +3597,15 @@ export class FLVDemuxer {
     }
 
     private _parseVp9FrameData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: VideoFrameType, cts: number, track: VideoTrack) {
-        if (!this._shouldAppendVideoTrack(track)) {
-            return;
-        }
         let length = 0;
         let units: VideoUnit[] = [];
         let dts = this._timestampBase + tagTimestamp;
         const isKeyFrame = (frameType === VideoFrameType.KeyFrame);
         const vp9HeaderInfo: Vp9HeaderInfo = VpxParser.parseVp9Header(new Uint8Array(arrayBuffer, dataOffset, dataSize));
+
+        if (!this._shouldAppendVideoTrack(track, isKeyFrame)) {
+            return;
+        }
 
         if (isKeyFrame && vp9HeaderInfo.isValid) {
             const meta = this._getVideoMetadata(track);

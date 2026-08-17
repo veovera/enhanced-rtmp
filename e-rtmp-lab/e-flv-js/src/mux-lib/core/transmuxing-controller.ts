@@ -27,7 +27,8 @@ import type { ResolvedPlayerConfig } from '../config.js';
 import { RemuxerType, TrackType } from '../remux/remuxer.js';
 import type { MSEInitSegment } from '../remux/remuxer.js';
 
-// Transmuxing (IO, Demuxing, Remuxing) controller, with multipart support
+// Coordinates loading FLV media, demuxing its tracks, routing them to the appropriate
+// remuxer, and emitting playback-ready output; also manages multipart streams and seeks.
 class TransmuxingController {
     private TAG: string = 'TransmuxingController';
     private _emitter: EventEmitter = new EventEmitter();
@@ -42,6 +43,7 @@ class TransmuxingController {
     private _hasVideoTrack: boolean = false;
     // Locked after initial metadata has selected a remuxer for each track.
     private _hasSelectedRemuxerForCodecs: boolean = false;
+    private _videoRemuxerType: RemuxerType | undefined = undefined;
     private _pendingTrackMetadata: Array<AudioMetadata | VideoMetadata> = [];
     private _selectedAudioTrackId: number | undefined = undefined;
     private _selectedVideoTrackId: number | undefined = undefined;
@@ -124,12 +126,11 @@ class TransmuxingController {
      * VP8 will follow the VP9 policy after VP8 E-FLV parsing and WebM remuxing
      * support are implemented.
      *
-     * A track retains its selected container for the playback session.  A
-     * later sequence-header change may reinitialize the same container, but
-     * does not change it from MP4 to WebM or vice versa.  Coordinated container
-     * switching is intentionally a future feature: it needs to drain the old
-     * output, replace the relevant SourceBuffer, append a new init segment, and
-     * resume from an appropriate keyframe.
+     * A selected video-track change may select a different remuxer container.
+     * The controller replaces only the video remuxer when the demuxer reaches
+     * the selected track's keyframe and redispatches its metadata. The MSE
+     * controller then changes the video SourceBuffer type before appending the
+     * corresponding initialization segment.
      *
      * The router owns one DTS base and applies it to both remuxers, keeping
      * their output timelines aligned in their MSE SourceBuffers.
@@ -185,8 +186,21 @@ class TransmuxingController {
         const audioType = audioMetadata ? this._selectAudioRemuxerType(audioMetadata) : 'mp4';
         const videoType = videoMetadata ? this._selectVideoRemuxerType(videoMetadata.codecKind) : 'mp4';
 
-        Log.i(this.TAG, `Selected remuxers: audio=${audioType}${audioMetadata ? ` (${audioMetadata.codec})` : ''}, video=${videoType}${videoMetadata ? ` (${videoMetadata.codec})` : ''}`);
+        Log.v(this.TAG, `Selected remuxers: audio=${audioType}${audioMetadata ? ` (${audioMetadata.codec})` : ''}, video=${videoType}${videoMetadata ? ` (${videoMetadata.codec})` : ''}`);
         this._configureRemuxerRouter(audioType, videoType);
+        this._videoRemuxerType = videoType;
+        this._bindRemuxerRouterToDemuxer();
+    }
+
+    private _switchVideoRemuxerIfNeeded(metadata: VideoMetadata): void {
+        const videoType = this._selectVideoRemuxerType(metadata.codecKind);
+        if (videoType === this._videoRemuxerType) {
+            return;
+        }
+
+        Log.i(this.TAG, `Switching video remuxer: ${this._videoRemuxerType ?? 'none'} -> ${videoType} (${metadata.codec})`);
+        this._remuxerRouter.configureVideo(this._createRemuxer(videoType));
+        this._videoRemuxerType = videoType;
         this._bindRemuxerRouterToDemuxer();
     }
 
@@ -242,6 +256,7 @@ class TransmuxingController {
     }
 
     selectVideoTrack(trackId: number): void {
+        this._selectedVideoTrackId = trackId;
         this._demuxer?.selectVideoTrack(trackId);
     }
 
@@ -470,6 +485,10 @@ class TransmuxingController {
 
         if (!this._isSelectedTrackMetadata(metadata)) {
             return;
+        }
+
+        if (metadata.type === TrackType.Video && this._hasSelectedRemuxerForCodecs) {
+            this._switchVideoRemuxerIfNeeded(metadata);
         }
 
         if (!this._hasSelectedRemuxerForCodecs) {

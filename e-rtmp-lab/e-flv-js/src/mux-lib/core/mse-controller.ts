@@ -81,7 +81,7 @@ class MSEController {
         video: SourceBuffer | null;
         audio: SourceBuffer | null;
     } = { video: null, audio: null };
-    private _lastInitSegments: {
+    private _latestInitSegments: {
         video: MSEInitSegment | null;
         audio: MSEInitSegment | null;
     } = { video: null, audio: null };
@@ -172,7 +172,7 @@ class MSEController {
                 // Clear pending arrays in-place (safe for references)
                 this._pendingSegments[type].splice(0);
                 this._pendingRemoveRanges[type].splice(0);
-                this._lastInitSegments[type] = null;
+                this._latestInitSegments[type] = null;
 
                 // remove all sourcebuffers
                 let sb = this._sourceBuffers[type];
@@ -254,6 +254,16 @@ class MSEController {
         return this._mediaSourceObjectURL;
     }
 
+    private _getMimeType(initSegment: MSEInitSegment): string {
+        let codec = initSegment.codec;
+        if (codec === 'opus' && Browser.safari) {
+            codec = 'Opus';
+        }
+        return codec && codec.length > 0
+            ? `${initSegment.container}; codecs="${codec}"`
+            : initSegment.container;
+    }
+
     revokeObjectURL() {
         if (this._mediaSourceObjectURL) {
             URL.revokeObjectURL(this._mediaSourceObjectURL);
@@ -261,37 +271,28 @@ class MSEController {
         }
     }
 
-    appendInitSegment(initSegment: MSEInitSegment, deferred: boolean = false) {
+    addSourceBuffer(initSegment: MSEInitSegment, deferred: boolean = false) {
         if (this._mediaSource?.readyState !== 'open' || (this._useManagedMediaSource && (this._mediaSource as any).streaming === false)) {
             // sourcebuffer creation requires mediaSource.readyState === 'open'
             // so we defer the sourcebuffer creation, until sourceopen event triggered
-            Log.v(this.TAG, `appendInitSegment: deferring because MediaSource is not ready, deferred=${deferred} ${describeInitSegment(initSegment)}`);
+            Log.v(this.TAG, `addSourceBuffer: deferring because MediaSource is not ready, deferred=${deferred} ${describeInitSegment(initSegment)}`);
             this._deferInitSegment(initSegment, deferred);
             return;
         }
 
-        let is = initSegment;
-        let mimeType = `${is.container}`;
-        if (is.codec && is.codec.length > 0) {
-            if (is.codec === 'opus' && Browser.safari) {
-                is.codec = 'Opus';
-            }
-            mimeType += `; codecs="${is.codec}"`;
-        }
+        const is = initSegment;
+        const mimeType = this._getMimeType(is);
 
         let firstInitSegment = false;
         const videoUpdating = this._sourceBuffers['video']?.updating;
         const audioUpdating = this._sourceBuffers['audio']?.updating;
 
         if (videoUpdating || audioUpdating) {
-            Log.v(this.TAG, `appendInitSegment: deferring because SourceBuffer is updating, deferred=${deferred} mimeType=${mimeType} updatingVideo=${videoUpdating} updatingAudio=${audioUpdating} ${describeInitSegment(is)}`);
+            Log.v(this.TAG, `addSourceBuffer: deferring because SourceBuffer is updating, deferred=${deferred} mimeType=${mimeType} updatingVideo=${videoUpdating} updatingAudio=${audioUpdating} ${describeInitSegment(is)}`);
             this._deferInitSegment(initSegment, deferred);
             return;
         }
         Log.v(this.TAG, `appendInitSegment: accepting mimeType=${mimeType} deferred=${deferred} updatingVideo=${videoUpdating} updatingAudio=${audioUpdating} ${describeInitSegment(is)}`);
-
-
-        this._lastInitSegments[is.type] = is;
 
         if (mimeType !== this._mimeTypes[is.type]) {
             if (!this._mimeTypes[is.type]) {  // empty, first chance create sourcebuffer
@@ -311,10 +312,16 @@ class MSEController {
                     return;
                 }
             } else {
-                Log.v(this.TAG, `Notice: ${is.type} mimeType changed for ${this._mimeTypes[is.type]}, mimeType: ${mimeType}`);
+                // Defer changeType() until this init segment reaches the front of
+                // the append queue. Older media segments must keep their old type.
+                Log.v(this.TAG, `Queued ${is.type} SourceBuffer type change: ${this._mimeTypes[is.type]} -> ${mimeType}`);
             }
-            this._mimeTypes[is.type] = mimeType;
+            if (firstInitSegment) {
+                this._mimeTypes[is.type] = mimeType;
+            }
         }
+
+        this._latestInitSegments[is.type] = is;
 
         if (!deferred) {
             // deferred means this InitSegment has been pushed to pendingSegments queue
@@ -386,9 +393,9 @@ class MSEController {
             // Internal parser's state may be invalid at this time. Re-append last InitSegment to workaround.
             // Related issue: https://bugs.webkit.org/show_bug.cgi?id=159230
             if (Browser.safari) {
-                let lastInitSegment = this._lastInitSegments[type];
-                if (lastInitSegment) {
-                    this._pendingSegments[type].push(lastInitSegment);
+                let latestInitSegment = this._latestInitSegments[type];
+                if (latestInitSegment) {
+                    this._pendingSegments[type].push(latestInitSegment);
                     this._doAppendSegments();
                 }
             }
@@ -576,7 +583,16 @@ class MSEController {
 
                 try {
                     if (segment.kind === SegmentKind.Init) {
-                        //Log.v(this.TAG, `_doAppendSegments: append init ${describeInitSegment(segment as MSEInitSegment)} pendingAudio=${pendingSegments.audio.length} pendingVideo=${pendingSegments.video.length}`);
+                        const mimeType = this._getMimeType(segment as MSEInitSegment);
+                        if (mimeType !== this._mimeTypes[type]) {
+                            const sourceBuffer = this._sourceBuffers[type]!;
+                            if (typeof sourceBuffer.changeType !== 'function') {
+                                throw new Error(`Cannot change ${type} SourceBuffer type: changeType() is unavailable; old=${this._mimeTypes[type]} new=${mimeType}`);
+                            }
+                            Log.i(this.TAG, `Changing ${type} SourceBuffer type: ${this._mimeTypes[type]} -> ${mimeType}`);
+                            sourceBuffer.changeType(mimeType);
+                            this._mimeTypes[type] = mimeType;
+                        }
                     }
                     // Log buffer info for debugging
                     if (MSEController.TRACE) {
@@ -672,7 +688,7 @@ class MSEController {
 
             const segment = this._pendingSourceBufferInit.shift()!;
             Log.v(this.TAG, `_flushPendingInitSegments: dispatching queued init, remaining=${this._pendingSourceBufferInit.length} ${describeInitSegment(segment)}`);
-            this.appendInitSegment(segment, true);
+            this.addSourceBuffer(segment, true);
         }
     }
 
