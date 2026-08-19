@@ -32,6 +32,10 @@ interface TimeRange {
     end: number;
 }
 
+interface ManagedMediaSourceLike extends MediaSource {
+    readonly streaming: boolean;
+}
+
 const TRACK_TYPES: readonly TrackType[] = [TrackType.Video, TrackType.Audio];
 
 function formatSegmentPrefix(data: Uint8Array, length = 16): string {
@@ -271,11 +275,12 @@ class MSEController {
         }
     }
 
-    addSourceBuffer(initSegment: MSEInitSegment, deferred: boolean = false) {
-        if (this._mediaSource?.readyState !== 'open' || (this._useManagedMediaSource && (this._mediaSource as any).streaming === false)) {
+    appendInitSegment(initSegment: MSEInitSegment, deferred: boolean = false) {
+        const mediaSource = this._mediaSource;
+        if (!mediaSource || !this._isMediaSourceReadyForStreaming()) {
             // sourcebuffer creation requires mediaSource.readyState === 'open'
             // so we defer the sourcebuffer creation, until sourceopen event triggered
-            Log.v(this.TAG, `addSourceBuffer: deferring because MediaSource is not ready, deferred=${deferred} ${describeInitSegment(initSegment)}`);
+            Log.v(this.TAG, `appendInitSegment: deferring because MediaSource is not ready, deferred=${deferred} ${describeInitSegment(initSegment)}`);
             this._deferInitSegment(initSegment, deferred);
             return;
         }
@@ -288,7 +293,7 @@ class MSEController {
         const audioUpdating = this._sourceBuffers['audio']?.updating;
 
         if (videoUpdating || audioUpdating) {
-            Log.v(this.TAG, `addSourceBuffer: deferring because SourceBuffer is updating, deferred=${deferred} mimeType=${mimeType} updatingVideo=${videoUpdating} updatingAudio=${audioUpdating} ${describeInitSegment(is)}`);
+            Log.v(this.TAG, `appendInitSegment: deferring because SourceBuffer is updating, deferred=${deferred} mimeType=${mimeType} updatingVideo=${videoUpdating} updatingAudio=${audioUpdating} ${describeInitSegment(is)}`);
             this._deferInitSegment(initSegment, deferred);
             return;
         }
@@ -298,12 +303,12 @@ class MSEController {
             if (!this._mimeTypes[is.type]) {  // empty, first chance create sourcebuffer
                 firstInitSegment = true;
                 try {
-                    let sb = this._sourceBuffers[is.type] = this._mediaSource.addSourceBuffer(mimeType);
+                    let sb = this._sourceBuffers[is.type] = mediaSource.addSourceBuffer(mimeType);
                     const videoUpdating = this._sourceBuffers['video']?.updating;
                     const audioUpdating = this._sourceBuffers['audio']?.updating;
 
                     Log.v(this.TAG, `appendInitSegment: Now ${Date.now()} - Created SourceBuffer for ${is.type} track, mimeType: ${mimeType}, updating video: ${videoUpdating} audio: ${audioUpdating}`);
-                    this._mediaSource.duration = is.mediaDuration / 1000;  // in seconds
+                    mediaSource.duration = is.mediaDuration / 1000;  // in seconds
                     sb.addEventListener('error', this.events.onSourceBufferError);
                     sb.addEventListener('updateend', this.events.onSourceBufferUpdateEnd);
                 } catch (error: any) {
@@ -541,14 +546,13 @@ class MSEController {
     }
 
     private _doAppendSegments() {
-        // Early return if MediaSource is not ready
-        if (!this._mediaSource || this._mediaSource.readyState !== 'open') {
+        if (!this._isMediaSourceReadyForStreaming()) {
             return;
         }
         let pendingSegments = this._pendingSegments;
 
         for (const type of TRACK_TYPES) {
-            if (!this._sourceBuffers[type] || this._sourceBuffers[type].updating || (this._useManagedMediaSource && (this._mediaSource as any).streaming === false)) {
+            if (!this._sourceBuffers[type] || this._sourceBuffers[type].updating) {
                 continue;
             }
 
@@ -670,13 +674,11 @@ class MSEController {
     }
 
     private _flushPendingInitSegments() {
+        if (!this._isMediaSourceReadyForStreaming()) {
+            return;
+        } 
+
         while (this._pendingSourceBufferInit.length > 0) {
-            if (!this._mediaSource || this._mediaSource.readyState !== 'open') {
-                return;
-            }
-            if (this._useManagedMediaSource && (this._mediaSource as any).streaming === false) {
-                return;
-            }
             if (this._sourceBuffers.video?.updating || this._sourceBuffers.audio?.updating) {
                 return;
             }
@@ -688,7 +690,7 @@ class MSEController {
 
             const segment = this._pendingSourceBufferInit.shift()!;
             Log.v(this.TAG, `_flushPendingInitSegments: dispatching queued init, remaining=${this._pendingSourceBufferInit.length} ${describeInitSegment(segment)}`);
-            this.addSourceBuffer(segment, true);
+            this.appendInitSegment(segment, true);
         }
     }
 
@@ -811,6 +813,14 @@ class MSEController {
         }
         // If there is no MediaError the SourceBuffer error may be transient (e.g. a stale
         // updateend race); log it but do not surface it as a fatal player error.
+    }
+
+    private _isMediaSourceReadyForStreaming(): boolean {
+        const mediaSource = this._mediaSource;
+        return (
+            mediaSource?.readyState === 'open' &&
+            (!this._useManagedMediaSource || (mediaSource as ManagedMediaSourceLike).streaming !== false)
+        );
     }
 
 }
