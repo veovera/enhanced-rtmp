@@ -97,7 +97,6 @@ class MSEController {
         video: TimeRange[];
         audio: TimeRange[];
     } = { video: [], audio: [] };
-    private _pendingSourceBufferInit: MSEInitSegment[] = []; // Array of pending init segments to be added to source buffers
 
     //!!@ fix any
     constructor(config: ResolvedPlayerConfig, mediaElementProxy: MediaElementProxy) {
@@ -218,7 +217,6 @@ class MSEController {
 
         // Reset other state
         this._mediaSource = null;
-        this._pendingSourceBufferInit = [];
         this._isBufferFull = false;
         this._hasPendingEos = false;
     }
@@ -275,71 +273,30 @@ class MSEController {
         }
     }
 
-    appendInitSegment(initSegment: MSEInitSegment, deferred: boolean = false) {
-        const mediaSource = this._mediaSource;
-        if (!mediaSource || !this._isMediaSourceReadyForStreaming()) {
-            // sourcebuffer creation requires mediaSource.readyState === 'open'
-            // so we defer the sourcebuffer creation, until sourceopen event triggered
-            Log.v(this.TAG, `appendInitSegment: deferring because MediaSource is not ready, deferred=${deferred} ${describeInitSegment(initSegment)}`);
-            this._deferInitSegment(initSegment, deferred);
-            return;
+    appendInitSegment(initSegment: MSEInitSegment) {
+        const type = initSegment.type;
+        const pendingSegments = this._pendingSegments[type];
+        const previousSegment = pendingSegments[pendingSegments.length - 1];
+
+        // An init segment is a boundary for the media that follows it. We may
+        // coalesce only consecutive init segments; replacing an earlier init
+        // would pair intervening media with the wrong track configuration.
+        if (previousSegment?.kind === SegmentKind.Init) {
+            pendingSegments[pendingSegments.length - 1] = initSegment;
+        } else {
+            pendingSegments.push(initSegment);
         }
+        this._latestInitSegments[type] = initSegment;
 
-        const is = initSegment;
-        const mimeType = this._getMimeType(is);
+        Log.v(this.TAG, `appendInitSegment: queued pendingSegments[${type}]=${this._pendingSegments[type].length} ${describeInitSegment(initSegment)}`);
+        this._doAppendSegments();
 
-        let firstInitSegment = false;
-        const videoUpdating = this._sourceBuffers['video']?.updating;
-        const audioUpdating = this._sourceBuffers['audio']?.updating;
+        const safariMpegDurationBug = Browser.safari && initSegment.container === 'audio/mpeg';  // Safari may cause MediaElement's duration to be NaN
+        const webmMissingDuration = initSegment.container.endsWith('/webm');                     // Manually correct MediaSource.duration to make progress bar seekable
 
-        if (videoUpdating || audioUpdating) {
-            Log.v(this.TAG, `appendInitSegment: deferring because SourceBuffer is updating, deferred=${deferred} mimeType=${mimeType} updatingVideo=${videoUpdating} updatingAudio=${audioUpdating} ${describeInitSegment(is)}`);
-            this._deferInitSegment(initSegment, deferred);
-            return;
-        }
-        Log.v(this.TAG, `appendInitSegment: accepting mimeType=${mimeType} deferred=${deferred} updatingVideo=${videoUpdating} updatingAudio=${audioUpdating} ${describeInitSegment(is)}`);
-
-        if (mimeType !== this._mimeTypes[is.type]) {
-            if (!this._mimeTypes[is.type]) {  // empty, first chance create sourcebuffer
-                firstInitSegment = true;
-                try {
-                    let sb = this._sourceBuffers[is.type] = mediaSource.addSourceBuffer(mimeType);
-                    const videoUpdating = this._sourceBuffers['video']?.updating;
-                    const audioUpdating = this._sourceBuffers['audio']?.updating;
-
-                    Log.v(this.TAG, `appendInitSegment: Now ${Date.now()} - Created SourceBuffer for ${is.type} track, mimeType: ${mimeType}, updating video: ${videoUpdating} audio: ${audioUpdating}`);
-                    mediaSource.duration = is.mediaDuration / 1000;  // in seconds
-                    sb.addEventListener('error', this.events.onSourceBufferError);
-                    sb.addEventListener('updateend', this.events.onSourceBufferUpdateEnd);
-                } catch (error: any) {
-                    Log.e(this.TAG, error.message);
-                    this._emitter.emit(MSEEvent.ERROR, {code: error.code, msg: error.message});
-                    return;
-                }
-            } else {
-                // Defer changeType() until this init segment reaches the front of
-                // the append queue. Older media segments must keep their old type.
-                Log.v(this.TAG, `Queued ${is.type} SourceBuffer type change: ${this._mimeTypes[is.type]} -> ${mimeType}`);
-            }
-            if (firstInitSegment) {
-                this._mimeTypes[is.type] = mimeType;
-            }
-        }
-
-        this._latestInitSegments[is.type] = is;
-
-        if (!deferred) {
-            // deferred means this InitSegment has been pushed to pendingSegments queue
-            this._pendingSegments[is.type].push(is);
-        }
-        if (!firstInitSegment) {  // append immediately only if init segment in subsequence
-            this._doAppendSegments();
-        }
-        if (((Browser.safari && is.container === 'audio/mpeg') || (is.container === "video/webm")) && is.mediaDuration > 0) {
-            // 'audio/mpeg' track under Safari may cause MediaElement's duration to be NaN
-            // Manually correct MediaSource.duration to make progress bar seekable, and report right duration
+        if ((safariMpegDurationBug || webmMissingDuration) && initSegment.mediaDuration > 0) {
             this._requireSetMediaDuration = true;
-            this._pendingMediaDuration = is.mediaDuration / 1000;  // in seconds
+            this._pendingMediaDuration = initSegment.mediaDuration / 1000;  // in seconds
             this._updateMediaSourceDuration();
         }
     }
@@ -512,7 +469,7 @@ class MSEController {
 
     private _updateMediaSourceDuration() {
         let sb = this._sourceBuffers;
-        if (this._mediaElementProxy!.getReadyState() === 0 || this._mediaSource?.readyState !== 'open') {
+        if (this._mediaElementProxy.getReadyState() === 0 || this._mediaSource?.readyState !== 'open') {
             return;
         }
         if (sb.video?.updating || sb.audio?.updating) {
@@ -550,6 +507,32 @@ class MSEController {
             return;
         }
         let pendingSegments = this._pendingSegments;
+
+        // SourceBuffer creation is part of draining the same queue that carries
+        // init and media data. Create every eligible buffer before appending so a
+        // paired audio/video initialization is complete before either track starts
+        // an append operation. Some implementations reject a second SourceBuffer
+        // while the first one is initializing.
+        let createdSourceBuffer = false;
+        if (!this._sourceBuffers.video?.updating && !this._sourceBuffers.audio?.updating && !this._hasPendingRemoveRanges()) {
+            for (const type of TRACK_TYPES) {
+                if (this._sourceBuffers[type] || pendingSegments[type][0]?.kind !== SegmentKind.Init) {
+                    continue;
+                }
+                if (!this._createSourceBuffer(pendingSegments[type][0] as MSEInitSegment)) {
+                    return;
+                }
+                createdSourceBuffer = true;
+            }
+        }
+
+        // SourceBuffer creation is a separate phase. Do not append an init to a
+        // newly created buffer until another drain cycle: a paired track's init
+        // may arrive immediately afterwards and must be able to create its own
+        // SourceBuffer first.
+        if (createdSourceBuffer) {
+            return;
+        }
 
         for (const type of TRACK_TYPES) {
             if (!this._sourceBuffers[type] || this._sourceBuffers[type].updating) {
@@ -661,56 +644,38 @@ class MSEController {
         }
     }
 
-    private _deferInitSegment(initSegment: MSEInitSegment, deferred: boolean) {
-        this._pendingSourceBufferInit = this._pendingSourceBufferInit.filter((segment) => segment.type !== initSegment.type);
-        this._pendingSourceBufferInit.push(initSegment);
-        Log.v(this.TAG, `_deferInitSegment: queued deferred=${deferred} pendingSourceBufferInit=${this._pendingSourceBufferInit.length} pendingAudio=${this._pendingSegments.audio.length} pendingVideo=${this._pendingSegments.video.length} ${describeInitSegment(initSegment)}`);
-
-        if (!deferred) {
-            this._pendingSegments[initSegment.type] = this._pendingSegments[initSegment.type].filter((segment) => segment.kind !== SegmentKind.Init);
-            this._pendingSegments[initSegment.type].push(initSegment);
-            Log.v(this.TAG, `_deferInitSegment: also queued into pendingSegments[${initSegment.type}] size=${this._pendingSegments[initSegment.type].length} ${describeInitSegment(initSegment)}`);
+    private _createSourceBuffer(initSegment: MSEInitSegment): boolean {
+        const mediaSource = this._mediaSource;
+        if (!mediaSource) {
+            return false;
         }
-    }
 
-    private _flushPendingInitSegments() {
-        if (!this._isMediaSourceReadyForStreaming()) {
-            return;
-        } 
-
-        while (this._pendingSourceBufferInit.length > 0) {
-            if (this._sourceBuffers.video?.updating || this._sourceBuffers.audio?.updating) {
-                return;
-            }
-            // appendInitSegment may call _doAppendSegments() immediately for later
-            // init segments (codec changes), so don't flush while removes are pending.
-            if (this._hasPendingRemoveRanges()) {
-                return;
-            }
-
-            const segment = this._pendingSourceBufferInit.shift()!;
-            Log.v(this.TAG, `_flushPendingInitSegments: dispatching queued init, remaining=${this._pendingSourceBufferInit.length} ${describeInitSegment(segment)}`);
-            this.appendInitSegment(segment, true);
+        const mimeType = this._getMimeType(initSegment);
+        try {
+            const sourceBuffer = this._sourceBuffers[initSegment.type] = mediaSource.addSourceBuffer(mimeType);
+            this._mimeTypes[initSegment.type] = mimeType;
+            mediaSource.duration = initSegment.mediaDuration / 1000;
+            sourceBuffer.addEventListener('error', this.events.onSourceBufferError);
+            sourceBuffer.addEventListener('updateend', this.events.onSourceBufferUpdateEnd);
+            Log.v(this.TAG, `Created SourceBuffer for ${initSegment.type} track, mimeType=${mimeType}`);
+            return true;
+        } catch (error: any) {
+            Log.e(this.TAG, error.message);
+            this._emitter.emit(MSEEvent.ERROR, {code: error.code, msg: error.message});
+            return false;
         }
     }
 
     private _onSourceOpen() {
         Log.v(this.TAG, 'MediaSource onSourceOpen');
         this._mediaSource?.removeEventListener('sourceopen', this.events.onSourceOpen);
-        this._flushPendingInitSegments();
-        // there may be some pending media segments, append them
-        if (this._hasPendingSegments()) {
-            this._doAppendSegments();
-        }
+        this._doAppendSegments();
         this._emitter.emit(MSEEvent.SOURCE_OPEN);
     }
 
     private _onStartStreaming() {
         Log.v(this.TAG, 'ManagedMediaSource onStartStreaming');
-        this._flushPendingInitSegments();
-        if (this._hasPendingSegments()) {
-            this._doAppendSegments();
-        }
+        this._doAppendSegments();
         this._emitter.emit(MSEEvent.START_STREAMING);
     }
 
@@ -750,7 +715,6 @@ class MSEController {
             this._pendingRemoveRanges[type].splice(0);
             this._pendingSegments[type].splice(0);
         }
-        this._pendingSourceBufferInit = [];
         if (this._mediaSource && this.events != null) {
             this._mediaSource.removeEventListener('sourceopen', this.events.onSourceOpen);
             this._mediaSource.removeEventListener('sourceended', this.events.onSourceEnded);
@@ -780,10 +744,6 @@ class MSEController {
         if (this._requireSetMediaDuration) {
             this._updateMediaSourceDuration();
         }
-
-        // Flush any deferred init segments first. The function guards itself against
-        // pending removes and updating buffers, so the call is safe unconditionally.
-        this._flushPendingInitSegments();
 
         // Media appends must wait until any queued remove() sequences are complete.
         if (this._hasPendingRemoveRanges()) {
