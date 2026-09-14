@@ -37,18 +37,10 @@ interface ManagedMediaSourceLike extends MediaSource {
 }
 
 const TRACK_TYPES: readonly TrackType[] = [TrackType.Video, TrackType.Audio];
-
-function formatSegmentPrefix(data: Uint8Array, length = 16): string {
-    if (!data || data.byteLength === 0) {
-        return 'empty';
-    }
-    return Array.from(data.subarray(0, Math.min(length, data.byteLength)))
-        .map((value) => value.toString(16).padStart(2, '0'))
-        .join(' ');
-}
+type VideoTypeChangeAppendStage = 'none' | 'init' | 'first-media';
 
 function describeInitSegment(initSegment: MSEInitSegment): string {
-    return `type=${initSegment.type} codec=${initSegment.codec || 'none'} container=${initSegment.container} bytes=${initSegment.data.byteLength} head=${formatSegmentPrefix(initSegment.data)}`;
+    return `type=${initSegment.type} codec=${initSegment.codec || 'none'} container=${initSegment.container} size=${initSegment.data.byteLength}`;
 }
 
 function describeMediaError(error: MediaError | null): string {
@@ -61,6 +53,15 @@ function describeMediaError(error: MediaError | null): string {
         details.push(`message=${error.message}`);
     }
     return details.join(' ');
+}
+
+function describeBufferedRanges(ranges: TimeRanges | null): string {
+    if (!ranges || ranges.length === 0) {
+        return 'empty';
+    }
+    return Array.from({ length: ranges.length }, (_, index) =>
+        `${ranges.start(index).toFixed(3)}-${ranges.end(index).toFixed(3)}`
+    ).join(', ');
 }
 
 class MSEController {
@@ -97,6 +98,11 @@ class MSEController {
         video: TimeRange[];
         audio: TimeRange[];
     } = { video: [], audio: [] };
+    private _traceAwaitingFirstMediaAfterTypeChange: {
+        video: boolean;
+        audio: boolean;
+    } = { video: false, audio: false };
+    private _videoTypeChangeAppendStage: VideoTypeChangeAppendStage = 'none';
 
     //!!@ fix any
     constructor(config: ResolvedPlayerConfig, mediaElementProxy: MediaElementProxy) {
@@ -219,6 +225,8 @@ class MSEController {
         this._mediaSource = null;
         this._isBufferFull = false;
         this._hasPendingEos = false;
+        this._traceAwaitingFirstMediaAfterTypeChange = { video: false, audio: false };
+        this._videoTypeChangeAppendStage = 'none';
     }
 
     isManagedMediaSource() {
@@ -288,7 +296,7 @@ class MSEController {
         }
         this._latestInitSegments[type] = initSegment;
 
-        Log.v(this.TAG, `appendInitSegment: queued pendingSegments[${type}]=${this._pendingSegments[type].length} ${describeInitSegment(initSegment)}`);
+        Log.v(this.TAG, `appendInitSegment: pendingSegments[${type}]=${this._pendingSegments[type].length} ${describeInitSegment(initSegment)}`);
         this._doAppendSegments();
 
         const safariMpegDurationBug = Browser.safari && initSegment.container === 'audio/mpeg';  // Safari may cause MediaElement's duration to be NaN
@@ -573,13 +581,20 @@ class MSEController {
                         const mimeType = this._getMimeType(segment as MSEInitSegment);
                         if (mimeType !== this._mimeTypes[type]) {
                             const sourceBuffer = this._sourceBuffers[type]!;
-                            if (typeof sourceBuffer.changeType !== 'function') {
-                                throw new Error(`Cannot change ${type} SourceBuffer type: changeType() is unavailable; old=${this._mimeTypes[type]} new=${mimeType}`);
-                            }
+                            this._dumpVideoTypeChangeState(`before-changeType old=${this._mimeTypes[type]} new=${mimeType}`);
                             Log.i(this.TAG, `Changing ${type} SourceBuffer type: ${this._mimeTypes[type]} -> ${mimeType}`);
                             sourceBuffer.changeType(mimeType);
                             this._mimeTypes[type] = mimeType;
+                            this._traceAwaitingFirstMediaAfterTypeChange[type] = true;
+                            this._dumpVideoTypeChangeState('after-changeType-before-init-append');
+                            this._videoTypeChangeAppendStage = 'init';
                         }
+                    }
+                    if (segment.kind === SegmentKind.Media && this._traceAwaitingFirstMediaAfterTypeChange[type]) {
+                        const firstFrame = info?.firstFrame;
+                        Log.v(this.TAG, `[type-change] first-media type=${type} beginDts=${info?.beginDts ?? 'N/A'} endDts=${info?.endDts ?? 'N/A'} beginPts=${info?.beginPts ?? 'N/A'} endPts=${info?.endPts ?? 'N/A'} frameCount=${frameCount} firstFrameDts=${firstFrame?.dts ?? 'N/A'} firstFramePts=${firstFrame?.pts ?? 'N/A'} firstFrameIsSyncPoint=${firstFrame?.isSyncPoint ?? 'N/A'} syncPoints=${info?.syncPoints.length ?? 0} timestampOffset=${segment.timestampOffset ?? 'none'} currentTime=${this._mediaElementProxy.getCurrentTime().toFixed(3)}`);
+                        this._traceAwaitingFirstMediaAfterTypeChange[type] = false;
+                        this._videoTypeChangeAppendStage = 'first-media';
                     }
                     // Log buffer info for debugging
                     if (MSEController.TRACE) {
@@ -587,7 +602,6 @@ class MSEController {
                         const videoUpdating = this._sourceBuffers['video']?.updating;
                         if (info) {
                             Log.v(this.TAG, `_doAppendSegments: Now ${Date.now()} - Appending media segment for ${type} SourceBuffer - frameCount: ${frameCount} beginDts: ${info.beginDts} endDts: ${info.endDts} size: ${segment.data.byteLength} audioUpdating ${audioUpdating} videoUpdating ${videoUpdating}`);
-                            //Log.v(this.TAG, `\n${Log.dumpArrayBuffer(segment.data, 512)}`);
                         } else {
                             Log.v(this.TAG, `_doAppendSegments: Now ${Date.now()} - Appending init segment for ${type} SourceBuffer - size: ${segment.data.byteLength} audioUpdating ${audioUpdating} videoUpdating ${videoUpdating}`);
                         }
@@ -605,7 +619,6 @@ class MSEController {
                 } catch (error: any) {
                     this._pendingSegments[type].unshift(segment);
                     Log.e(this.TAG, `error.message = ${error.message}; error.name = ${error.name}; error.code = ${error.code}; pendingData.length = ${segment.data.length}; type = ${type}; beginDts = ${info ? info.beginDts : 'N/A'}; endDts = ${info ? info.endDts : 'N/A'}`);
-                    //Log.e(this.TAG, `\n${Log.dumpArrayBuffer(segment.data, 512)}`);
 
                     if (error.name === MediaErrorName.QuotaExceededError) {
                         // If we have a pending end-of-stream, we must clear buffer space to append the final segment and finish the stream.
@@ -714,7 +727,9 @@ class MSEController {
             this._mimeTypes[type] = null;
             this._pendingRemoveRanges[type].splice(0);
             this._pendingSegments[type].splice(0);
+            this._traceAwaitingFirstMediaAfterTypeChange[type] = false;
         }
+        this._videoTypeChangeAppendStage = 'none';
         if (this._mediaSource && this.events != null) {
             this._mediaSource.removeEventListener('sourceopen', this.events.onSourceOpen);
             this._mediaSource.removeEventListener('sourceended', this.events.onSourceEnded);
@@ -740,9 +755,17 @@ class MSEController {
     // Registered as the SourceBuffer 'updateend' listener when a SourceBuffer is created.
     // The browser dispatches this callback after an async SourceBuffer update cycle
     // completes, such as appendBuffer() or remove().
-    private _onSourceBufferUpdateEnd() {
+    private _onSourceBufferUpdateEnd(event: Event) {
         if (this._requireSetMediaDuration) {
             this._updateMediaSourceDuration();
+        }
+
+        if (event.target === this._sourceBuffers.video && this._videoTypeChangeAppendStage !== 'none') {
+            const stage = this._videoTypeChangeAppendStage;
+            this._dumpVideoTypeChangeState(`${stage}-updateend`);
+            if (stage === 'first-media') {
+                this._videoTypeChangeAppendStage = 'none';
+            }
         }
 
         // Media appends must wait until any queued remove() sequences are complete.
@@ -773,6 +796,15 @@ class MSEController {
         }
         // If there is no MediaError the SourceBuffer error may be transient (e.g. a stale
         // updateend race); log it but do not surface it as a fatal player error.
+    }
+
+    private _dumpVideoTypeChangeState(stage: string): void {
+        const sourceBuffer = this._sourceBuffers.video;
+        const appendWindow = sourceBuffer
+            ? `${sourceBuffer.appendWindowStart.toFixed(3)}-${sourceBuffer.appendWindowEnd.toFixed(3)}`
+            : 'N/A';
+
+        Log.v(this.TAG, `[type-change] ${stage} currentTime=${this._mediaElementProxy.getCurrentTime().toFixed(3)} mediaReadyState=${this._mediaElementProxy.getReadyState()} mediaSourceState=${this._mediaSource?.readyState ?? 'null'} mime=${this._mimeTypes.video ?? 'null'} sbExists=${sourceBuffer !== null} sbUpdating=${sourceBuffer?.updating ?? false} sbMode=${sourceBuffer?.mode ?? 'N/A'} timestampOffset=${sourceBuffer?.timestampOffset ?? 'N/A'} appendWindow=${appendWindow} videoBuffered=${describeBufferedRanges(this._getBufferedRanges(TrackType.Video))} audioBuffered=${describeBufferedRanges(this._getBufferedRanges(TrackType.Audio))} mediaError=${describeMediaError(this._mediaElementProxy.getError())}`);
     }
 
     private _isMediaSourceReadyForStreaming(): boolean {

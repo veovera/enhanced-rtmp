@@ -1073,11 +1073,7 @@ export class FLVDemuxer {
             .join(' ');
 
         if (!this._hasLoggedFirstAacPayloadProbe) {
-            Log.v(FLVDemuxer.TAG, `First AAC CodedFrame: size=${data.byteLength} bytes[0..7]=${hex} ${payloadDescription}`);
             this._hasLoggedFirstAacPayloadProbe = true;
-        }
-        if (this._aacPayloadProbeFrameIndex <= 5) {
-            Log.v(FLVDemuxer.TAG, `AAC CodedFrame[${this._aacPayloadProbeFrameIndex}] rawDataBlock ${rawDataBlockDescription}`);
         }
 
         const hasPce = payloadDescription.includes('PCE');
@@ -1575,7 +1571,7 @@ export class FLVDemuxer {
         } else if (fourcc === VideoFourCc.Vp9) {
             this._parseEnhancedVp9VideoPacket(arrayBuffer, dataOffset, dataSize, tagTimestamp, tagPosition, frameType, packetType, track);
         } else if (skipUnsupported) {
-            Log.w(FLVDemuxer.TAG, `Flv: Unsupported codec in multitrack video packet: ${fourcc}, trackId=${track.id}, action=skip`);
+            Log.w(FLVDemuxer.TAG, `Unsupported codec in multitrack video packet: ${fourcc}, trackId=${track.id}, action=skip`);
         } else {
             this._onError(DemuxErrors.CODEC_UNSUPPORTED, `${FLVDemuxer.TAG}._parseVideoTagData() - Unsupported FOURCC ${fourcc}`);
         }
@@ -1697,7 +1693,6 @@ export class FLVDemuxer {
                 Log.v(FLVDemuxer.TAG, 'Parsed AudioSpecificConfig');
 
                 // notify new metadata
-                Log.v(FLVDemuxer.TAG, `Dispatching regular AAC track metadata codec=${meta.codec} channels=${meta.channelCount} sampleRate=${meta.audioSampleRate}`);
                 this._dispatchAudioTrackMetadata(meta);
 
                 if (this._shouldAppendAudioTrack(track)) {
@@ -1713,7 +1708,6 @@ export class FLVDemuxer {
                         mi.mimeType = 'video/x-flv; codecs="' + mi.audioCodec + '"';
                     }
                     if (mi.isComplete()) {
-                        Log.v(FLVDemuxer.TAG, `Dispatching regular AAC media info codec=${mi.audioCodec} channels=${mi.audioChannelCount} mimeType=${mi.mimeType}`);
                         this._onMediaInfo(mi);
                     }
                 }
@@ -2221,9 +2215,8 @@ export class FLVDemuxer {
                 this._aacPayloadProbeFrameIndex = 0;
             }
             meta.refFrameDuration = 1024 / meta.audioSampleRate * meta.timescale;
-            Log.v(FLVDemuxer.TAG, 'Parsed Enhanced FLV AAC AudioSpecificConfig');
+            Log.v(FLVDemuxer.TAG, 'Parsed-Enhanced AAC AudioSpecificConfig');
 
-            Log.v(FLVDemuxer.TAG, `Dispatching enhanced AAC track metadata codec=${meta.codec} channels=${meta.channelCount} sampleRate=${meta.audioSampleRate}`);
             this._dispatchAudioTrackMetadata(meta);
 
             if (this._shouldAppendAudioTrack(track)) {
@@ -2396,7 +2389,7 @@ export class FLVDemuxer {
         meta.inputSampleRate = inputSampleRate;
         meta.outputGain = outputGain;
         meta.refFrameDuration = 960 * meta.timescale / 48000;   // The default Opus packet is 20ms = 960 samples at 48 kHz
-        //Log.v(FLVDemuxer.TAG, 'Parsed OpusSequenceHeader');
+        Log.v(FLVDemuxer.TAG, 'Parsed-Enhanced OpusSequenceHeader');
 
         this._dispatchAudioTrackMetadata(meta);
 
@@ -3157,7 +3150,7 @@ export class FLVDemuxer {
 
         meta.codecConfig = new Uint8Array(dataSize);
         meta.codecConfig.set(new Uint8Array(arrayBuffer, dataOffset, dataSize), 0);
-        Log.v(FLVDemuxer.TAG, 'Parsed HEVCDecoderConfigurationRecord');
+        Log.v(FLVDemuxer.TAG, `Parsed-Enhanced HEVCDecoderConfigurationRecord: profile=${meta.profile} level=${meta.level}`);
 
         this._dispatchVideoTrackMetadata(meta);
     }
@@ -3261,7 +3254,7 @@ export class FLVDemuxer {
         meta.codecConfig = new Uint8Array(arrayBuffer, dataOffset, dataSize).slice();
 
         this._dispatchVideoTrackMetadata(meta);
-        Log.v(FLVDemuxer.TAG, `Parsed AV1 metadata: ${JSON.stringify(config)}`);
+        Log.v(FLVDemuxer.TAG, `Parsed-Enhanced AV1 metadata: ${JSON.stringify(config)}`);
     }
 
     private _parseAvcFrameData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: VideoFrameType, cts: number, track: VideoTrack) {
@@ -3590,10 +3583,9 @@ export class FLVDemuxer {
             this._onMediaInfo(mi);
         }
         meta.codecConfig = new Uint8Array(arrayBuffer, dataOffset, dataSize).slice();
-        //Log.v(FLVDemuxer.TAG, `VP9 codecConfig: ${Array.from(meta.codecConfig).map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
 
         this._dispatchVideoTrackMetadata(meta);
-        //Log.v(FLVDemuxer.TAG, `Parsed VP9 codec configuration record: profile=${meta.profile} level=${meta.level}`);
+        Log.v(FLVDemuxer.TAG, `Parsed-Enhanced VP9DecoderConfigurationRecord: profile=${meta.profile} level=${meta.level}`);
     }
 
     private _parseVp9FrameData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, tagPosition: number, frameType: VideoFrameType, cts: number, track: VideoTrack) {
@@ -3624,7 +3616,7 @@ export class FLVDemuxer {
                 mi.sarNum = meta.sarRatio.width;
                 mi.sarDen = meta.sarRatio.height;
 
-                //Log.v(FLVDemuxer.TAG, `VP9 keyframe dimensions: ${meta.codecWidth}x${meta.codecHeight}, render: ${meta.presentWidth}x${meta.presentHeight}`);
+                Log.v(FLVDemuxer.TAG, `VP9 keyframe dimensions: ${meta.codecWidth}x${meta.codecHeight}, render: ${meta.presentWidth}x${meta.presentHeight}`);
             }
         }
 

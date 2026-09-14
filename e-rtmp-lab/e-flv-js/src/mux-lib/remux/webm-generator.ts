@@ -481,7 +481,7 @@ export class WebMGenerator {
     const segment = concatUint8Arrays([segmentHeader, segmentContent]);
     const result = concatUint8Arrays([ebmlHeader, segment]);
 
-    Log.v(WebMGenerator.TAG, `generateAudioInitSegment() codec=${codec}, sampleRate=${sampleRate}, channels=${channels}, codecConfig.length=${codecConfig.length}`);
+    //Log.v(WebMGenerator.TAG, `generateAudioInitSegment() codec=${codec}, sampleRate=${sampleRate}, channels=${channels}, codecConfig.length=${codecConfig.length}`);
     return result;
   }
 

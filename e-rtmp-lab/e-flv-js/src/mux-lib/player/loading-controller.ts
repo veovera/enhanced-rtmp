@@ -105,7 +105,7 @@ class LoadingController {
         //Log.v(LoadingController.TAG, `_suspendTransmuxerIfBufferedPositionExceeded(buffered_end: ${buffered_end})`);
         const current_time = this._media_element.currentTime;
         if (buffered_end >= current_time + this._lazyLoadMaxDuration && !this._paused) {
-            Log.v(LoadingController.TAG, '.   Maximum buffering duration exceeded, suspend transmuxing task');
+            //Log.v(LoadingController.TAG, '.   Maximum buffering duration exceeded, suspend transmuxing task');
             this.suspendTransmuxer();
             this._media_element.addEventListener('timeupdate', this.e.onMediaTimeUpdate);
         }
@@ -135,7 +135,7 @@ class LoadingController {
         }
 
         if (should_resume) {
-            Log.v(LoadingController.TAG,  'Continue loading from paused position');
+            //Log.v(LoadingController.TAG,  'Continue loading from paused position');
             this.resumeTransmuxer();
             this._media_element.removeEventListener('timeupdate', this.e.onMediaTimeUpdate);
         }
