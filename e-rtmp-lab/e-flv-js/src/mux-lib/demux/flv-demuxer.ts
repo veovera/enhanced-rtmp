@@ -39,8 +39,8 @@ export interface FlvProbeSuccess {
     match: true;
     consumed: number;
     dataOffset: number;
-    hasAudioTrack: boolean;
-    hasVideoTrack: boolean;
+    hasAudio: boolean;
+    hasVideo: boolean;
 }
 
 type ProbeResult = { needMoreData: true } | { match: false } | FlvProbeSuccess;
@@ -968,11 +968,14 @@ export class FLVDemuxer {
     private _dataOffset: number;
     private _firstParse = true;
 
-    private _hasAudio: boolean;
-    private _hasVideo: boolean;
+    // Effective stream presence: initialized from the FLV header and normally updated by onMetaData.
+    private _hasAudio = false;
+    private _hasVideo = false;
+    
+    // Application playback policy; audio and video are enabled by default.
+    private _isAudioEnabled = true;
+    private _isVideoEnabled = true;
 
-    private _hasAudioFlagOverrided = false; //!!@ cleanup usage of this
-    private _hasVideoFlagOverrided = false; //!!@ cleanup usage of this
 
     private _mediaInfo: MediaInfo;
 
@@ -982,7 +985,7 @@ export class FLVDemuxer {
     private _timescale = 1000;
     private _duration = 0;                          // int32, in milliseconds
     private _durationOverrided = false;
-    // TODO: define reference frame rate types
+    // !!@ TODO: define reference frame rate types
     private _referenceFrameRate = {
         fixed: true,
         fps: 23.976,
@@ -1025,12 +1028,12 @@ export class FLVDemuxer {
 
         this._dataOffset = probeData.dataOffset;
 
-        this._hasAudio = probeData.hasAudioTrack;
-        this._hasVideo = probeData.hasVideoTrack;
+        this._hasAudio = probeData.hasAudio;
+        this._hasVideo = probeData.hasVideo;
 
         this._mediaInfo = new MediaInfo();
-        this._mediaInfo.hasAudio = probeData.hasAudioTrack;
-        this._mediaInfo.hasVideo = probeData.hasVideoTrack;
+        this._mediaInfo.hasAudio = probeData.hasAudio;
+        this._mediaInfo.hasVideo = probeData.hasVideo;
     }
 
     destroy() {
@@ -1124,8 +1127,8 @@ export class FLVDemuxer {
             match: true,
             consumed: offset,
             dataOffset: offset,
-            hasAudioTrack: hasAudio,
-            hasVideoTrack: hasVideo
+            hasAudio: hasAudio,
+            hasVideo: hasVideo
         } as FlvProbeSuccess;
     }
 
@@ -1218,18 +1221,22 @@ export class FLVDemuxer {
         this._mediaInfo.duration = duration;
     }
 
-    // Force-override audio track present flag, boolean
-    set overridedHasAudio(hasAudio: boolean) {
-        this._hasAudioFlagOverrided = true;
-        this._hasAudio = hasAudio;
-        this._mediaInfo.hasAudio = hasAudio;
+    // Enables or disables audio processing for this demuxer.
+    set isAudioEnabled(isAudioEnabled: boolean) {
+        this._isAudioEnabled = isAudioEnabled;
     }
 
-    // Force-override video track present flag, boolean
-    set overridedHasVideo(hasVideo: boolean) {
-        this._hasVideoFlagOverrided = true;
-        this._hasVideo = hasVideo;
-        this._mediaInfo.hasVideo = hasVideo;
+    // Enables or disables video processing for this demuxer.
+    set isVideoEnabled(isVideoEnabled: boolean) {
+        this._isVideoEnabled = isVideoEnabled;
+    }
+
+    get shouldProcessAudio(): boolean {
+        return this._hasAudio && this._isAudioEnabled;
+    }
+
+    get shouldProcessVideo(): boolean {
+        return this._hasVideo && this._isVideoEnabled;
     }
 
     resetMediaInfo() {
@@ -1298,8 +1305,8 @@ export class FLVDemuxer {
                 let probeData = FLVDemuxer.probe(chunk);
                 if ('match' in probeData && probeData.match === true) {
                     offset = probeData.dataOffset;
-                    this._hasAudio = probeData.hasAudioTrack && this._hasAudio;
-                    this._hasVideo = probeData.hasVideoTrack && this._hasVideo;
+                    this._hasAudio = probeData.hasAudio && this._hasAudio;
+                    this._hasVideo = probeData.hasVideo && this._hasVideo;
                 } else {
                     return 0;
                 }            
@@ -1361,14 +1368,10 @@ export class FLVDemuxer {
 
             switch (tagType) {
                 case 8:  // Audio
-                    if (this._hasAudio) {
-                        this._parseAudioTagData(chunk, dataOffset, dataSize, timestamp);
-                    }
+                    this._parseAudioTagData(chunk, dataOffset, dataSize, timestamp);
                     break;
                 case 9:  // Video
-                    if (this._hasVideo) {
-                        this._parseVideoTagData(chunk, dataOffset, dataSize, timestamp, byteStart + offset);
-                    }
+                    this._parseVideoTagData(chunk, dataOffset, dataSize, timestamp, byteStart + offset);
                     break;
                 case 18:  // ScriptDataObject
                     this._parseScriptTagData(chunk, dataOffset, dataSize);
@@ -1407,17 +1410,20 @@ export class FLVDemuxer {
                 this._onScriptMetadata(Object.assign({}, onMetaData));
             }
 
-            if (typeof onMetaData.hasAudio === 'boolean') {  // hasAudio
-                if (this._hasAudioFlagOverrided === false) {
-                    this._hasAudio = onMetaData.hasAudio;
-                    this._mediaInfo.hasAudio = this._hasAudio;
+            if (typeof onMetaData.hasAudio === 'boolean') {
+                if (onMetaData.hasAudio !== this._hasAudio) {
+                    Log.w(FLVDemuxer.TAG, `FLV audio presence mismatch: flvAudioSignal=${this._hasAudio}, onMetaData.hasAudio=${onMetaData.hasAudio}`);
                 }
+                this._hasAudio = onMetaData.hasAudio;
+                this._mediaInfo.hasAudio = this._hasAudio;
             }
-            if (typeof onMetaData.hasVideo === 'boolean') {  // hasVideo
-                if (this._hasVideoFlagOverrided === false) {
-                    this._hasVideo = onMetaData.hasVideo;
-                    this._mediaInfo.hasVideo = this._hasVideo;
+            
+            if (typeof onMetaData.hasVideo === 'boolean') {
+                if (onMetaData.hasVideo !== this._hasVideo) {
+                    Log.w(FLVDemuxer.TAG, `FLV video presence mismatch: flvVideoSignal=${this._hasVideo}, onMetaData.hasVideo=${onMetaData.hasVideo}`);                
                 }
+                this._hasVideo = onMetaData.hasVideo;
+                this._mediaInfo.hasVideo = this._hasVideo;
             }
             if (typeof onMetaData.audiodatarate === 'number') {  // audiodatarate
                 this._mediaInfo.audioDataRate = onMetaData.audiodatarate;
@@ -1582,9 +1588,9 @@ export class FLVDemuxer {
             Log.w(FLVDemuxer.TAG, 'Flv: Invalid audio packet, missing SoundData payload!');
             return;
         }
-
-        if (this._hasAudioFlagOverrided === true && this._hasAudio === false) {
-            // If hasAudio: false indicated explicitly in MediaDataSource,
+        this._hasAudio = true;
+        this._mediaInfo.hasAudio = true;
+        if (!this.shouldProcessAudio) {
             // Ignore all the audio packets
             return;
         }
@@ -1638,11 +1644,6 @@ export class FLVDemuxer {
         let meta = this._getAudioMetadata(track);
 
         if (!meta) {
-            if (this._hasAudio === false && this._hasAudioFlagOverrided === false) {
-                this._hasAudio = true;
-                this._mediaInfo.hasAudio = true;
-            }
-
             // initial metadata
             meta = {
                 ...audioMetadataDefault,
@@ -2170,10 +2171,6 @@ export class FLVDemuxer {
         let meta = this._getAudioMetadata(track);
 
         if (!meta) {
-            if (this._hasAudio === false && this._hasAudioFlagOverrided === false) {
-                this._hasAudio = true;
-                this._mediaInfo.hasAudio = true;
-            }
             meta = {
                 ...audioMetadataDefault,
                 type: TrackType.Audio,
@@ -2355,11 +2352,6 @@ export class FLVDemuxer {
         let meta = this._getAudioMetadata(track);
 
         if (!meta) {
-            if (this._hasAudio === false && this._hasAudioFlagOverrided === false) {
-                this._hasAudio = true;
-                this._mediaInfo.hasAudio = true;
-            }
-
             // initial metadata
             meta = {
                 ...audioMetadataDefault,
@@ -2447,11 +2439,6 @@ export class FLVDemuxer {
         let meta = this._getAudioMetadata(track);
 
         if (!meta) {
-            if (this._hasAudio === false && this._hasAudioFlagOverrided === false) {
-                this._hasAudio = true;
-                this._mediaInfo.hasAudio = true;
-            }
-
             // initial metadata
             meta = {
                 ...audioMetadataDefault,
@@ -2617,9 +2604,9 @@ export class FLVDemuxer {
             Log.w(FLVDemuxer.TAG, 'Flv: Invalid video packet, missing VideoData payload!');
             return;
         }
-
-        if (this._hasVideoFlagOverrided === true && this._hasVideo === false) {
-            // If hasVideo: false indicated explicitly in MediaDataSource,
+        this._hasVideo = true;
+        this._mediaInfo.hasVideo = true;
+        if (!this.shouldProcessVideo) {
             // Ignore all the video packets
             return;
         }
@@ -2870,11 +2857,6 @@ export class FLVDemuxer {
         let v = new DataView(arrayBuffer, dataOffset, dataSize);
 
         if (!meta) {
-            if (this._hasVideo === false && this._hasVideoFlagOverrided === false) {
-                this._hasVideo = true;
-                this._mediaInfo.hasVideo = true;
-            }
-
             meta = {
                 ...videoMetadataDefault,
                 type: TrackType.Video,
@@ -3039,11 +3021,6 @@ export class FLVDemuxer {
         let v = new DataView(arrayBuffer, dataOffset, dataSize);
 
         if (!meta) {
-            if (this._hasVideo === false && this._hasVideoFlagOverrided === false) {
-                this._hasVideo = true;
-                this._mediaInfo.hasVideo = true;
-            }
-
             meta = {
                 ...videoMetadataDefault,
                 type: TrackType.Video,
@@ -3169,11 +3146,6 @@ export class FLVDemuxer {
         let v = new DataView(arrayBuffer, dataOffset, dataSize);
 
         if (!existingMeta) {
-            if (this._hasVideo === false && this._hasVideoFlagOverrided === false) {
-                this._hasVideo = true;
-                this._mediaInfo.hasVideo = true;
-            }
-
             meta = {
                 ...videoMetadataDefault,
                 type: TrackType.Video,
@@ -3479,10 +3451,6 @@ export class FLVDemuxer {
         const existingMeta = this._getVideoMetadata(track);
 
         if (!existingMeta) {
-            if (this._hasVideo === false && this._hasVideoFlagOverrided === false) {
-                this._hasVideo = true;
-                this._mediaInfo.hasVideo = true;
-            }
             meta = {
                 ...videoMetadataDefault,
                 type: TrackType.Video,

@@ -24,8 +24,33 @@ import DemuxErrors from '../demux/demux-errors.js';
 import IOController from '../io/io-controller.js';
 import TransmuxingEvent, { type DiscoveredTrackInfo, type DiscoveredTracks, type TransmuxingEventMap } from './transmuxing-events';
 import type { ResolvedPlayerConfig } from '../config.js';
+import type { MediaDataSource, MediaDataSourceSegment } from '../e-flv.js';
 import { RemuxerType, TrackType } from '../remux/remuxer.js';
-import type { MSEInitSegment } from '../remux/remuxer.js';
+import type { MSEInitSegment, MSEMediaSegment } from '../remux/remuxer.js';
+
+type NormalizedMediaDataSourceSegment = MediaDataSourceSegment & {
+    timestampBase: number;
+    cors: boolean;
+    withCredentials: boolean;
+    referrerPolicy?: ReferrerPolicy;
+    redirectedURL?: string;
+};
+
+type NormalizedMediaDataSource = {
+    type: string;
+    duration?: number;
+    filesize?: number;
+    isAudioEnabled?: boolean;
+    isVideoEnabled?: boolean;
+    cors: boolean;
+    withCredentials: boolean;
+    isLive?: boolean;
+    segments: NormalizedMediaDataSourceSegment[];
+};
+
+function hasMediaDataSourceSegments(source: MediaDataSource): source is MediaDataSource & { segments: MediaDataSourceSegment[] } {
+    return Array.isArray(source.segments);
+}
 
 // Coordinates loading FLV media, demuxing its tracks, routing them to the appropriate
 // remuxer, and emitting playback-ready output; also manages multipart streams and seeks.
@@ -33,14 +58,12 @@ class TransmuxingController {
     private TAG: string = 'TransmuxingController';
     private _emitter: EventEmitter = new EventEmitter();
     private _config: ResolvedPlayerConfig;
-    private _mediaDataSource: any;
+    private _mediaDataSource: NormalizedMediaDataSource;
     private _currentSegmentIndex: number = 0;
     private _remuxerRouter: RemuxerRouter;
     private _demuxer: FLVDemuxer | null = null;
     private _mediaInfo: MediaInfo | null = null;
     private _ioctl: IOController | null = null;
-    private _hasAudioTrack: boolean = false;
-    private _hasVideoTrack: boolean = false;
     // Locked after initial metadata has selected a remuxer for each track.
     private _hasSelectedRemuxerForCodecs: boolean = false;
     private _videoRemuxerType: RemuxerType | undefined = undefined;
@@ -54,47 +77,51 @@ class TransmuxingController {
     private _pendingResolveSeekPoint: number | null = null;
     private _statisticsReporter: number | null = null;
 
-    constructor(mediaDataSource: any, config: ResolvedPlayerConfig) {
+    constructor(mediaDataSource: MediaDataSource, config: ResolvedPlayerConfig) {
         this._config = config;
 
-        // treat single part media as multipart media, which has only one segment
-        if (!mediaDataSource.segments) {
-            mediaDataSource.segments = [{
+        const sourceSegments: MediaDataSourceSegment[] = hasMediaDataSourceSegments(mediaDataSource)
+            ? mediaDataSource.segments
+            : [{
                 duration: mediaDataSource.duration,
                 filesize: mediaDataSource.filesize,
                 url: mediaDataSource.url
             }];
-        }
+        const cors = typeof mediaDataSource.cors === 'boolean' ? mediaDataSource.cors : true;
+        const withCredentials = typeof mediaDataSource.withCredentials === 'boolean'
+            ? mediaDataSource.withCredentials
+            : false;
 
-        // fill in default IO params if not exists
-        if (typeof mediaDataSource.cors !== 'boolean') {
-            mediaDataSource.cors = true;
-        }
-        if (typeof mediaDataSource.withCredentials !== 'boolean') {
-            mediaDataSource.withCredentials = false;
-        }
-
-        this._mediaDataSource = mediaDataSource;
+        this._mediaDataSource = {
+            ...mediaDataSource,
+            cors,
+            withCredentials,
+            segments: sourceSegments.map((segment) => ({
+                ...segment,
+                timestampBase: 0,
+                cors,
+                withCredentials,
+                ...(config.referrerPolicy ? { referrerPolicy: config.referrerPolicy } : {})
+            }))
+        };
         // Codec metadata configures the router's audio and video remuxers.
         // Until then, the router accepts demuxer callbacks without emitting.
         this._remuxerRouter = new RemuxerRouter();
 
-        let totalDuration = 0;
+        let totalDuration: number | undefined = 0;
 
-        this._mediaDataSource.segments.forEach((segment: any) => {
+        this._mediaDataSource.segments.forEach((segment) => {
             // timestampBase for each segment, and calculate total duration
-            segment.timestampBase = totalDuration;
-            totalDuration += segment.duration;
-            // params needed by IOController
-            segment.cors = mediaDataSource.cors;
-            segment.withCredentials = mediaDataSource.withCredentials;
-            // referrer policy control, if exist
-            if (config.referrerPolicy) {
-                segment.referrerPolicy = config.referrerPolicy;
+            segment.timestampBase = totalDuration ?? 0;
+            if (totalDuration === undefined || segment.duration === undefined) {
+                totalDuration = undefined;
+            } else {
+                totalDuration += segment.duration;
             }
+            // params needed by IOController
         });
 
-        if (!isNaN(totalDuration) && this._mediaDataSource.duration !== totalDuration) {
+        if (totalDuration !== undefined && !isNaN(totalDuration) && this._mediaDataSource.duration !== totalDuration) {
             this._mediaDataSource.duration = totalDuration;
         }
     }
@@ -205,8 +232,10 @@ class TransmuxingController {
     }
 
     private _hasMetadataForAllTracks(): boolean {
-        return (!this._hasAudioTrack || this._pendingTrackMetadata.some((track) => track.type === TrackType.Audio)) &&
-            (!this._hasVideoTrack || this._pendingTrackMetadata.some((track) => track.type === TrackType.Video));
+        return (
+            (!this._demuxer!.shouldProcessAudio || this._pendingTrackMetadata.some((track) => track.type === TrackType.Audio)) &&
+            (!this._demuxer!.shouldProcessVideo || this._pendingTrackMetadata.some((track) => track.type === TrackType.Video))
+        );
     }
 
     private _rememberDiscoveredTrack(metadata: AudioMetadata | VideoMetadata): void {
@@ -262,7 +291,6 @@ class TransmuxingController {
 
     destroy() {
         this._mediaInfo = null;
-        this._mediaDataSource = null;
 
         if (this._statisticsReporter) {
             this._disableStatisticsReporter();
@@ -442,20 +470,16 @@ class TransmuxingController {
         this._demuxer = new FLVDemuxer(probeData, this._config, this._remuxerRouter);
 
         let mds = this._mediaDataSource;
-        this._hasAudioTrack = probeData.hasAudioTrack;
-        this._hasVideoTrack = probeData.hasVideoTrack;
         this._hasSelectedRemuxerForCodecs = false;
         this._pendingTrackMetadata = [];
         if (mds.duration != undefined && !isNaN(mds.duration)) {
             this._demuxer.overridedDuration = mds.duration;
         }
-        if (typeof mds.hasAudio === 'boolean') {
-            this._demuxer.overridedHasAudio = mds.hasAudio;
-            this._hasAudioTrack = mds.hasAudio && probeData.hasAudioTrack;
+        if (typeof mds.isAudioEnabled === 'boolean') {
+            this._demuxer.isAudioEnabled = mds.isAudioEnabled;
         }
-        if (typeof mds.hasVideo === 'boolean') {
-            this._demuxer.overridedHasVideo = mds.hasVideo;
-            this._hasVideoTrack = mds.hasVideo && probeData.hasVideoTrack;
+        if (typeof mds.isVideoEnabled === 'boolean') {
+            this._demuxer.isVideoEnabled = mds.isVideoEnabled;
         }
 
         this._demuxer.timestampBase = mds.segments[this._currentSegmentIndex].timestampBase;

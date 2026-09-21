@@ -9,10 +9,10 @@
 import { eflv, NativePlayer, MSEPlayer, TransmuxingEvent, Remuxer, defaultConfig } from '@/mux-lib';
 import type { MediaDataSource, PlayerConfig, AMFScriptData, DiscoveredTrackInfo, DiscoveredTracks } from '@/mux-lib';
 
-const hasAudioLabel: HTMLLabelElement = document.createElement('label');
-const hasAudioCheckbox: HTMLInputElement = document.createElement('input');
-const hasVideoLabel: HTMLLabelElement = document.createElement('label');
-const hasVideoCheckbox: HTMLInputElement = document.createElement('input');
+const isAudioEnabledLabel: HTMLLabelElement = document.createElement('label');
+const isAudioEnabledCheckbox: HTMLInputElement = document.createElement('input');
+const isVideoEnabledLabel: HTMLLabelElement = document.createElement('label');
+const isVideoEnabledCheckbox: HTMLInputElement = document.createElement('input');
 const preferWebMLabel: HTMLLabelElement = document.createElement('label');
 const preferWebMCheckbox: HTMLInputElement = document.createElement('input');
 const audioTrackLabel: HTMLLabelElement = document.createElement('label');
@@ -209,21 +209,21 @@ function initLayout() {
   const controlsDiv: HTMLDivElement = document.createElement('div');
   controlsDiv.className = 'controls-row'; // Use the flex row class
 
-  hasAudioCheckbox.type = 'checkbox';
-  hasAudioCheckbox.id = 'hasAudio';
-  hasAudioCheckbox.checked = true;
+  isAudioEnabledCheckbox.type = 'checkbox';
+  isAudioEnabledCheckbox.id = 'isAudioEnabled';
+  isAudioEnabledCheckbox.checked = true;
 
-  hasAudioLabel.textContent = '';
-  hasAudioLabel.appendChild(hasAudioCheckbox);
-  hasAudioLabel.append('hasAudio');
+  isAudioEnabledLabel.textContent = '';
+  isAudioEnabledLabel.appendChild(isAudioEnabledCheckbox);
+  isAudioEnabledLabel.append('AudioEnabled');
 
-  hasVideoCheckbox.type = 'checkbox';
-  hasVideoCheckbox.id = 'hasVideo';
-  hasVideoCheckbox.checked = true;
+  isVideoEnabledCheckbox.type = 'checkbox';
+  isVideoEnabledCheckbox.id = 'isVideoEnabled';
+  isVideoEnabledCheckbox.checked = true;
 
-  hasVideoLabel.textContent = '';
-  hasVideoLabel.appendChild(hasVideoCheckbox);
-  hasVideoLabel.append('hasVideo');
+  isVideoEnabledLabel.textContent = '';
+  isVideoEnabledLabel.appendChild(isVideoEnabledCheckbox);
+  isVideoEnabledLabel.append('VideoEnabled');
 
   preferWebMCheckbox.type = 'checkbox';
   preferWebMCheckbox.id = 'preferWebM';
@@ -256,8 +256,8 @@ function initLayout() {
   // Append the button to the controlsDiv
   controlsDiv.appendChild(fileSelect);
   controlsDiv.appendChild(createPlayerButton);
-  controlsDiv.appendChild(hasAudioLabel);
-  controlsDiv.appendChild(hasVideoLabel);
+  controlsDiv.appendChild(isAudioEnabledLabel);
+  controlsDiv.appendChild(isVideoEnabledLabel);
   controlsDiv.appendChild(preferWebMLabel);
   controlsDiv.appendChild(audioTrackLabel);
   controlsDiv.appendChild(videoTrackLabel);
@@ -448,8 +448,8 @@ function createPlayer(): MSEPlayer | NativePlayer | null {
   const mediaDataSource = {
     type: 'flv',
     url: selectedFile,  // Use the selected file from the dropdown
-    hasAudio: hasAudioCheckbox.checked,
-    hasVideo: hasVideoCheckbox.checked,
+    isAudioEnabled: isAudioEnabledCheckbox.checked,
+    isVideoEnabled: isVideoEnabledCheckbox.checked,
     cors: true,
     withCredentials: false,
   } satisfies MediaDataSource;

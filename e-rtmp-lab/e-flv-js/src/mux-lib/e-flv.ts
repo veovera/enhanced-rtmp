@@ -26,8 +26,8 @@ interface MediaDataSourceBase {
     type: string;
     duration?: number;
     filesize?: number;
-    hasAudio?: boolean;
-    hasVideo?: boolean;
+    isAudioEnabled?: boolean;
+    isVideoEnabled?: boolean;
     cors?: boolean;
     withCredentials?: boolean;
     isLive?: boolean;
