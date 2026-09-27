@@ -215,7 +215,6 @@ export class MP4Remuxer extends Remuxer {
         const type = metadata.type;
 
         if (metadata.type === TrackType.Audio) {
-            this._isAudioMetadataDispatched = true;
             this._audioMeta = metadata as AudioMetadata;
             if (metadata.codec === 'mp3' && this._mp3UseMpegAudio) {
                 // 'audio/mpeg' for MP3 audio track
@@ -227,7 +226,6 @@ export class MP4Remuxer extends Remuxer {
                 metabox = MP4.generateInitSegment(this._getMp4Metadata(metadata));
             }
         } else {
-            this._isVideoMetadataDispatched = true;
             this._videoMeta = metadata as VideoMetadata;
             if (metadata.codecKind === VideoCodecKind.Vp9) {
                 codec = getMp4Vp9CodecString(metadata);

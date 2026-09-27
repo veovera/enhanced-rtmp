@@ -90,12 +90,12 @@ export class RemuxerRouter implements RemuxingTarget {
     return this._dtsBase === Infinity ? undefined : this._dtsBase;
   }
 
-  get isAudioMetadataDispatched(): boolean {
-    return this._audioRemuxer?.isAudioMetadataDispatched ?? false;
+  get hasAudioMetadata(): boolean {
+    return this._audioRemuxer?.hasAudioMetadata ?? false;
   }
 
-  get isVideoMetadataDispatched(): boolean {
-    return this._videoRemuxer?.isVideoMetadataDispatched ?? false;
+  get hasVideoMetadata(): boolean {
+    return this._videoRemuxer?.hasVideoMetadata ?? false;
   }
 
   setTimestampBase(timestampBase: number): void {

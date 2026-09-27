@@ -57,8 +57,8 @@ export interface RemuxingTarget {
   onInitSegment: Callback;
   onMediaSegment: Callback;
 
-  readonly isAudioMetadataDispatched: boolean;
-  readonly isVideoMetadataDispatched: boolean;
+  readonly hasAudioMetadata: boolean;
+  readonly hasVideoMetadata: boolean;
   readonly timestampBase: number | undefined;
 }
 
@@ -82,8 +82,6 @@ export abstract class Remuxer implements RemuxingTarget {
 
   protected _config: ResolvedPlayerConfig;
   protected _isLive: boolean;
-  protected _isAudioMetadataDispatched = false;
-  protected _isVideoMetadataDispatched = false;
 
   protected _audioMeta: AudioMetadata | null = null;
   protected _videoMeta: VideoMetadata | null = null;
@@ -105,12 +103,12 @@ export abstract class Remuxer implements RemuxingTarget {
     this._isLive = config.isLive;
   }
 
-  get isAudioMetadataDispatched(): boolean {
-    return this._isAudioMetadataDispatched;
+  get hasAudioMetadata(): boolean {
+    return this._audioMeta !== null;
   }
 
-  get isVideoMetadataDispatched(): boolean {
-    return this._isVideoMetadataDispatched;
+  get hasVideoMetadata(): boolean {
+    return this._videoMeta !== null;
   }
 
   insertDiscontinuity(): void {

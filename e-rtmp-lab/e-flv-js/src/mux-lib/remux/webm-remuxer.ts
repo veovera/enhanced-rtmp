@@ -120,12 +120,10 @@ export class WebMRemuxer extends Remuxer {
       const audioMetadata = this._audioMeta = metadata as AudioMetadata;
       this._refAudioFrameDuration = Number.isFinite(audioMetadata.refFrameDuration) ? audioMetadata.refFrameDuration : this._refAudioFrameDuration;
       segmentRawData = WebMGenerator.generateAudioInitSegment(audioMetadata);
-      this._isAudioMetadataDispatched = true;
     } else {
       const videoMetadata = this._videoMeta = metadata as VideoMetadata;
       this._refVideoFrameDuration = Number.isFinite(videoMetadata.refFrameDuration) ? videoMetadata.refFrameDuration : this._refVideoFrameDuration;
       segmentRawData = WebMGenerator.generateVideoInitSegment(videoMetadata);
-      this._isVideoMetadataDispatched = true;
     }
 
     const initSegment: MSEInitSegment = {
@@ -214,7 +212,7 @@ export class WebMRemuxer extends Remuxer {
       return;
     }
 
-    if (!this.isVideoMetadataDispatched) {
+    if (!this._videoMeta) {
       Log.w(WebMRemuxer.TAG, '_remuxVideo: VideoData received before CodecConfigurationRecord');
       return;
     }
@@ -250,12 +248,7 @@ export class WebMRemuxer extends Remuxer {
   }
 
   private _remuxAudio(audioTrack: AudioTrack, force: boolean = false): void {
-    if (audioTrack.frames.length === 0) {
-      return;
-    }
-
-    if (!this._isAudioMetadataDispatched) {
-      Log.w(WebMRemuxer.TAG, '_remuxAudio: AudioData received before CodecConfigurationRecord');
+    if (!this._audioMeta || audioTrack.frames.length === 0) {
       return;
     }
 
