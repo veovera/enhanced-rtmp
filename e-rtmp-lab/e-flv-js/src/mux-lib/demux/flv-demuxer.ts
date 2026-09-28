@@ -796,7 +796,11 @@ export interface AudioMetadata {
     type: typeof TrackType.Audio;
     codecKind: AudioCodecKind;
     codec: string;
-    codecConfig?: Uint8Array;  // Audio specific config / codec private data
+    // Codec-specific config, verbatim as the codec's own spec defines it (e.g.
+    // for Opus, the full RFC 7845 Identification Header, magic included).
+    // Container-specific generators adapt this to their own on-disk format
+    // rather than the demuxer pre-shaping it for a particular container.
+    codecConfig?: Uint8Array;
     aacChannelConfigWasInBand: boolean;
 
     trackId: number;
@@ -2334,13 +2338,17 @@ export class FLVDemuxer {
             return;
         }
 
-        const config = new Uint8Array(arrayBuffer, dataOffset + 8, dataSize - 8).slice();
+        // Store the full RFC 7845 Identification Header, magic included, as the
+        // canonical codec config. Container-specific generators (mp4-generator's
+        // dOps, webm-generator's CodecPrivate) adapt it to their own on-disk
+        // format rather than this demuxer pre-shaping it for one of them.
+        const config = header.slice();
         const dv = new DataView(config.buffer);
-        const channelCount = dv.getUint8(1);
-        const preskipSamples = dv.getUint16(2, true);          // little-endian (RFC 7845)
-        const inputSampleRate = dv.getUint32(4, true);
-        const outputGain = dv.getInt16(8, true);
-        const mappingFamily = dv.getUint8(10);
+        const channelCount = dv.getUint8(8 + 1);
+        const preskipSamples = dv.getUint16(8 + 2, true);       // little-endian (RFC 7845)
+        const inputSampleRate = dv.getUint32(8 + 4, true);
+        const outputGain = dv.getInt16(8 + 8, true);
+        const mappingFamily = dv.getUint8(8 + 10);
 
         if (outputGain > 0) {
             Log.w(FLVDemuxer.TAG, `_parseOpusSequenceHeader(): outputGain within OpusSequenceHeader action=drop`);

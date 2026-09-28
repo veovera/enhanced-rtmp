@@ -545,8 +545,11 @@ class MP4 {
         let sampleRate = meta.audioSampleRate;
 
         if (meta.codecConfig) {
-            // Convert from little-endian (Opus native) to big-endian (MP4 required)
-            const config = new Uint8Array(meta.codecConfig).slice();
+            // meta.codecConfig is the full RFC 7845 Identification Header
+            // (magic included). The ISOBMFF dOps box wants only the fields
+            // that follow the 8-byte "OpusHead" magic, Version byte first,
+            // and requires them big-endian rather than Opus-native little-endian.
+            const config = new Uint8Array(meta.codecConfig).slice(8);
             const dv = new DataView(config.buffer);
 
             dv.setUint8(0, 0);                              // Version (byte 0) - also required

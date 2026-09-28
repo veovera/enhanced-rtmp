@@ -449,7 +449,10 @@ export class WebMGenerator {
         encodeElement(EbmlId.TrackUid, writeUInt(2, 1)),            // Globally unique ID
         encodeElement(EbmlId.TrackType, writeUInt(2, 1)),           // 2 = audio track
         encodeElement(EbmlId.CodecId, writeString(codecId)),        // Codec string
-        encodeElement(EbmlId.CodecPrivate, codecConfig),            // Keep CodecPrivate for both Opus and Vorbis
+        // A_OPUS CodecPrivate must be the complete, unmodified RFC 7845
+        // Identification Header, magic included; that's exactly what
+        // AudioMetadata.codecConfig holds for Opus, so no adaptation is needed.
+        encodeElement(EbmlId.CodecPrivate, codecConfig),
         ...(isOpus
           ? [
             encodeElement(EbmlId.CodecDelay, writeUIntAuto(codecDelayNs)),
