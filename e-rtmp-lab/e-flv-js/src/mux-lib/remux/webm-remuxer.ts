@@ -91,10 +91,14 @@ export class WebMRemuxer extends Remuxer {
   }
   
   flushStashedFrames(): void {
-    const { audioTrack, videoTrack } = this._takeStashedFrames();
+    // Audio is never stashed in the WebM path: _remuxAudio() emits every
+    // batch it's given immediately, so there's no held-back audio frame to
+    // flush here (unlike MP4Remuxer). Video buffers frames per-GOP and only
+    // flushes on the next keyframe, so a forced flush is still needed to
+    // emit a trailing, keyframe-less GOP.
+    const { videoTrack } = this._takeStashedFrames();
 
     this._remuxVideo(videoTrack, true);
-    this._remuxAudio(audioTrack, true);
   }
 
   // WebM emits its initialization segment as soon as metadata arrives.
@@ -208,12 +212,18 @@ export class WebMRemuxer extends Remuxer {
   }
 
   private _remuxVideo(videoTrack: VideoTrack, force: boolean = false): void {
-    if (videoTrack.frames.length === 0 && !force) {
+    // If video metadata is not available, we cannot remux video frames yet.
+    if (!this._videoMeta) {
+      if (videoTrack.frames.length > 0) {
+        Log.w(WebMRemuxer.TAG, '_remuxVideo: VideoData received before CodecConfigurationRecord');
+      }
       return;
     }
 
-    if (!this._videoMeta) {
-      Log.w(WebMRemuxer.TAG, '_remuxVideo: VideoData received before CodecConfigurationRecord');
+    if (videoTrack.frames.length === 0) {
+      if (force) {
+        this._flushPendingVideoFrames();
+      }
       return;
     }
 
@@ -247,8 +257,15 @@ export class WebMRemuxer extends Remuxer {
     videoTrack.length = 0;
   }
 
-  private _remuxAudio(audioTrack: AudioTrack, force: boolean = false): void {
-    if (!this._audioMeta || audioTrack.frames.length === 0) {
+  private _remuxAudio(audioTrack: AudioTrack): void {
+    if (!this._audioMeta) {
+      if (audioTrack.frames.length > 0) {
+        Log.w(WebMRemuxer.TAG, '_remuxAudio: AudioData received before CodecConfigurationRecord');
+      }
+      return;
+    }
+
+    if (audioTrack.frames.length === 0) {
       return;
     }
 
@@ -263,30 +280,6 @@ export class WebMRemuxer extends Remuxer {
     };
     let frames: AudioFrame[] = track.frames;
     let firstDts = -1, lastDts = -1;
-
-    if (frames.length === 1 && !force) {
-      return;
-    }
-
-    let lastFrame: AudioFrame | undefined;
-
-    if (frames.length > 1) {
-      lastFrame = frames.pop();
-    }
-
-    if (this._audioStashedLastFrame != null) {
-      let frame = this._audioStashedLastFrame;
-      this._audioStashedLastFrame = null;
-      frames.unshift(frame);
-    }
-
-    if (lastFrame != null) {
-      this._audioStashedLastFrame = lastFrame;
-    }
-
-    if (frames.length === 0) {
-      return;
-    }
 
     let firstFrameOriginalDts = frames[0].dts;
 

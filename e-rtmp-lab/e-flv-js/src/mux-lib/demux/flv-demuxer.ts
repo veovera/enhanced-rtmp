@@ -1288,7 +1288,7 @@ export class FLVDemuxer {
             this._currentVideoTrackId = meta.trackId;
         }
         if (meta.trackId === this._currentVideoTrackId) {
-            if (this._remuxerRouter.isVideoMetadataDispatched) {
+            if (this._remuxerRouter.hasVideoMetadata) {
                 // Non-initial metadata, force dispatch (or flush) parsed frames to the remuxer router.
                 this._flushPendingTrackDataBeforeMetadataRefresh();
             }
@@ -1540,7 +1540,7 @@ export class FLVDemuxer {
             this._currentAudioTrackId = meta.trackId;
         }
         if (meta.trackId === this._currentAudioTrackId) {
-            if (this._remuxerRouter.isAudioMetadataDispatched) {
+            if (this._remuxerRouter.hasAudioMetadata) {
                 this._flushPendingTrackDataBeforeMetadataRefresh();
             }
         }
