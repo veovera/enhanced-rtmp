@@ -215,7 +215,7 @@ function initLayout() {
 
   isAudioEnabledLabel.textContent = '';
   isAudioEnabledLabel.appendChild(isAudioEnabledCheckbox);
-  isAudioEnabledLabel.append('AudioEnabled');
+  isAudioEnabledLabel.append('A-Enabled');
 
   isVideoEnabledCheckbox.type = 'checkbox';
   isVideoEnabledCheckbox.id = 'isVideoEnabled';
@@ -223,7 +223,7 @@ function initLayout() {
 
   isVideoEnabledLabel.textContent = '';
   isVideoEnabledLabel.appendChild(isVideoEnabledCheckbox);
-  isVideoEnabledLabel.append('VideoEnabled');
+  isVideoEnabledLabel.append('V-Enabled');
 
   preferWebMCheckbox.type = 'checkbox';
   preferWebMCheckbox.id = 'preferWebM';
@@ -237,7 +237,7 @@ function initLayout() {
     selectedAudioTrackId = audioTrackSelect.value ? Number(audioTrackSelect.value) : null;
   };
   audioTrackLabel.textContent = '';
-  audioTrackLabel.append('Audio Track ');
+  audioTrackLabel.append('A-Track ');
   audioTrackLabel.appendChild(audioTrackSelect);
 
   videoTrackSelect.id = 'videoTrackSelect';
@@ -248,7 +248,7 @@ function initLayout() {
     }
   };
   videoTrackLabel.textContent = '';
-  videoTrackLabel.append('Video Track ');
+  videoTrackLabel.append('V-Track ');
   videoTrackLabel.appendChild(videoTrackSelect);
 
   resetTrackSelects();
