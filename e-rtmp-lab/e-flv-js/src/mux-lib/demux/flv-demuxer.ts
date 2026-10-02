@@ -957,6 +957,7 @@ function readSignedInt24(v: DataView, offset: number) {
 }
 
 export class FLVDemuxer {
+    private static readonly TRACE = false;                  // Set to true to enable detailed trace logs for debugging
     private static readonly TAG = 'FLVDemuxer';
 
     private _config: ResolvedPlayerConfig;
@@ -2628,6 +2629,10 @@ export class FLVDemuxer {
             const track = this._getOrCreateVideoTrack(FLVDemuxer._defaultVideoTrackId);
             this._selectVideoTrackIfUnset(track);
             let codecId = spec & 0b00001111 as VideoCodecId;
+            if (FLVDemuxer.TRACE && frameType === VideoFrameType.KeyFrame) {
+                const fourcc = codecId === VideoCodecId.AVC ? VideoFourCc.Avc : codecId === VideoCodecId.Hevc ? VideoFourCc.Hevc : `codecId=${codecId}`;
+                Log.v(FLVDemuxer.TAG, `${fourcc} keyframe=true multitrack=false tagTimestamp=${tagTimestamp}`);
+            }
             if (codecId === VideoCodecId.AVC) {
                 this._parseLegacyAvcVideoPacket(arrayBuffer, dataOffset + 1, dataSize - 1, tagTimestamp, tagPosition, frameType, track);
             } else if (codecId === VideoCodecId.Hevc) {
@@ -2640,11 +2645,17 @@ export class FLVDemuxer {
             let packetType = (spec & 0b00001111) as VideoPacketType;
 
             if (packetType === VideoPacketType.Multitrack) {
+                if (FLVDemuxer.TRACE && frameType === VideoFrameType.KeyFrame) {
+                    Log.v(FLVDemuxer.TAG, `multitrack keyframe=true multitrack=true tagTimestamp=${tagTimestamp}`);
+                }
                 this._parseEnhancedMultitrackVideoPacket(arrayBuffer, dataOffset + 1, dataSize - 1, tagTimestamp, tagPosition, frameType);
             } else {
                 const track = this._getOrCreateVideoTrack(FLVDemuxer._defaultVideoTrackId);
+                const fourcc = String.fromCharCode(... (new Uint8Array(arrayBuffer, dataOffset, dataSize)).slice(1, 5));
                 this._selectVideoTrackIfUnset(track);
-                let fourcc = String.fromCharCode(... (new Uint8Array(arrayBuffer, dataOffset, dataSize)).slice(1, 5));
+                if (FLVDemuxer.TRACE && frameType === VideoFrameType.KeyFrame) {
+                    Log.v(FLVDemuxer.TAG, `${fourcc} keyframe=true multitrack=false tagTimestamp=${tagTimestamp}`);
+                }
                 this._parseEnhancedVideoPacket(arrayBuffer, dataOffset + 5, dataSize - 5, tagTimestamp, tagPosition, frameType, packetType, fourcc, track);
             }
         }
