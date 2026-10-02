@@ -646,7 +646,7 @@ class TransmuxingController {
         this._emitter.emit(TransmuxingEvent.INIT_SEGMENT, type, initSegment);
     }
 
-    _onRemuxerMediaSegmentArrival(type: string, mediaSegment: any) {
+    _onRemuxerMediaSegmentArrival(type: string, mediaSegment: MSEMediaSegment) {
         if (this._pendingSeekTime != null) {
             // Media segments after new-segment cross-seeking should be dropped.
             return;
