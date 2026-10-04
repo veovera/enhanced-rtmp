@@ -28,6 +28,10 @@ Generally avoid `T | undefined` for properties and fields. It remains appropriat
 
 Use `T | null` when `null` is an intentional assignable state. The value may start as `null`, remain `null` forever, become `T`, and later be reset to `null`.
 
+## Number initialization
+
+Initialize a number to its intended starting value. A sentinel such as `-1` is acceptable when its meaning is clear and it cannot be confused with a valid value. Avoid `NaN` as a sentinel in new code; use it only when it is a meaningful numeric result or required by an API or format. For representing absence, follow the nullability guidance above.
+
 ## Private member naming
 
 Use the `private` modifier to mark non-public members. Do not use a leading underscore (as in `_name`); the modifier already enforces privacy, so the prefix is redundant. New modules should not use underscore prefixes.
