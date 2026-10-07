@@ -601,9 +601,9 @@ class MSEController {
                         const audioUpdating = this._sourceBuffers['audio']?.updating;
                         const videoUpdating = this._sourceBuffers['video']?.updating;
                         if (info) {
-                            Log.v(this.TAG, `_doAppendSegments: Now ${Date.now()} - Appending media segment for ${type} SourceBuffer - frameCount: ${frameCount} beginDts: ${info.beginDts} endDts: ${info.endDts} size: ${segment.data.byteLength} audioUpdating ${audioUpdating} videoUpdating ${videoUpdating}`);
+                            Log.v(this.TAG, `_doAppendSegments: Now ${Date.now()} - Appending media segment for ${type} SourceBuffer - frameCount: ${frameCount} flvTagTimestamp: [${ms!.firstFlvTagTimestamp}, ${ms!.lastFlvTagTimestamp}] beginDts: ${info.beginDts} endDts: ${info.endDts} size: ${segment.data.byteLength} audioUpdating ${audioUpdating} videoUpdating ${videoUpdating}`);
                         } else {
-                            Log.v(this.TAG, `_doAppendSegments: Now ${Date.now()} - Appending init segment for ${type} SourceBuffer - size: ${segment.data.byteLength} audioUpdating ${audioUpdating} videoUpdating ${videoUpdating}`);
+                            Log.v(this.TAG, `_doAppendSegments: Now ${Date.now()} - Appending init segment for ${type} SourceBuffer - flvTagTimestamp: ${is!.flvTagTimestamp} size: ${segment.data.byteLength} audioUpdating ${audioUpdating} videoUpdating ${videoUpdating}`);
                         }
                     }
                     if (typeof SharedArrayBuffer !== 'undefined' &&segment.data.buffer instanceof SharedArrayBuffer) {

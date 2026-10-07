@@ -213,6 +213,11 @@ export class MP4Remuxer extends Remuxer {
         let container = 'mp4';
         let codec = metadata.codec;
         const type = metadata.type;
+        const flvTagTimestamp = metadata.flvTagTimestamp;
+
+        if (flvTagTimestamp < 0) {
+            Log.w(MP4Remuxer.TAG, `_onTrackMetadata(): invalid FLV tag timestamp for ${type} codec configuration`);
+        }
 
         if (metadata.type === TrackType.Audio) {
             this._audioMeta = metadata as AudioMetadata;
@@ -239,6 +244,7 @@ export class MP4Remuxer extends Remuxer {
             kind: SegmentKind.Init,
             type: type,
             data: new Uint8Array(metabox.buffer),
+            flvTagTimestamp,
             codec: codec,
             container: `${type}/${container}`,
             mediaDuration: metadata.duration  // in timescale 1000 (milliseconds)
@@ -385,7 +391,7 @@ export class MP4Remuxer extends Remuxer {
                     let dts = videoSegment.beginDts;
                     let silentFrameDuration = firstFrameDts - videoSegment.beginDts;
                     Log.v(MP4Remuxer.TAG, `InsertPrefixSilentAudio: dts: ${dts}, duration: ${silentFrameDuration}`);
-                    frames.unshift({ unit: silentUnit, length: silentUnit.byteLength, dts: dts, pts: dts });
+                    frames.unshift({ unit: silentUnit, length: silentUnit.byteLength, flvTagTimestamp: frames[0].flvTagTimestamp, dts: dts, pts: dts });
                     mdatBytes += silentUnit.byteLength;
                 }  // silentUnit == null: Cannot generate, skip
             } else {
@@ -456,6 +462,7 @@ export class MP4Remuxer extends Remuxer {
                             unit: silentUnit,
                             size: silentUnit.byteLength,
                             duration: intDuration,  // wait for next sample
+                            flvTagTimestamp: frames[i].flvTagTimestamp,
                             originalDts: originalDts,
                             flags: {
                                 isLeading: 0,
@@ -509,6 +516,7 @@ export class MP4Remuxer extends Remuxer {
                 unit: frame.unit,
                 size: frame.unit.byteLength,
                 duration: frameDuration,
+                flvTagTimestamp: frame.flvTagTimestamp,
                 originalDts: originalDts,
                 flags: {
                     isLeading: 0,
@@ -604,6 +612,8 @@ export class MP4Remuxer extends Remuxer {
             type: TrackType.Audio,
             data: new Uint8Array(this._mergeBoxes(moofbox, mdatbox).buffer),
             frameCount: mp4Frames.length,
+            firstFlvTagTimestamp: mp4Frames[0].flvTagTimestamp,
+            lastFlvTagTimestamp: latest.flvTagTimestamp,
             info: info
         };
 
@@ -761,6 +771,7 @@ export class MP4Remuxer extends Remuxer {
                 size: frameSize,
                 isKeyframe: isKeyframe,
                 duration: frameDuration,
+                flvTagTimestamp: frame.flvTagTimestamp,
                 originalDts: originalDts,
                 flags: {
                     isLeading: 0,
@@ -846,6 +857,8 @@ export class MP4Remuxer extends Remuxer {
             type: TrackType.Video,
             data: new Uint8Array(this._mergeBoxes(moofbox, mdatbox).buffer),
             frameCount: mp4Frames.length,
+            firstFlvTagTimestamp: mp4Frames[0].flvTagTimestamp,
+            lastFlvTagTimestamp: latest.flvTagTimestamp,
             info: info
         };
         this._onMediaSegment(TrackType.Video, mediaSegment);

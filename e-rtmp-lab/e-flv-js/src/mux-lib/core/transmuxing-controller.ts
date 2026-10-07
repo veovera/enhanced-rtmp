@@ -55,6 +55,7 @@ function hasMediaDataSourceSegments(source: MediaDataSource): source is MediaDat
 // Coordinates loading FLV media, demuxing its tracks, routing them to the appropriate
 // remuxer, and emitting playback-ready output; also manages multipart streams and seeks.
 class TransmuxingController {
+    private static readonly TRACE = false;                   // Set to false to disable detailed remux-input tracing.
     private TAG: string = 'TransmuxingController';
     private _emitter: EventEmitter = new EventEmitter();
     private _config: ResolvedPlayerConfig;
@@ -494,6 +495,19 @@ class TransmuxingController {
     }
 
     _onTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack) {
+        if (TransmuxingController.TRACE) {
+            const now = Date.now();
+            for (const track of [audioTrack, videoTrack]) {
+                const firstFrame = track.frames[0];
+                const lastFrame = track.frames[track.frames.length - 1];
+                if (!firstFrame || !lastFrame) {
+                    continue;
+                }
+                const action = this._hasSelectedRemuxerForCodecs ? 'Passing frames to remuxer' : 'Deferring frames until remuxers are selected';
+                Log.v(this.TAG, `_onTrackData: Now ${now} - ${action} for ${track.type} track - trackId: ${track.id} frameCount: ${track.frames.length} flvTagTimestamp: [${firstFrame.flvTagTimestamp}, ${lastFrame.flvTagTimestamp}] firstDts: ${firstFrame.dts} lastDts: ${lastFrame.dts} firstPts: ${firstFrame.pts} lastPts: ${lastFrame.pts} size: ${track.length}`);
+            }
+        }
+
         // Do not pass frames through the provisional remuxers until each
         // expected track has selected its output container.
         if (!this._hasSelectedRemuxerForCodecs) {
@@ -507,7 +521,17 @@ class TransmuxingController {
         this._rememberDiscoveredTrack(metadata);
         this._emitTracksDiscoveredIfChanged();
 
-        if (!this._isSelectedTrackMetadata(metadata)) {
+        const isSelectedTrack = this._isSelectedTrackMetadata(metadata);
+        if (TransmuxingController.TRACE) {
+            const action = !isSelectedTrack
+                ? 'Ignoring unselected track metadata'
+                : this._hasSelectedRemuxerForCodecs
+                    ? 'Passing track metadata to remuxer'
+                    : 'Queuing track metadata until all expected tracks are configured';
+            Log.v(this.TAG, `_onTrackMetadata: Now ${Date.now()} - ${action} for ${metadata.type} track - trackId: ${metadata.trackId} codec: ${metadata.codec} flvTagTimestamp: ${metadata.flvTagTimestamp} codecConfigSize: ${metadata.codecConfig?.byteLength ?? 0}`);
+        }
+
+        if (!isSelectedTrack) {
             return;
         }
 

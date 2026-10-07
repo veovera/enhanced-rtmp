@@ -118,6 +118,11 @@ export class WebMRemuxer extends Remuxer {
   protected _onTrackMetadata(metadata: AudioMetadata | VideoMetadata): void {
     Log.a(WebMRemuxer.TAG, 'onTrackMetadata: onInitSegment callback must be specified!', this._onInitSegment);
 
+    const flvTagTimestamp = metadata.flvTagTimestamp;
+    if (flvTagTimestamp < 0) {
+      Log.w(WebMRemuxer.TAG, `_onTrackMetadata(): invalid FLV tag timestamp for ${metadata.type} codec configuration`);
+    }
+
     let segmentRawData: Uint8Array;
 
     if (metadata.type === TrackType.Audio) {
@@ -134,6 +139,7 @@ export class WebMRemuxer extends Remuxer {
       kind: SegmentKind.Init,
       type: metadata.type,
       data: segmentRawData,
+      flvTagTimestamp,
       codec: `${metadata.codec}`,
       container: (metadata.type === TrackType.Audio) ? 'audio/webm' : 'video/webm',
       mediaDuration: metadata.duration
@@ -205,6 +211,8 @@ export class WebMRemuxer extends Remuxer {
       type: TrackType.Video,
       data: segmentRawData,
       frameCount: this._pendingVideoFrames.length,
+      firstFlvTagTimestamp: firstFrame.flvTagTimestamp,
+      lastFlvTagTimestamp: lastFrame.flvTagTimestamp,
       info: info
     };
     this._onMediaSegment(TrackType.Video, mediaSegment);
@@ -315,6 +323,8 @@ export class WebMRemuxer extends Remuxer {
       type: TrackType.Audio,
       data: segmentRawData,
       frameCount: frames.length,
+      firstFlvTagTimestamp: frames[0].flvTagTimestamp,
+      lastFlvTagTimestamp: frames[frames.length - 1].flvTagTimestamp,
       info: info
     };
 

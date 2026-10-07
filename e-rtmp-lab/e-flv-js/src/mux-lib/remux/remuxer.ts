@@ -28,6 +28,7 @@ export interface MSEInitSegment {
   kind: SegmentKind.Init;
   type: TrackType;
   data: Uint8Array;
+  flvTagTimestamp: number;
   codec: string;
   container: string;
   mediaDuration: number;
@@ -38,6 +39,8 @@ export interface MSEMediaSegment {
   type: TrackType;
   data: Uint8Array;
   frameCount: number;
+  firstFlvTagTimestamp: number;
+  lastFlvTagTimestamp: number;
   timestampOffset?: number;
   info: MediaSegmentInfo
 }
