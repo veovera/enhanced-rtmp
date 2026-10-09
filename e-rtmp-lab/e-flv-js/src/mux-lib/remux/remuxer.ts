@@ -6,7 +6,7 @@
  */
 
 import { Callback, assertCallback } from '../utils/common.js';
-import { AudioFrame, AudioMetadata, AudioTrack, VideoFrame, VideoMetadata, VideoTrack } from '../demux/flv-demuxer.js';
+import { AudioFrame, AudioMetadata, AudioTrack, VideoFrame, VideoMetadata, VideoTrack, AudioCodecKind, VideoCodecKind } from '../demux/flv-demuxer.js';
 import type { ResolvedPlayerConfig } from '../config.js';
 import { MediaSegmentInfo, MediaSegmentInfoList } from '../core/media-segment-info.js';
 
@@ -18,6 +18,7 @@ export const TrackType = {
 } as const;
 
 export type TrackType = typeof TrackType[keyof typeof TrackType];
+export type DrainTarget = TrackType | 'both';
 
 export enum SegmentKind {
   Init,
@@ -25,6 +26,7 @@ export enum SegmentKind {
 }
 
 export interface MSEInitSegment {
+  trackId: number;
   kind: SegmentKind.Init;
   type: TrackType;
   data: Uint8Array;
@@ -35,6 +37,8 @@ export interface MSEInitSegment {
 }
 
 export interface MSEMediaSegment {
+  trackId: number;
+  codecKind: AudioCodecKind | VideoCodecKind;
   kind: SegmentKind.Media;
   type: TrackType;
   data: Uint8Array;
@@ -51,9 +55,11 @@ export type MSESegment = MSEMediaSegment | MSEInitSegment;
 export interface RemuxingTarget {
   destroy(): void;
   clear(): void;
-  flushStashedFrames(): void;
+  /** Emit frames buffered inside the remuxer; does not drain demuxer queues. */
+  flushBufferedFrames(): void;
   flushPendingInitSegments(): void;
-  remuxTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack): void;
+  /** Drain queued and buffered frames of the selected type; 'both' drains audio and video. */
+  remuxTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack, drainTarget?: DrainTarget): void;
   remuxTrackMetadata(metadata: AudioMetadata | VideoMetadata): void;
   insertDiscontinuity(): void;
   setTimestampBase(timestampBase: number): void;
@@ -68,19 +74,19 @@ export interface RemuxingTarget {
 export abstract class Remuxer implements RemuxingTarget {
   abstract destroy(): void;
   abstract clear(): void;
-  abstract flushStashedFrames(): void;
+  abstract flushBufferedFrames(): void;
   /** Emit any initialization segment held for batched metadata processing. */
   abstract flushPendingInitSegments(): void;
 
-  remuxTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack): void {
-    this._onTrackData(audioTrack, videoTrack);
+  remuxTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack, drainTarget?: DrainTarget): void {
+    this._onTrackData(audioTrack, videoTrack, drainTarget);
   }
 
   remuxTrackMetadata(metadata: AudioMetadata | VideoMetadata): void {
     this._onTrackMetadata(metadata);
   }
 
-  protected abstract _onTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack): void;
+  protected abstract _onTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack, drainTarget?: DrainTarget): void;
   protected abstract _onTrackMetadata(metadata: AudioMetadata | VideoMetadata): void;
 
   protected _config: ResolvedPlayerConfig;
@@ -160,7 +166,9 @@ export abstract class Remuxer implements RemuxingTarget {
   protected _takeStashedFrames(): { audioTrack: AudioTrack; videoTrack: VideoTrack } {
     const videoTrack: VideoTrack = {
       type: TrackType.Video,
-      id: 1,
+      // Without a stashed frame, the track is empty and skipped by remuxing;
+      // its required ID is only a placeholder (video: 1, audio: 2).
+      id: this._videoStashedLastFrame?.trackId ?? 1,
       sequenceNumber: 0,
       frames: [],
       length: 0
@@ -172,7 +180,9 @@ export abstract class Remuxer implements RemuxingTarget {
 
     const audioTrack: AudioTrack = {
       type: TrackType.Audio,
-      id: 2,
+      // Without a stashed frame, the track is empty and skipped by remuxing;
+      // its required ID is only a placeholder (video: 1, audio: 2).
+      id: this._audioStashedLastFrame?.trackId ?? 2,
       sequenceNumber: 0,
       frames: [],
       length: 0

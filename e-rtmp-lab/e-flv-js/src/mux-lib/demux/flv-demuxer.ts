@@ -21,7 +21,7 @@ import AV1OBUParser from './av1-parser.js';
 import ExpGolomb from './exp-golomb.js';
 import { assertCallback, Callback, noopCallback } from '../utils/common';
 import { Av1ObuType, AV1Metadata } from './av1-parser.js';
-import { TrackType } from '../remux/remuxer.js';
+import { TrackType, type DrainTarget } from '../remux/remuxer.js';
 import { H264NaluType } from './h264.js';
 import { H265NaluType } from './h265.js';
 import type { ResolvedPlayerConfig } from '../config.js';
@@ -767,6 +767,8 @@ enum Vp9FrameType {
 }
 
 export interface AudioFrame {
+    trackId: number,            // ID of the track this frame belongs to
+    codecKind: AudioCodecKind,
     unit: Uint8Array,           // The actual audio data
     length: number,             // Size of the frame in bytes
     flvTagTimestamp: number,
@@ -782,16 +784,14 @@ export interface AudioTrack {
     length: number;
 }
 
-export const AudioCodecKind = {
-    Unknown:    'unknown',
-    Mp3:        'mp3',
-    Aac:        'aac',
-    Opus:       'opus',
-    Flac:       'flac',
-    Lpcm:       'lpcm',
-} as const;
-
-export type AudioCodecKind = typeof AudioCodecKind[keyof typeof AudioCodecKind];
+export enum AudioCodecKind {
+    Unknown    = 'unknown',
+    Mp3        = 'mp3',
+    Aac        = 'aac',
+    Opus       = 'opus',
+    Flac       = 'flac',
+    Lpcm       = 'lpcm',
+}
 
 export interface AudioMetadata {
     type: typeof TrackType.Audio;
@@ -840,16 +840,14 @@ const audioMetadataDefault = {
     refFrameDuration: NaN,
 } as const satisfies AudioMetadata;
 
-export const VideoCodecKind = {
-    Unknown:    'unknown',
-    Avc:        'avc',
-    Hevc:       'hevc',
-    Vp8:        'vp8',
-    Vp9:        'vp9',
-    Av1:        'av1',
-} as const;
-
-export type VideoCodecKind = typeof VideoCodecKind[keyof typeof VideoCodecKind];
+export enum VideoCodecKind {
+    Unknown    = 'unknown',
+    Avc        = 'avc',
+    Hevc       = 'hevc',
+    Vp8        = 'vp8',
+    Vp9        = 'vp9',
+    Av1        = 'av1',
+}
 
 export interface VideoMetadata {
     type: typeof TrackType.Video;
@@ -906,6 +904,8 @@ const videoMetadataDefault = {
 } as const satisfies VideoMetadata;
 
 export interface VideoFrame {
+    trackId: number;                    // ID of the track this frame belongs to
+    codecKind: VideoCodecKind;          // The kind of video codec (e.g., AVC, HEVC, VP8, VP9, AV1)
     units: VideoUnit[],                 // The actual video data units (e.g., NAL units for H.264)
     length: number,                     // Size of the frame in bytes
     isKeyframe: boolean,                // Whether this is a keyframe (I-frame)
@@ -1190,8 +1190,12 @@ export class FLVDemuxer {
         return this._onTrackData;
     }
 
-    set onTrackData(callback: (audioTrack: AudioTrack, videoTrack: VideoTrack) => void) {
+    set onTrackData(callback: (audioTrack: AudioTrack, videoTrack: VideoTrack, drainTarget?: DrainTarget) => void) {
         this._onTrackData = callback;
+    }
+
+    get currentVideoTrackId(): number | undefined {
+        return this._currentVideoTrackId;
     }
 
     selectVideoTrack(trackId: number): void {
@@ -1276,15 +1280,15 @@ export class FLVDemuxer {
         return { type: TrackType.Audio, id: -1, sequenceNumber: 0, frames: [], length: 0 };
     }
 
-    private _flushPendingTrackDataBeforeMetadataRefresh(): void {
+    private _flushPendingTrackDataBeforeMetadataRefresh(drainTarget?: DrainTarget): void {
         const currentAudioTrack = this._getCurrentAudioTrack();
         const currentVideoTrack = this._getCurrentVideoTrack();
 
-        if (currentAudioTrack.frames.length === 0 && currentVideoTrack.frames.length === 0) {
+        if (drainTarget === undefined && currentAudioTrack.frames.length === 0 && currentVideoTrack.frames.length === 0) {
             return;
         }
 
-        this._onTrackData(currentAudioTrack, currentVideoTrack);
+        this._onTrackData(currentAudioTrack, currentVideoTrack, drainTarget);
     }
 
     private _dispatchVideoTrackMetadata(meta: VideoMetadata): void {
@@ -1532,7 +1536,9 @@ export class FLVDemuxer {
             return false;
         }
 
-        this._flushPendingTrackDataBeforeMetadataRefresh();
+        // Drain demux queue and remuxer-held frames under the old metadata
+        // before the new track's keyframe and initialization segment.
+        this._flushPendingTrackDataBeforeMetadataRefresh(TrackType.Video);
         this._currentVideoTrackId = track.id;
         this._pendingVideoTrackId = undefined;
         Log.i(FLVDemuxer.TAG, `Switching to video track ${track.id} at keyframe; codec=${metadata.codec}`);
@@ -1726,7 +1732,7 @@ export class FLVDemuxer {
                 const frameData = aacData.data;
                 this._probeAacPayload(frameData, track);
                 const dts = this._timestampBase + tagTimestamp;
-                let aacSample: AudioFrame = {unit: frameData, length: frameData.byteLength, flvTagTimestamp: tagTimestamp, dts: dts, pts: dts};
+                const aacSample: AudioFrame = {trackId: track.id, codecKind: AudioCodecKind.Aac, unit: frameData, length: frameData.byteLength, flvTagTimestamp: tagTimestamp, dts: dts, pts: dts};
                 track.frames.push(aacSample);
                 track.length += frameData.length;
             } else {
@@ -1775,7 +1781,7 @@ export class FLVDemuxer {
                 return;
             }
             const dts = this._timestampBase + tagTimestamp;
-            const mp3Sample: AudioFrame = {unit: data, length: data.byteLength, flvTagTimestamp: tagTimestamp, dts: dts, pts: dts};
+            const mp3Sample: AudioFrame = {trackId: track.id, codecKind: AudioCodecKind.Mp3, unit: data, length: data.byteLength, flvTagTimestamp: tagTimestamp, dts: dts, pts: dts};
             if (this._shouldAppendAudioTrack(track)) {
                 track.frames.push(mp3Sample);
                 track.length += data.length;
@@ -1812,7 +1818,7 @@ export class FLVDemuxer {
 
             const data = new Uint8Array(arrayBuffer, dataOffset + 1, dataSize - 1);
             const dts = this._timestampBase + tagTimestamp;
-            const pcmSample: AudioFrame = {unit: data, length: data.byteLength, flvTagTimestamp: tagTimestamp, dts: dts, pts: dts};
+            const pcmSample: AudioFrame = {trackId: track.id, codecKind: AudioCodecKind.Lpcm, unit: data, length: data.byteLength, flvTagTimestamp: tagTimestamp, dts: dts, pts: dts};
             if (this._shouldAppendAudioTrack(track)) {
                 track.frames.push(pcmSample);
                 track.length += data.length;
@@ -2249,7 +2255,7 @@ export class FLVDemuxer {
             const data = new Uint8Array(arrayBuffer, dataOffset, dataSize);
             this._probeAacPayload(data, track);
             const dts = this._timestampBase + tagTimestamp;
-            const aacSample: AudioFrame = {unit: data, length: data.byteLength, flvTagTimestamp: tagTimestamp, dts: dts, pts: dts};
+            const aacSample: AudioFrame = {trackId: track.id, codecKind: AudioCodecKind.Aac, unit: data, length: data.byteLength, flvTagTimestamp: tagTimestamp, dts: dts, pts: dts};
             track.frames.push(aacSample);
             track.length += data.length;
         } else if (packetType === AudioPacketType.SequenceEnd) {
@@ -2419,7 +2425,7 @@ export class FLVDemuxer {
     private _parseOpusFrameData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, track: AudioTrack) {
         const data = new Uint8Array(arrayBuffer, dataOffset, dataSize);
         const dts = this._timestampBase + tagTimestamp;
-        const opusSample: AudioFrame = {unit: data, length: data.byteLength, flvTagTimestamp: tagTimestamp, dts: dts, pts: dts};
+        const opusSample: AudioFrame = {trackId: track.id, codecKind: AudioCodecKind.Opus, unit: data, length: data.byteLength, flvTagTimestamp: tagTimestamp, dts: dts, pts: dts};
 
         if (this._shouldAppendAudioTrack(track)) {
             track.frames.push(opusSample);
@@ -2533,7 +2539,7 @@ export class FLVDemuxer {
     private _parseFlacFrameData(arrayBuffer: ArrayBuffer, dataOffset: number, dataSize: number, tagTimestamp: number, track: AudioTrack) {
         const data = new Uint8Array(arrayBuffer, dataOffset, dataSize);
         const dts = this._timestampBase + tagTimestamp;
-        const flacSample: AudioFrame = {unit: data, length: data.byteLength, flvTagTimestamp: tagTimestamp, dts: dts, pts: dts};
+        const flacSample: AudioFrame = {trackId: track.id, codecKind: AudioCodecKind.Flac, unit: data, length: data.byteLength, flvTagTimestamp: tagTimestamp, dts: dts, pts: dts};
 
         if (this._shouldAppendAudioTrack(track)) {
             track.frames.push(flacSample);
@@ -3299,6 +3305,8 @@ export class FLVDemuxer {
         // cannot make this decision from the FLV frame type alone.
         if (units.length && this._shouldAppendVideoTrack(track, keyframe)) {
             const avcSample: VideoFrame = {
+                trackId: track.id,
+                codecKind: VideoCodecKind.Avc,
                 units: units,
                 length: length,
                 isKeyframe: keyframe,
@@ -3357,6 +3365,8 @@ export class FLVDemuxer {
         // cannot make this decision from the FLV frame type alone.
         if (units.length && this._shouldAppendVideoTrack(track, keyframe)) {
             const hevcSample: VideoFrame = {
+                trackId: track.id,
+                codecKind: VideoCodecKind.Hevc,
                 units: units,
                 length: length,
                 isKeyframe: keyframe,
@@ -3420,6 +3430,8 @@ export class FLVDemuxer {
         });
 
         const av1Frame: VideoFrame = {
+            trackId: track.id,
+            codecKind: VideoCodecKind.Av1,
             units: units,
             length: length,
             isKeyframe: keyframe,
@@ -3639,6 +3651,8 @@ export class FLVDemuxer {
         });
 
         const vp9Frame: VideoFrame = {
+            trackId: track.id,
+            codecKind: VideoCodecKind.Vp9,
             units: units,
             length: length,
             isKeyframe: isKeyFrame,

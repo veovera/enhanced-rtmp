@@ -10,62 +10,46 @@
  * WebMRemuxer: WebM Container Remuxing
  * =============================================================================
  *
- * This class receives parsed audio/video frames (e.g., VP8, VP9, AV1, Opus)
- * and organizes them into a valid WebM container structure for browser playback.
- * It is designed to be used in a modular media pipeline, typically within a
- * Web Worker, and works in conjunction with demuxers, the WebMGenerator, and
- * the main thread's Media Source Extensions (MSE) controller.
+ * Remuxes parsed VP9/AV1 video and Opus audio into WebM initialization and
+ * media segments using WebMGenerator. VP8 demuxing support is planned.
+ * The currently enabled application pipeline demuxes and remuxes on the browser's
+ * main thread, which also handles UI and video-element coordination, rather than
+ * offloading that work to a Web Worker. This is an application configuration,
+ * not a requirement of WebMRemuxer: the class can also run in a worker and
+ * does not access the DOM or Media Source Extensions directly.
  *
  * -----------------------------------------------------------------------------
  * High-Level Flow:
  *
- *   [ Demuxer ]
- *      |
- *      v
- *   [ WebMRemuxer ]
- *      |
- *      |  (organizes frames, manages timing/segmenting)
- *      v
- *   [ WebMGenerator ]
- *      |
- *      |  (builds WebM init and media segments, returns Uint8Array segment)
- *      v
- *   [ WebMRemuxer ]
- *      |
- *      |  emits segment to the next pipeline stage
- *      v  
- * [ Controller / Worker ]
- *      |
- *      |  (sends segments to main thread via postMessage)
- *      v
- * [ TransmuxingController._onRemuxerInitSegmentArrival ]
- *      |
- *      |  (emits INIT_SEGMENT event)
- *      v
- * [ Player / Main Thread / Other Controller ]
- *      |
- *      |  (listens for INIT_SEGMENT event)
- *      v
- *   [ MSE Controller (Main Thread) ]
- *      |
- *      |  (appends segments to SourceBuffer)
- *      v
- *   [ <video> Element ]
+ *   Demuxer
+ *      -> RemuxerRouter
+ *      -> WebMRemuxer (uses WebMGenerator to build segment bytes)
+ *      -> RemuxerRouter callbacks
+ *      -> TransmuxingController (INIT_SEGMENT / MEDIA_SEGMENT events)
+ *      -> Player (optional worker messaging follows the controller events)
+ *      -> MSEController -> SourceBuffer -> <video>
  *
  * -----------------------------------------------------------------------------
  * Responsibilities:
- * - Accepts raw frames and metadata from demuxers.
- * - Organizes frames into WebM clusters and blocks.
- * - Uses WebMGenerator to build initialization and media segments for MSE playback.
- * - Emits or passes the generated segments to the next pipeline stage (e.g., controller/worker).
- * - Exposes a consistent interface for use in a polymorphic remuxing pipeline.
+ * - Emits initialization segments when track metadata arrives.
+ * - Buffers video per GOP; the next keyframe flushes the previous GOP before
+ *   starting a new one. A forced drain emits the trailing GOP immediately.
+ * - Emits each audio batch immediately, without holding a lookahead frame.
+ * - Normalizes frame timestamps to the shared presentation origin.
+ * - Carries frame track IDs and codec kinds into emitted media segments.
+ * - Exposes the shared remuxer API; flushBufferedFrames() emits the pending
+ *   video GOP but does not drain frames still queued in the demuxer.
  *
- * This class enables browser-based playback of WebM streams using the Media
- * Source Extensions API, supporting modern codecs and adaptive streaming.
+ * Initial video playback and track switches need a keyframe suitable for
+ * starting decoding without earlier frames from that track.
+ * Remuxing non-keyframes does not make them independently decodable;
+ * this remuxer does not discard leading non-keyframes automatically.
+ * At a track switch, old media must be drained under the old metadata before
+ * the new initialization segment is emitted.
  * =============================================================================
  */
 
-import { Remuxer, MSEInitSegment, MSEMediaSegment, TrackType, SegmentKind } from './remuxer.js';
+import { Remuxer, MSEInitSegment, MSEMediaSegment, TrackType, SegmentKind, type DrainTarget } from './remuxer.js';
 import { WebMGenerator } from './webm-generator.js';
 import { AudioTrack, VideoTrack, VideoFrame, AudioFrame, AudioMetadata, VideoMetadata } from '../demux/flv-demuxer.js';
 import Log from '../utils/logger.js';
@@ -90,28 +74,29 @@ export class WebMRemuxer extends Remuxer {
     this._pendingVideoFrames = [];
   }
   
-  flushStashedFrames(): void {
+  flushBufferedFrames(): void {
     // Audio is never stashed in the WebM path: _remuxAudio() emits every
     // batch it's given immediately, so there's no held-back audio frame to
     // flush here (unlike MP4Remuxer). Video buffers frames per-GOP and only
     // flushes on the next keyframe, so a forced flush is still needed to
     // emit a trailing, keyframe-less GOP.
-    const { videoTrack } = this._takeStashedFrames();
-
-    this._remuxVideo(videoTrack, true);
+    this._flushPendingVideoFrames();
   }
 
   // WebM emits its initialization segment as soon as metadata arrives.
   flushPendingInitSegments(): void {}
   
-  protected _onTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack): void {
+  protected _onTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack, drainTarget?: DrainTarget): void {
     Log.a(WebMRemuxer.TAG, 'onMediaSegment callback must be specificed!', this._onMediaSegment);
     
     if (this._dtsBase === Infinity) {
       this._calculateDtsBase(audioTrack, videoTrack);
     }
 
-    this._remuxVideo(videoTrack);
+
+    this._remuxVideo(videoTrack, drainTarget === TrackType.Video || drainTarget === 'both');
+    // WebM audio emits the entire batch without stashing a duration lookahead
+    // or buffering a GOP, so normal remuxing already drains it.
     this._remuxAudio(audioTrack);
   }
 
@@ -136,6 +121,7 @@ export class WebMRemuxer extends Remuxer {
     }
 
     const initSegment: MSEInitSegment = {
+      trackId: metadata.trackId,
       kind: SegmentKind.Init,
       type: metadata.type,
       data: segmentRawData,
@@ -198,15 +184,13 @@ export class WebMRemuxer extends Remuxer {
       lastFrame.isKeyframe
     );
 
-    //Log.v(WebMRemuxer.TAG, `_remuxVideo() - videoTrack.frames.length: ${videoTrack.frames.length} *************************************************`);
-    //for (const frame of videoTrack.frames) {
-    //  Log.v(WebMRemuxer.TAG, `    Input Frame: dts=${frame.dts}, pts=${frame.pts}, isKeyframe=${frame.isKeyframe}, dataSize=${frame.rawData?.length ?? 0} fileposition=${frame.fileposition}`);
-    //}
-
-    const segmentRawData = WebMGenerator.generateVideoCluster(this._pendingVideoFrames, 0, this._refVideoFrameDuration, this._videoMeta!.codecKind);
-    // Log.v(WebMRemuxer.TAG, `Generated video segment, length: ${segment.byteLength} \n${Log.dumpArrayBuffer(segment, 100)}`);
+    Log.debugAssert(WebMRemuxer.TAG, 'Video segment trackId is inconsistent', () => this._pendingVideoFrames.every((frame) => frame.trackId === firstFrame.trackId));
+    Log.debugAssert(WebMRemuxer.TAG, 'Video segment codec is inconsistent', () => this._pendingVideoFrames.every((frame) => frame.codecKind === firstFrame.codecKind));
+    const segmentRawData = WebMGenerator.generateVideoCluster(this._pendingVideoFrames, 0, this._refVideoFrameDuration, firstFrame.codecKind);
 
     const mediaSegment: MSEMediaSegment = {
+      trackId: firstFrame.trackId,
+      codecKind: firstFrame.codecKind,
       kind: SegmentKind.Media,
       type: TrackType.Video,
       data: segmentRawData,
@@ -288,6 +272,10 @@ export class WebMRemuxer extends Remuxer {
     };
     let frames: AudioFrame[] = track.frames;
     let firstDts = -1, lastDts = -1;
+    let firstFrame = frames[0];
+
+    Log.debugAssert(WebMRemuxer.TAG, 'Audio segment trackId is inconsistent', () => frames.every((frame) => frame.trackId === firstFrame.trackId));
+    Log.debugAssert(WebMRemuxer.TAG, 'Audio segment codec is inconsistent', () => frames.every((frame) => frame.codecKind === firstFrame.codecKind));
 
     let firstFrameOriginalDts = frames[0].dts;
 
@@ -319,6 +307,8 @@ export class WebMRemuxer extends Remuxer {
     this._audioSegmentInfoList.append(info);
 
     let segment: MSEMediaSegment = {
+      trackId: firstFrame.trackId,
+      codecKind: firstFrame.codecKind,
       kind: SegmentKind.Media,
       type: TrackType.Audio,
       data: segmentRawData,
@@ -328,9 +318,7 @@ export class WebMRemuxer extends Remuxer {
       info: info
     };
 
-    if (this._onMediaSegment) {
-      this._onMediaSegment(TrackType.Audio, segment);
-    }
+    this._onMediaSegment(TrackType.Audio, segment);
 
     sourceTrack.frames = [];
     sourceTrack.length = 0;

@@ -26,7 +26,7 @@ import TransmuxingEvent, { type DiscoveredTrackInfo, type DiscoveredTracks, type
 import type { ResolvedPlayerConfig } from '../config.js';
 import type { MediaDataSource, MediaDataSourceSegment } from '../e-flv.js';
 import { RemuxerType, TrackType } from '../remux/remuxer.js';
-import type { MSEInitSegment, MSEMediaSegment } from '../remux/remuxer.js';
+import type { MSEInitSegment, MSEMediaSegment, DrainTarget } from '../remux/remuxer.js';
 
 type NormalizedMediaDataSourceSegment = MediaDataSourceSegment & {
     timestampBase: number;
@@ -282,7 +282,8 @@ class TransmuxingController {
         if (metadata.type === TrackType.Audio) {
             return metadata.trackId === this._selectedAudioTrackId;
         }
-        return metadata.trackId === this._selectedVideoTrackId;
+        const activeTrackId = this._demuxer?.currentVideoTrackId ?? this._selectedVideoTrackId;
+        return metadata.trackId === activeTrackId;
     }
 
     selectVideoTrack(trackId: number): void {
@@ -494,7 +495,7 @@ class TransmuxingController {
         this._bindRemuxerRouterToDemuxer();
     }
 
-    _onTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack) {
+    _onTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack, drainTarget?: DrainTarget) {
         if (TransmuxingController.TRACE) {
             const now = Date.now();
             for (const track of [audioTrack, videoTrack]) {
@@ -514,7 +515,7 @@ class TransmuxingController {
             return;
         }
 
-        this._remuxerRouter.remuxTrackData(audioTrack, videoTrack);
+        this._remuxerRouter.remuxTrackData(audioTrack, videoTrack, drainTarget);
     }
 
     _onTrackMetadata(metadata: AudioMetadata | VideoMetadata) {
@@ -627,12 +628,12 @@ class TransmuxingController {
         if (nextSegmentIndex < this._mediaDataSource.segments.length) {
             this._internalAbort();
             if (this._remuxerRouter) {
-                this._remuxerRouter.flushStashedFrames();
+                this._remuxerRouter.flushBufferedFrames();
             }
             this._loadSegment(nextSegmentIndex);
         } else {
             if (this._remuxerRouter) {
-                this._remuxerRouter.flushStashedFrames();
+                this._remuxerRouter.flushBufferedFrames();
             }
             this._emitter.emit(TransmuxingEvent.LOADING_COMPLETE);
             this._disableStatisticsReporter();

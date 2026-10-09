@@ -9,7 +9,7 @@ import { AudioMetadata, AudioTrack, VideoMetadata, VideoTrack } from '../demux/f
 import { assertCallback, Callback } from '../utils/common.js';
 import { MediaSegmentInfoList } from '../core/media-segment-info.js';
 import MP4Remuxer from './mp4-remuxer.js';
-import { MSEMediaSegment, Remuxer, RemuxingTarget, TrackType } from './remuxer.js';
+import { MSEMediaSegment, Remuxer, RemuxingTarget, TrackType, type DrainTarget } from './remuxer.js';
 
 function emptyAudioTrack(): AudioTrack {
   return { type: TrackType.Audio, id: 2, sequenceNumber: 0, frames: [], length: 0 };
@@ -115,9 +115,9 @@ export class RemuxerRouter implements RemuxingTarget {
     this._videoSegmentInfoList.clear();
   }
 
-  flushStashedFrames(): void {
-    this._videoRemuxer?.flushStashedFrames();
-    this._audioRemuxer?.flushStashedFrames();
+  flushBufferedFrames(): void {
+    this._videoRemuxer?.flushBufferedFrames();
+    this._audioRemuxer?.flushBufferedFrames();
   }
 
   flushPendingInitSegments(): void {
@@ -146,14 +146,21 @@ export class RemuxerRouter implements RemuxingTarget {
     }
   }
 
-  remuxTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack): void {
+  remuxTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack, drainTarget?: DrainTarget): void {
     this._setTimestampBaseFromTracks(audioTrack, videoTrack);
 
     if (videoTrack.frames.length > 0) {
-      this._videoRemuxer?.remuxTrackData(emptyAudioTrack(), videoTrack);
+      this._videoRemuxer?.remuxTrackData(emptyAudioTrack(), videoTrack, drainTarget);
     }
     if (audioTrack.frames.length > 0) {
-      this._audioRemuxer?.remuxTrackData(audioTrack, emptyVideoTrack());
+      this._audioRemuxer?.remuxTrackData(audioTrack, emptyVideoTrack(), drainTarget);
+    }
+    // Flush only the selected remuxers; 'both' flushes each independently.
+    if (drainTarget === TrackType.Video || drainTarget === 'both') {
+      this._videoRemuxer?.flushBufferedFrames();
+    }
+    if (drainTarget === TrackType.Audio || drainTarget === 'both') {
+      this._audioRemuxer?.flushBufferedFrames();
     }
   }
 

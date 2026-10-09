@@ -155,6 +155,15 @@ player.play();
 
 Review `src/demo-app.ts` for a wiring example that includes UI controls, telemetry hooks, and toggles between MP4 and WebM transmuxing paths.
 
+### Video track switching
+
+A video track selection takes effect at the requested track's next keyframe.
+Until that boundary, the current track continues through the demux/remux pipeline.
+Before activating the new track, the pipeline drains the old demux queue, MP4
+stashed frames, and WebM pending GOPs using their original track IDs and codec
+metadata. MSE receives the old media before the new initialization segment and
+new-track media; requesting a switch does not clear already queued MSE segments.
+
 ## License
 
 Apache License 2.0. Portions derived from the original [mpegts.js](https://github.com/xqq/mpegts.js), project retain their upstream notices.

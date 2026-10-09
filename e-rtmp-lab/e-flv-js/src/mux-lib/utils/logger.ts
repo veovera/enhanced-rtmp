@@ -240,6 +240,18 @@ class Log {
         }
     }
 
+    /**
+     * Debug-build-only variant of `a` for invariant checks that release builds
+     * may safely skip. The check is a callback so release builds never evaluate
+     * it. Unlike `a`, this does not narrow types: release builds continue past
+     * a failed check.
+     */
+    static debugAssert(tag: string, msg: string, check: () => unknown): void {
+        if (__DEBUG__) {
+            Log.a(tag, msg, check());
+        }
+    }
+
     // Nested so it can reach Log's private static members (TS privacy is lexical, not nominal).
     static LoggingControl = class LoggingControl {
 

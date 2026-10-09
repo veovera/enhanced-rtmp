@@ -13,6 +13,7 @@
 import { TrackType } from "../remux/remuxer";
 
 // Represents an media frame (audio / video)
+// !!@ take a look do we need this type? can we reuse AudioFrame or VideoFrame instead?
 export class FrameInfo {
     dts: number;
     pts: number;

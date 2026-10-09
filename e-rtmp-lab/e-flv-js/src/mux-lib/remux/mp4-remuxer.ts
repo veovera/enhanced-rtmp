@@ -15,7 +15,7 @@ import MP4 from './mp4-generator.js';
 import AAC from './aac-silent.js';
 import Browser from '../utils/browser.js';
 import { FrameInfo as FrameInfo, MediaSegmentInfo, MediaSegmentInfoList } from '../core/media-segment-info.js';
-import { MSEInitSegment, MSEMediaSegment, Remuxer, SegmentKind, TrackType } from './remuxer.js';
+import { MSEInitSegment, MSEMediaSegment, Remuxer, SegmentKind, TrackType, type DrainTarget } from './remuxer.js';
 import { AudioMetadata, AudioTrack, AudioFrame, VideoMetadata, VideoTrack, VideoFrame, VideoCodecKind } from '../demux/flv-demuxer.js';
 import AV1OBUParser from '../demux/av1-parser.js';
 import type { ResolvedPlayerConfig } from '../config.js';
@@ -187,7 +187,7 @@ export class MP4Remuxer extends Remuxer {
         return `type=${initSegment.type} codec=${initSegment.codec || 'none'} container=${initSegment.container} bytes=${initSegment.data.byteLength} head=${formatBytesPrefix(initSegment.data)}`;
     }
 
-    _onTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack) {
+    _onTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack, drainTarget?: DrainTarget) {
         if (this._dtsBase === Infinity) {
             this._calculateDtsBase(audioTrack, videoTrack);
         }
@@ -203,8 +203,8 @@ export class MP4Remuxer extends Remuxer {
             this._onInitSegment(TrackType.Audio, this._pendingAudioInitSegment);
             this._pendingAudioInitSegment = null;
         }
-        this._remuxVideo(videoTrack, false);
-        this._remuxAudio(audioTrack, false);
+        this._remuxVideo(videoTrack, drainTarget === TrackType.Video || drainTarget === 'both');
+        this._remuxAudio(audioTrack, drainTarget === TrackType.Audio || drainTarget === 'both');
     }
 
     _onTrackMetadata(metadata: AudioMetadata | VideoMetadata) {
@@ -241,6 +241,7 @@ export class MP4Remuxer extends Remuxer {
         // Stash init segment; dispatched lazily in _remuxAudio/_remuxVideo so that
         // multiple metadata updates only result in one init segment per data batch.
         const initSegment: MSEInitSegment = {
+            trackId: metadata.trackId,
             kind: SegmentKind.Init,
             type: type,
             data: new Uint8Array(metabox.buffer),
@@ -267,7 +268,7 @@ export class MP4Remuxer extends Remuxer {
         }
     }
 
-    flushStashedFrames() {
+    flushBufferedFrames() {
         const { audioTrack, videoTrack } = this._takeStashedFrames();
 
         this._remuxVideo(videoTrack, true);
@@ -300,7 +301,17 @@ export class MP4Remuxer extends Remuxer {
         let frames: AudioFrame[] = track.frames;
         let dtsCorrection = undefined;
         let firstDts = -1, lastDts = -1, lastPts = -1;
+        let firstFrame = frames[0];
         let refFrameDuration = this._audioMeta.refFrameDuration;
+
+        Log.debugAssert(MP4Remuxer.TAG, 'Audio segment trackId is inconsistent', () => frames.every((frame) => frame.trackId === firstFrame.trackId));
+        Log.debugAssert(MP4Remuxer.TAG, 'Audio segment codec is inconsistent', () => frames.every((frame) => frame.codecKind === firstFrame.codecKind));
+
+        const stashedFrame = this._audioStashedLastFrame;
+        if (stashedFrame) {
+            Log.debugAssert(MP4Remuxer.TAG, 'Stashed audio frame trackId is inconsistent', () => stashedFrame.trackId === firstFrame.trackId);
+            Log.debugAssert(MP4Remuxer.TAG, 'Stashed audio frame codec is inconsistent', () => stashedFrame.codecKind === firstFrame.codecKind);
+        }
 
         let mpegRawTrack = this._audioMeta.codec === 'mp3' && this._mp3UseMpegAudio;
         let isFirstSegmentAfterSeek = this._dtsBase !== Infinity && this._audioNextDts === Infinity;
@@ -331,8 +342,8 @@ export class MP4Remuxer extends Remuxer {
 
         let lastFrame: AudioFrame | undefined;
 
-        // Pop the lastFrame and waiting for stash
-        if (frames.length > 1) {
+        // Retain a duration lookahead unless the entire batch must be drained.
+        if (frames.length > 1 && !force) {
             lastFrame = frames.pop();
             mdatBytes -= lastFrame?.length || 0;
         }
@@ -391,7 +402,7 @@ export class MP4Remuxer extends Remuxer {
                     let dts = videoSegment.beginDts;
                     let silentFrameDuration = firstFrameDts - videoSegment.beginDts;
                     Log.v(MP4Remuxer.TAG, `InsertPrefixSilentAudio: dts: ${dts}, duration: ${silentFrameDuration}`);
-                    frames.unshift({ unit: silentUnit, length: silentUnit.byteLength, flvTagTimestamp: frames[0].flvTagTimestamp, dts: dts, pts: dts });
+                    frames.unshift({ trackId: firstFrame.trackId, codecKind: firstFrame.codecKind, unit: silentUnit, length: silentUnit.byteLength, flvTagTimestamp: firstFrame.flvTagTimestamp, dts: dts, pts: dts });
                     mdatBytes += silentUnit.byteLength;
                 }  // silentUnit == null: Cannot generate, skip
             } else {
@@ -604,10 +615,9 @@ export class MP4Remuxer extends Remuxer {
             }, firstDts);
         }
 
-        track.frames = [];
-        track.length = 0;
-
         const mediaSegment: MSEMediaSegment = {
+            trackId: firstFrame.trackId,
+            codecKind: firstFrame.codecKind,
             kind: SegmentKind.Media,
             type: TrackType.Audio,
             data: new Uint8Array(this._mergeBoxes(moofbox, mdatbox).buffer),
@@ -624,6 +634,8 @@ export class MP4Remuxer extends Remuxer {
         }
 
         this._onMediaSegment(TrackType.Audio, mediaSegment);
+        track.frames = [];
+        track.length = 0;
     }
 
     _remuxVideo(videoTrack: VideoTrack, force: boolean) {
@@ -633,7 +645,7 @@ export class MP4Remuxer extends Remuxer {
             return;
         }
 
-        // Require at least 2 frames before remuxing (unless forced, e.g. flushStashedFrames).
+        // Require at least 2 frames before remuxing (unless forced, e.g. flushBufferedFrames).
         // MP4 computes each frame's duration as nextFrame.dts - currentFrame.dts, so the stash
         // mechanism always pops the last frame and holds it for the next batch as the "next frame"
         // reference. With only 1 frame there is nothing to pop/stash, breaking the DTS chain.
@@ -652,19 +664,26 @@ export class MP4Remuxer extends Remuxer {
 
         let track: VideoTrack = videoTrack;
         let frames: VideoFrame[] = track.frames;
+        let firstFrame = frames[0];
         let dtsCorrection = undefined;
         let firstDts = -1, lastDts = -1;
         let firstPts = -1, lastPts = -1;
-
         let offset = 8;
         let mdatbox = null;
         let mdatBytes = 8 + videoTrack.length;
-
-
         let lastFrame: VideoFrame | undefined;
 
-        // Pop the lastFrame and waiting for stash
-        if (frames.length > 1) {
+        Log.debugAssert(MP4Remuxer.TAG, 'Video segment trackId is inconsistent', () => frames.every((frame) => frame.trackId === firstFrame.trackId));
+        Log.debugAssert(MP4Remuxer.TAG, 'Video segment codec is inconsistent', () => frames.every((frame) => frame.codecKind === firstFrame.codecKind));
+
+        const stashedFrame = this._videoStashedLastFrame;
+        if (stashedFrame) {
+            Log.debugAssert(MP4Remuxer.TAG, 'Stashed video frame trackId is inconsistent', () => stashedFrame.trackId === firstFrame.trackId);
+            Log.debugAssert(MP4Remuxer.TAG, 'Stashed video frame codec is inconsistent', () => stashedFrame.codecKind === firstFrame.codecKind);
+        }
+
+        // Retain a duration lookahead unless the entire batch must be drained.
+        if (frames.length > 1 && !force) {
             lastFrame = frames.pop();
             mdatBytes -= lastFrame?.length || 0;
         }
@@ -843,16 +862,14 @@ export class MP4Remuxer extends Remuxer {
             flags.isNonSync = 0;
         }
 
-        //Log.v(MP4Remuxer.TAG, `_remuxVideo() - videoTrack.frames.length: ${videoTrack.frames.length} *************************************************`);
-
         let moofbox = MP4.moof({
             ...track,
             id: this._getMp4TrackId(TrackType.Video, track.id)
         }, firstDts);
-        track.frames = [];
-        track.length = 0;
 
         const mediaSegment: MSEMediaSegment = {
+            trackId: firstFrame.trackId,
+            codecKind: firstFrame.codecKind,
             kind: SegmentKind.Media,
             type: TrackType.Video,
             data: new Uint8Array(this._mergeBoxes(moofbox, mdatbox).buffer),
@@ -862,6 +879,8 @@ export class MP4Remuxer extends Remuxer {
             info: info
         };
         this._onMediaSegment(TrackType.Video, mediaSegment);
+        track.frames = [];
+        track.length = 0;
     }
 
     _mergeBoxes(moof: Uint8Array, mdat: Uint8Array) {
