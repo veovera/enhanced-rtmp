@@ -65,11 +65,13 @@ export const defaultConfig = {
     // Enable lazy loading of segments (load only when needed)
     lazyLoad: true,
 
-    // Maximum duration (seconds) to buffer during lazy loading
-    lazyLoadMaxDuration: 3 * 60,
+    // Lazy loading (on-demand playback only): stop downloading once this many
+    // seconds are buffered ahead of the playhead.
+    lazyLoadMaxDuration: 180,
 
-    // Duration (seconds) to recover after lazy loading resumes
-    lazyLoadRecoverDuration: 1 * 60,
+    // Resume downloading when the buffer ahead of the playhead has dropped to
+    // this many seconds. Must be smaller than lazyLoadMaxDuration.
+    lazyLoadRecoverDuration: 60,
 
     // Defer loading until MediaSource is open
     deferLoadAfterSourceOpen: true,
