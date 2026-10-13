@@ -212,7 +212,6 @@ class PlayerEngineMainThread implements PlayerEngine {
             if (!this._config.isLive && type === TrackType.Video && ms.data && ms.data.byteLength > 0 && ('info' in ms)) {
                 this._seeking_handler?.appendSyncPoints(ms.info.syncPoints);
             }
-            this._loading_controller?.notifyBufferedPositionChanged(ms.info.endDts / 1000);
         });
         this._transmuxer.on(TransmuxingEvent.LOADING_COMPLETE, () => {
             this._mse_controller?.endOfStream();

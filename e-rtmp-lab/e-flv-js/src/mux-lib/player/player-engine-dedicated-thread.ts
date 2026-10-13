@@ -32,7 +32,6 @@ import {
 } from './player-engine-worker-cmd-def.js';
 import {
     WorkerMessagePacket,
-    WorkerMessagePacketBufferedPositionChanged,
     WorkerMessagePacketLogcatCallback,
     WorkerMessagePacketMSEEvent,
     WorkerMessagePacketMSEInit,
@@ -425,11 +424,6 @@ class PlayerEngineDedicatedThread implements PlayerEngine {
             case 'logcat_callback': {
                 const packet = message_packet as WorkerMessagePacketLogcatCallback;
                 Log.emitLog(packet.type, packet.logcat);
-                break;
-            }
-            case 'buffered_position_changed': {
-                const packet = message_packet as WorkerMessagePacketBufferedPositionChanged;
-                this._loading_controller?.notifyBufferedPositionChanged(packet.buffered_position_milliseconds / 1000);
                 break;
             }
         }

@@ -38,7 +38,6 @@ import {
     WorkerMessagePacketPlayerEventExtraData,
     WorkerMessagePacketTransmuxingEventInfo,
     WorkerMessagePacketTransmuxingEventRecommendSeekpoint,
-    WorkerMessagePacketBufferedPositionChanged,
     WorkerMessagePacketLogcatCallback,
 } from './player-engine-worker-msg-def.js';
 
@@ -201,10 +200,6 @@ const PlayerEngineWorker = (self: DedicatedWorkerGlobalScope) => {
         });
         transmuxer.on(TransmuxingEvent.MEDIA_SEGMENT, (type: string, ms: any) => {
             mse_controller!.appendMediaSegment(ms);
-            self.postMessage({
-                msg: 'buffered_position_changed',
-                buffered_position_milliseconds: ms.info.endDts,
-            } as WorkerMessagePacketBufferedPositionChanged);
         });
         transmuxer.on(TransmuxingEvent.LOADING_COMPLETE, () => {
             mse_controller!.endOfStream();

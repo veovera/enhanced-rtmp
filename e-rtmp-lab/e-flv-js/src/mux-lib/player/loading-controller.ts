@@ -64,17 +64,16 @@ class LoadingController {
         );
     }
 
-    // buffered_position: in seconds
-    public notifyBufferedPositionChanged(buffered_position?: number): void {
+    // Call after the media element's buffered ranges change. The decision uses
+    // HTMLMediaElement.buffered, which only covers time where every active track
+    // (audio and video) is buffered; a single track's segment end must not be used,
+    // since one track can run ahead while the other has nothing to play.
+    public notifyBufferedPositionChanged(): void {
         if (this._config.isLive || !this._config.lazyLoad) {
             return;
         }
 
-        if (buffered_position == undefined) {
-            this._suspendTransmuxerIfNeeded();
-        } else {
-            this._suspendTransmuxerIfBufferedPositionExceeded(buffered_position);
-        }
+        this._suspendTransmuxerIfNeeded();
     }
 
     private _onMediaTimeUpdate(e: Event): void {
@@ -83,29 +82,29 @@ class LoadingController {
         }
     }
 
-    private _suspendTransmuxerIfNeeded() {
+    // Seconds of media buffered ahead of the playhead, added up across buffered
+    // ranges. Gaps between ranges are not counted, but media after a gap is: it has
+    // been downloaded, so counting only the range under the playhead would let
+    // loading run on unbounded once a gap appears ahead. A range that starts after
+    // the playhead (as at startup) counts in full.
+    private _getForwardBufferedDuration(): number {
         const buffered: TimeRanges = this._media_element.buffered;
         const current_time: number = this._media_element.currentTime;
-        let current_range_end = 0;
+        let duration = 0;
 
         for (let i = 0; i < buffered.length; i++) {
-            const start = buffered.start(i);
             const end = buffered.end(i);
-            if (start <= current_time && current_time < end) {
-                current_range_end = end;
-                break;
+            if (end > current_time) {
+                duration += end - Math.max(buffered.start(i), current_time);
             }
         }
-        if (current_range_end > 0) {
-            this._suspendTransmuxerIfBufferedPositionExceeded(current_range_end);
-        }
+        return duration;
     }
 
-    private _suspendTransmuxerIfBufferedPositionExceeded(buffered_end: number): void {
-        //Log.v(LoadingController.TAG, `_suspendTransmuxerIfBufferedPositionExceeded(buffered_end: ${buffered_end})`);
-        const current_time = this._media_element.currentTime;
-        if (buffered_end >= current_time + this._lazyLoadMaxDuration && !this._paused) {
-            //Log.v(LoadingController.TAG, `[lazy-load] suspend currentTime=${current_time.toFixed(3)} bufferedEnd=${buffered_end.toFixed(3)} maxDuration=${this._lazyLoadMaxDuration}`);
+    private _suspendTransmuxerIfNeeded() {
+        const forward_duration = this._getForwardBufferedDuration();
+        if (forward_duration >= this._lazyLoadMaxDuration && !this._paused) {
+            //Log.v(LoadingController.TAG, `[lazy-load] suspend currentTime=${this._media_element.currentTime.toFixed(3)} bufferedAhead=${forward_duration.toFixed(3)} maxDuration=${this._lazyLoadMaxDuration}`);
             this.suspendTransmuxer();
             this._media_element.addEventListener('timeupdate', this.e.onMediaTimeUpdate);
         }
@@ -117,25 +116,12 @@ class LoadingController {
     }
 
     private _resumeTransmuxerIfNeeded(): void {
-        const buffered: TimeRanges = this._media_element.buffered;
-        const current_time: number = this._media_element.currentTime;
+        // Zero buffered ahead also resumes, so a playhead that ran off the end of
+        // the buffer cannot leave loading suspended.
+        const forward_duration = this._getForwardBufferedDuration();
 
-        const recover_duration = this._lazyLoadRecoverDuration;
-        let should_resume = false;
-
-        for (let i = 0; i < buffered.length; i++) {
-            const from = buffered.start(i);
-            const to = buffered.end(i);
-            if (current_time >= from && current_time < to) {
-                if (current_time >= to - recover_duration) {
-                    should_resume = true;
-                }
-                break;
-            }
-        }
-
-        if (should_resume) {
-            //Log.v(LoadingController.TAG, `[lazy-load] resume currentTime=${current_time.toFixed(3)} recoverDuration=${recover_duration}`);
+        if (forward_duration <= this._lazyLoadRecoverDuration) {
+            //Log.v(LoadingController.TAG, `[lazy-load] resume currentTime=${this._media_element.currentTime.toFixed(3)} bufferedAhead=${forward_duration.toFixed(3)} recoverDuration=${this._lazyLoadRecoverDuration}`);
             this.resumeTransmuxer();
             this._media_element.removeEventListener('timeupdate', this.e.onMediaTimeUpdate);
         }

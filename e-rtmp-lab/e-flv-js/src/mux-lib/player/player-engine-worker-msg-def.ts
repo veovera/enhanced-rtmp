@@ -20,7 +20,6 @@ export type WorkerMessageType =
     | 'mse_event'
     | 'player_event'
     | 'transmuxing_event'
-    | 'buffered_position_changed'
     | 'logcat_callback';
 
 export type WorkerMessagePacket = {
@@ -81,11 +80,6 @@ export type WorkerMessagePacketTransmuxingEventTracksDiscovered = WorkerMessageP
     msg: 'transmuxing_event',
     event: typeof TransmuxingEvent.TRACKS_DISCOVERED,
     tracks: DiscoveredTracks,
-};
-
-export type WorkerMessagePacketBufferedPositionChanged = WorkerMessagePacket & {
-    msg: 'buffered_position_changed',
-    buffered_position_milliseconds: number,
 };
 
 export type WorkerMessagePacketLogcatCallback = WorkerMessagePacket & {
