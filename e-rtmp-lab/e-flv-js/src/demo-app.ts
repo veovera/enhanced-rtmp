@@ -19,6 +19,7 @@ const audioTrackLabel: HTMLLabelElement = document.createElement('label');
 const audioTrackSelect: HTMLSelectElement = document.createElement('select');
 const videoTrackLabel: HTMLLabelElement = document.createElement('label');
 const videoTrackSelect: HTMLSelectElement = document.createElement('select');
+const lazyLoadMaxDurationInput: HTMLInputElement = document.createElement('input');
 
 let videoElement: HTMLVideoElement;
 let player: MSEPlayer | NativePlayer | null = null;
@@ -264,6 +265,27 @@ function initLayout() {
 
   document.body.appendChild(controlsDiv)
 
+  const lazyLoadControls = document.createElement('div');
+  lazyLoadControls.className = 'controls-row';
+  const lazyLoadLabel = document.createElement('label');
+  lazyLoadMaxDurationInput.type = 'number';
+  lazyLoadMaxDurationInput.id = 'lazyLoadMaxDuration';
+  lazyLoadMaxDurationInput.min = '0';
+  lazyLoadMaxDurationInput.step = 'any';
+  lazyLoadMaxDurationInput.required = true;
+  lazyLoadMaxDurationInput.value = String(defaultConfig.lazyLoadMaxDuration);
+  lazyLoadLabel.appendChild(lazyLoadMaxDurationInput);
+  lazyLoadLabel.append(' Buffer ahead (seconds)');
+  const updateLazyLoadDuration = () => {
+    const duration = lazyLoadMaxDurationInput.valueAsNumber;
+    const valid = Number.isFinite(duration) && duration > 0;
+    lazyLoadMaxDurationInput.setCustomValidity(valid ? '' : 'Enter a finite duration greater than zero.');
+  };
+  lazyLoadMaxDurationInput.oninput = updateLazyLoadDuration;
+  updateLazyLoadDuration();
+  lazyLoadControls.appendChild(lazyLoadLabel);
+  document.body.appendChild(lazyLoadControls);
+
   // Public player errors are presented in the page. The controller retains
   // its internal console log as a diagnostic fallback for library consumers.
   const playerErrorBox = document.createElement('pre');
@@ -418,6 +440,11 @@ function createPlayer(): MSEPlayer | NativePlayer | null {
   // !!@TODO: add a config object
   // !!@TODO: take a look at flags below, logic to handle them is scattered around the code    console.warn('Player already exists, detaching previous media element.');
  
+  if (!lazyLoadMaxDurationInput.reportValidity()) {
+    return player;
+  }
+  const lazyLoadMaxDuration = lazyLoadMaxDurationInput.valueAsNumber;
+
   const playerErrorBox = document.getElementById('playerErrorBox');
   if (playerErrorBox) {
     playerErrorBox.textContent = '';
@@ -459,6 +486,8 @@ function createPlayer(): MSEPlayer | NativePlayer | null {
     fixAudioTimestampGap: false,            // when true fixes gaps in audio timestamps to improve sync
     rangeLoadZeroStart: true,               // Always start range requests from 0
     preferWebM: preferWebMCheckbox.checked, // Prefer WebM format when compatible
+    lazyLoadMaxDuration,
+    lazyLoadRecoverDuration: lazyLoadMaxDuration / 3,
   } satisfies PlayerConfig;
 
   const _player = eflv.createPlayer(mediaDataSource, config);
