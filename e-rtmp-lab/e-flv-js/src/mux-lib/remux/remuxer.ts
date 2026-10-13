@@ -58,8 +58,19 @@ export interface RemuxingTarget {
   /** Emit frames buffered inside the remuxer; does not drain demuxer queues. */
   flushBufferedFrames(): void;
   flushPendingInitSegments(): void;
-  /** Drain queued and buffered frames of the selected type; 'both' drains audio and video. */
-  remuxTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack, drainTarget?: DrainTarget): void;
+  /**
+   * Remux the pushed frames. With `drainTarget`, this is the final push for that
+   * track type ('both' = audio and video): the pushed frames and any frames the
+   * remuxer was holding are written out, and nothing stays held. The call must be
+   * acted on even when it carries no frames.
+   *
+   * On a video track switch, `videoDrainEndDts` and `videoDrainEndPts` are the
+   * DTS and PTS of the new track's keyframe (same timeline as VideoFrame.dts/pts).
+   * Old-track frames with pts >= videoDrainEndPts are discarded, the old video is
+   * shown until videoDrainEndPts, and the new track keeps its own timestamps,
+   * starting to decode at videoDrainEndDts.
+   */
+  remuxTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack, drainTarget?: DrainTarget, videoDrainEndDts?: number, videoDrainEndPts?: number): void;
   remuxTrackMetadata(metadata: AudioMetadata | VideoMetadata): void;
   insertDiscontinuity(): void;
   setTimestampBase(timestampBase: number): void;
@@ -78,15 +89,15 @@ export abstract class Remuxer implements RemuxingTarget {
   /** Emit any initialization segment held for batched metadata processing. */
   abstract flushPendingInitSegments(): void;
 
-  remuxTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack, drainTarget?: DrainTarget): void {
-    this._onTrackData(audioTrack, videoTrack, drainTarget);
+  remuxTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack, drainTarget?: DrainTarget, videoDrainEndDts?: number, videoDrainEndPts?: number): void {
+    this._onTrackData(audioTrack, videoTrack, drainTarget, videoDrainEndDts, videoDrainEndPts);
   }
 
   remuxTrackMetadata(metadata: AudioMetadata | VideoMetadata): void {
     this._onTrackMetadata(metadata);
   }
 
-  protected abstract _onTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack, drainTarget?: DrainTarget): void;
+  protected abstract _onTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack, drainTarget?: DrainTarget, videoDrainEndDts?: number, videoDrainEndPts?: number): void;
   protected abstract _onTrackMetadata(metadata: AudioMetadata | VideoMetadata): void;
 
   protected _config: ResolvedPlayerConfig;
@@ -94,6 +105,12 @@ export abstract class Remuxer implements RemuxingTarget {
 
   protected _audioMeta: AudioMetadata | null = null;
   protected _videoMeta: VideoMetadata | null = null;
+  // Origin of the output timeline: the earliest DTS at the start of the stream
+  // (the smaller of the first audio and first video DTS). It is subtracted from
+  // every frame's DTS and PTS so the output starts near zero. Audio and video
+  // remuxers share one value, pushed by RemuxerRouter via setTimestampBase().
+  // Not the demuxer's _timestampBase, which is a per-segment offset *added* to
+  // tag timestamps for multi-segment sources. Infinity means not yet known.
   protected _dtsBase = Infinity;
   protected _audioDtsBase = Infinity;
   protected _videoDtsBase = Infinity;
@@ -161,6 +178,20 @@ export abstract class Remuxer implements RemuxingTarget {
       this._videoDtsBase = videoTrack.frames[0].dts;
     }
     this._dtsBase = Math.min(this._audioDtsBase, this._videoDtsBase);
+  }
+
+  /**
+   * Remove frames from the end of `frames` (decode order) while their pts is at
+   * or after `endPts`, and return their total byte length. Only the decode-order
+   * tail is removed, so no remaining frame depends on a removed one. `endPts`
+   * must be on the same timeline as the frames' pts.
+   */
+  protected _discardVideoFramesShownFrom(frames: VideoFrame[], endPts: number): number {
+    let discardedBytes = 0;
+    while (frames.length > 0 && frames[frames.length - 1].pts >= endPts) {
+      discardedBytes += frames.pop()!.length;
+    }
+    return discardedBytes;
   }
 
   protected _takeStashedFrames(): { audioTrack: AudioTrack; videoTrack: VideoTrack } {

@@ -86,7 +86,7 @@ export class WebMRemuxer extends Remuxer {
   // WebM emits its initialization segment as soon as metadata arrives.
   flushPendingInitSegments(): void {}
   
-  protected _onTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack, drainTarget?: DrainTarget): void {
+  protected _onTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack, drainTarget?: DrainTarget, videoDrainEndDts?: number, videoDrainEndPts?: number): void {
     Log.a(WebMRemuxer.TAG, 'onMediaSegment callback must be specificed!', this._onMediaSegment);
     
     if (this._dtsBase === Infinity) {
@@ -94,7 +94,7 @@ export class WebMRemuxer extends Remuxer {
     }
 
 
-    this._remuxVideo(videoTrack, drainTarget === TrackType.Video || drainTarget === 'both');
+    this._remuxVideo(videoTrack, drainTarget === TrackType.Video || drainTarget === 'both', videoDrainEndPts);
     // WebM audio emits the entire batch without stashing a duration lookahead
     // or buffering a GOP, so normal remuxing already drains it.
     this._remuxAudio(audioTrack);
@@ -134,7 +134,10 @@ export class WebMRemuxer extends Remuxer {
     this._onInitSegment(metadata.type, initSegment);
   }
 
-  private _flushPendingVideoFrames() {
+  // `holdUntilPts` is set on a track switch: the PTS of the new track's keyframe,
+  // on the same timeline as the pending frames. The last frame is then written
+  // with an explicit duration so it is shown until that time.
+  private _flushPendingVideoFrames(holdUntilPts?: number) {
     if (this._pendingVideoFrames.length === 0) {
       return;
     }
@@ -186,7 +189,13 @@ export class WebMRemuxer extends Remuxer {
 
     Log.debugAssert(WebMRemuxer.TAG, 'Video segment trackId is inconsistent', () => this._pendingVideoFrames.every((frame) => frame.trackId === firstFrame.trackId));
     Log.debugAssert(WebMRemuxer.TAG, 'Video segment codec is inconsistent', () => this._pendingVideoFrames.every((frame) => frame.codecKind === firstFrame.codecKind));
-    const segmentRawData = WebMGenerator.generateVideoCluster(this._pendingVideoFrames, 0, this._refVideoFrameDuration, firstFrame.codecKind);
+
+    // Hold the last frame only when it is also the last one shown.
+    let lastFrameDuration: number | undefined;
+    if (holdUntilPts !== undefined && holdUntilPts > lastFrame.pts && this._pendingVideoFrames.every((frame) => frame.pts <= lastFrame.pts)) {
+      lastFrameDuration = holdUntilPts - lastFrame.pts;
+    }
+    const segmentRawData = WebMGenerator.generateVideoCluster(this._pendingVideoFrames, 0, this._refVideoFrameDuration, firstFrame.codecKind, lastFrameDuration);
 
     const mediaSegment: MSEMediaSegment = {
       trackId: firstFrame.trackId,
@@ -203,7 +212,18 @@ export class WebMRemuxer extends Remuxer {
     this._pendingVideoFrames = [];
   }
 
-  private _remuxVideo(videoTrack: VideoTrack, force: boolean = false): void {
+  /**
+   * Add each frame supplied in videoTrack to the pending video GOP. An incoming
+   * keyframe first emits the pending video GOP, then starts a new video GOP.
+   * With `force` false, keep the final pending video GOP for the next keyframe.
+   * With `force` true, emit the final pending video GOP before returning,
+   * without waiting for another keyframe. No video GOP remains pending after
+   * successful processing, allowing old video to drain before a track switch.
+   * `drainEndPts` is set on a track switch: the PTS of the new track's keyframe,
+   * on the same timeline as VideoFrame.pts. Pending and supplied frames shown at
+   * or after it are discarded, and the last frame shown is held until it.
+   */
+  private _remuxVideo(videoTrack: VideoTrack, force: boolean = false, drainEndPts?: number): void {
     // If video metadata is not available, we cannot remux video frames yet.
     if (!this._videoMeta) {
       if (videoTrack.frames.length > 0) {
@@ -212,9 +232,16 @@ export class WebMRemuxer extends Remuxer {
       return;
     }
 
+    // Pending frames are already normalized to the shared presentation origin.
+    const normalizedDrainEndPts = drainEndPts === undefined ? undefined : drainEndPts - this._dtsBase;
+
     if (videoTrack.frames.length === 0) {
+      // Nothing supplied, so the pending frames are the end of the old track.
+      if (normalizedDrainEndPts !== undefined) {
+        this._discardVideoFramesShownFrom(this._pendingVideoFrames, normalizedDrainEndPts);
+      }
       if (force) {
-        this._flushPendingVideoFrames();
+        this._flushPendingVideoFrames(normalizedDrainEndPts);
       }
       return;
     }
@@ -227,6 +254,14 @@ export class WebMRemuxer extends Remuxer {
       pts: frame.pts - this._dtsBase,
       originalDts: frame.dts
     })) as VideoFrame[];
+    if (normalizedDrainEndPts !== undefined) {
+      // Pending and supplied frames are one decode-order sequence, trimmed from its
+      // end: the supplied frames first, the pending ones only if no supplied frame is kept.
+      this._discardVideoFramesShownFrom(normalizedFrames, normalizedDrainEndPts);
+      if (normalizedFrames.length === 0) {
+        this._discardVideoFramesShownFrom(this._pendingVideoFrames, normalizedDrainEndPts);
+      }
+    }
     const normalizedTrack: VideoTrack = {
       ...videoTrack,
       frames: normalizedFrames
@@ -240,9 +275,9 @@ export class WebMRemuxer extends Remuxer {
       this._pendingVideoFrames.push(frame);
     }
 
-    // Force flush if requested (e.g., at end of stream or discontinuity)
+    // Emit the trailing GOP now instead of retaining it for the next keyframe.
     if (force) {
-      this._flushPendingVideoFrames();
+      this._flushPendingVideoFrames(normalizedDrainEndPts);
     }
 
     videoTrack.frames = [];

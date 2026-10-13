@@ -495,7 +495,7 @@ class TransmuxingController {
         this._bindRemuxerRouterToDemuxer();
     }
 
-    _onTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack, drainTarget?: DrainTarget) {
+    _onTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack, drainTarget?: DrainTarget, videoDrainEndDts?: number, videoDrainEndPts?: number) {
         if (TransmuxingController.TRACE) {
             const now = Date.now();
             for (const track of [audioTrack, videoTrack]) {
@@ -515,7 +515,7 @@ class TransmuxingController {
             return;
         }
 
-        this._remuxerRouter.remuxTrackData(audioTrack, videoTrack, drainTarget);
+        this._remuxerRouter.remuxTrackData(audioTrack, videoTrack, drainTarget, videoDrainEndDts, videoDrainEndPts);
     }
 
     _onTrackMetadata(metadata: AudioMetadata | VideoMetadata) {

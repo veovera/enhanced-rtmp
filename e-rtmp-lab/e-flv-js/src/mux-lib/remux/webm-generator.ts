@@ -516,9 +516,11 @@ export class WebMGenerator {
    *
    * @param frames - An array of VideoFrame objects to be included in the cluster. The first frame MUST be a keyframe.
    * @param refFrameDuration - Reference duration for BlockDuration (used with BlockGroup).
+   * @param lastFrameDuration - When set, the last frame is written as a BlockGroup with this
+   *   BlockDuration (in ms), whatever the block mode, so it is shown for exactly that long.
    * @returns A Uint8Array containing the complete WebM Cluster.
    */
-  static generateVideoCluster(frames: VideoFrame[], clusterFrameIndex: number, refFrameDuration: number, codecKind: VideoCodecKind): Uint8Array {
+  static generateVideoCluster(frames: VideoFrame[], clusterFrameIndex: number, refFrameDuration: number, codecKind: VideoCodecKind, lastFrameDuration?: number): Uint8Array {
     const clusterTimecodeValue = frames[clusterFrameIndex].dts;
     const clusterTimecode = encodeElement(EbmlId.Timecode, writeUIntAuto(clusterTimecodeValue));
     let nextClusterFrameIndex = 0;
@@ -549,7 +551,8 @@ export class WebMGenerator {
         Log.e(WebMGenerator.TAG, `generateVideoCluster() - Frame at index ${index} is a keyframe but not the first frame in the cluster.`);
       }
 
-      const isSimpleBlock = (clusterBlockMode === ClusterBlockMode.SimpleBlock) || (clusterBlockMode === ClusterBlockMode.BlockGroupLast && index < frames.length - 1);
+      const hasExplicitDuration = lastFrameDuration !== undefined && index === frames.length - 1;
+      const isSimpleBlock = !hasExplicitDuration && ((clusterBlockMode === ClusterBlockMode.SimpleBlock) || (clusterBlockMode === ClusterBlockMode.BlockGroupLast && index < frames.length - 1));
       //Log.d(WebMGenerator.TAG, `generateVideoCluster() - Frame at index ${index}, blockTimecode=${blockTimecode}, clusterTimeCode=${clusterTimecodeValue}, isKeyframe=${isKeyframe}, rawData.length=${rawData?.length}`);
       if (isSimpleBlock) {
         const header = new Uint8Array(4);
@@ -572,15 +575,24 @@ export class WebMGenerator {
 
         const framePayload = codecKind === VideoCodecKind.Av1 ? AV1OBUParser.stripLeadingObuFraming(rawData!) : rawData!;
         const block = encodeElement(EbmlId.Block, concatUint8Arrays([header, framePayload]));
-        const blockDuration = encodeElement(EbmlId.BlockDuration, writeUInt(refFrameDuration, 4));
-        const blockGroup = encodeElement(EbmlId.BlockGroup, concatUint8Arrays([block, blockDuration]));
+        const duration = hasExplicitDuration ? Math.round(lastFrameDuration!) : refFrameDuration;
+        const blockDuration = encodeElement(EbmlId.BlockDuration, writeUInt(duration, 4));
+        const groupElements = [block, blockDuration];
+        if (!isKeyframe) {
+          // A BlockGroup without a ReferenceBlock is read as a keyframe. Reference the
+          // previous frame: a negative timecode relative to this block, as a signed int16.
+          const previousDts = index > clusterFrameIndex ? frames[index - 1].dts : dts - refFrameDuration;
+          const relativeTimecode = Math.max(-32768, Math.min(-1, Math.round(previousDts - dts)));
+          groupElements.push(encodeElement(EbmlId.ReferenceBlock, new Uint8Array([(relativeTimecode >> 8) & 0xff, relativeTimecode & 0xff])));
+        }
+        const blockGroup = encodeElement(EbmlId.BlockGroup, concatUint8Arrays(groupElements));
         elements.push(blockGroup);
       }
     }
 
     if (nextClusterFrameIndex > 0) {
       const currentCluster = encodeElement(EbmlId.Cluster, concatUint8Arrays([clusterTimecode, ...elements]));
-      const nextCluster = WebMGenerator.generateVideoCluster(frames, nextClusterFrameIndex, refFrameDuration, codecKind);
+      const nextCluster = WebMGenerator.generateVideoCluster(frames, nextClusterFrameIndex, refFrameDuration, codecKind, lastFrameDuration);
       result = concatUint8Arrays([currentCluster, nextCluster]);
     } else {
       result = encodeElement(EbmlId.Cluster, concatUint8Arrays([clusterTimecode, ...elements]));

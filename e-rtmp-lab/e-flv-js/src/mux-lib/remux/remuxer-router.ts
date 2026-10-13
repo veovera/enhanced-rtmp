@@ -146,20 +146,23 @@ export class RemuxerRouter implements RemuxingTarget {
     }
   }
 
-  remuxTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack, drainTarget?: DrainTarget): void {
+  remuxTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack, drainTarget?: DrainTarget, videoDrainEndDts?: number, videoDrainEndPts?: number): void {
     this._setTimestampBaseFromTracks(audioTrack, videoTrack);
 
-    if (videoTrack.frames.length > 0) {
-      this._videoRemuxer?.remuxTrackData(emptyAudioTrack(), videoTrack, drainTarget);
+    const drainVideo = drainTarget === TrackType.Video || drainTarget === 'both';
+    const drainAudio = drainTarget === TrackType.Audio || drainTarget === 'both';
+
+    // A video drain is one call, made even when no frames are pushed, so the
+    // remuxer can write out the frames it is holding.
+    if (videoTrack.frames.length > 0 || drainVideo) {
+      this._videoRemuxer?.remuxTrackData(emptyAudioTrack(), videoTrack, drainTarget, videoDrainEndDts, videoDrainEndPts);
     }
     if (audioTrack.frames.length > 0) {
       this._audioRemuxer?.remuxTrackData(audioTrack, emptyVideoTrack(), drainTarget);
     }
-    // Flush only the selected remuxers; 'both' flushes each independently.
-    if (drainTarget === TrackType.Video || drainTarget === 'both') {
-      this._videoRemuxer?.flushBufferedFrames();
-    }
-    if (drainTarget === TrackType.Audio || drainTarget === 'both') {
+    // Audio track switching is not wired yet; an audio drain still flushes the
+    // held audio frame with a separate call.
+    if (drainAudio) {
       this._audioRemuxer?.flushBufferedFrames();
     }
   }

@@ -986,7 +986,7 @@ export class FLVDemuxer {
 
 
     private _naluLengthSize = 4;
-    private _timestampBase = 0;                     // int32, in milliseconds
+    private _timestampBase = 0;                     // int32, in milliseconds, is only non-zero for multi-segment streams
     private _timescale = 1000;
     private _duration = 0;                          // int32, in milliseconds
     private _durationOverrided = false;
@@ -1190,7 +1190,7 @@ export class FLVDemuxer {
         return this._onTrackData;
     }
 
-    set onTrackData(callback: (audioTrack: AudioTrack, videoTrack: VideoTrack, drainTarget?: DrainTarget) => void) {
+    set onTrackData(callback: (audioTrack: AudioTrack, videoTrack: VideoTrack, drainTarget?: DrainTarget, videoDrainEndDts?: number, videoDrainEndPts?: number) => void) {
         this._onTrackData = callback;
     }
 
@@ -1280,7 +1280,7 @@ export class FLVDemuxer {
         return { type: TrackType.Audio, id: -1, sequenceNumber: 0, frames: [], length: 0 };
     }
 
-    private _flushPendingTrackDataBeforeMetadataRefresh(drainTarget?: DrainTarget): void {
+    private _flushPendingTrackDataBeforeMetadataRefresh(drainTarget?: DrainTarget, videoDrainEndDts?: number, videoDrainEndPts?: number): void {
         const currentAudioTrack = this._getCurrentAudioTrack();
         const currentVideoTrack = this._getCurrentVideoTrack();
 
@@ -1288,7 +1288,7 @@ export class FLVDemuxer {
             return;
         }
 
-        this._onTrackData(currentAudioTrack, currentVideoTrack, drainTarget);
+        this._onTrackData(currentAudioTrack, currentVideoTrack, drainTarget, videoDrainEndDts, videoDrainEndPts);
     }
 
     private _dispatchVideoTrackMetadata(meta: VideoMetadata): void {
@@ -1522,7 +1522,11 @@ export class FLVDemuxer {
         return this._currentAudioTrackId === undefined || track.id === this._currentAudioTrackId;
     }
 
-    private _shouldAppendVideoTrack(track: VideoTrack, isKeyframe: boolean): boolean {
+    // `dts` and `pts` are the decode and presentation timestamps of the frame being
+    // considered. When that frame is the keyframe that triggers a switch, they tell the
+    // remuxer where the new track's decoding starts and where the old track's video
+    // stops being shown.
+    private _shouldAppendVideoTrack(track: VideoTrack, isKeyframe: boolean, dts: number, pts: number): boolean {
         if (track.id === this._currentVideoTrackId) {
             return true;
         }
@@ -1536,9 +1540,11 @@ export class FLVDemuxer {
             return false;
         }
 
-        // Drain demux queue and remuxer-held frames under the old metadata
-        // before the new track's keyframe and initialization segment.
-        this._flushPendingTrackDataBeforeMetadataRefresh(TrackType.Video);
+        // Final push for the old track: drain the demux queue and remuxer-held
+        // frames under the old metadata, before the new track's keyframe and
+        // initialization segment. The old video is shown until this keyframe's
+        // PTS; discarding old frames shown at or after it is the remuxer's job.
+        this._flushPendingTrackDataBeforeMetadataRefresh(TrackType.Video, dts, pts);
         this._currentVideoTrackId = track.id;
         this._pendingVideoTrackId = undefined;
         Log.i(FLVDemuxer.TAG, `Switching to video track ${track.id} at keyframe; codec=${metadata.codec}`);
@@ -3303,7 +3309,7 @@ export class FLVDemuxer {
         // Check after parsing NAL units: an IDR can identify a keyframe even if the FLV
         // frame type did not, which matters when switching tracks. Unlike AV1/VP9, AVC
         // cannot make this decision from the FLV frame type alone.
-        if (units.length && this._shouldAppendVideoTrack(track, keyframe)) {
+        if (units.length && this._shouldAppendVideoTrack(track, keyframe, dts, dts + cts)) {
             const avcSample: VideoFrame = {
                 trackId: track.id,
                 codecKind: VideoCodecKind.Avc,
@@ -3363,7 +3369,7 @@ export class FLVDemuxer {
         // Check after parsing NAL units: an IDR can identify a keyframe even if the FLV
         // frame type did not, which matters when switching tracks. Unlike AV1/VP9, Hevc
         // cannot make this decision from the FLV frame type alone.
-        if (units.length && this._shouldAppendVideoTrack(track, keyframe)) {
+        if (units.length && this._shouldAppendVideoTrack(track, keyframe, dts, dts + cts)) {
             const hevcSample: VideoFrame = {
                 trackId: track.id,
                 codecKind: VideoCodecKind.Hevc,
@@ -3392,7 +3398,7 @@ export class FLVDemuxer {
         // AV1 uses the FLV frame type to identify keyframes, so select the output track
         // before parsing OBUs or updating dimensions. AVC/HEVC inspect NAL units first
         // because those units can also reveal a keyframe.
-        if (!this._shouldAppendVideoTrack(track, keyframe)) {
+        if (!this._shouldAppendVideoTrack(track, keyframe, dts, dts + cts)) {
             return;
         }
 
@@ -3617,7 +3623,7 @@ export class FLVDemuxer {
         // VP9 uses the FLV frame type to identify keyframes, so select the output track
         // before updating dimensions or queuing the frame. AVC/HEVC inspect NAL units first
         // because those units can also reveal a keyframe.
-        if (!this._shouldAppendVideoTrack(track, isKeyFrame)) {
+        if (!this._shouldAppendVideoTrack(track, isKeyFrame, dts, dts + cts)) {
             return;
         }
 

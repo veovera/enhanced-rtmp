@@ -187,7 +187,7 @@ export class MP4Remuxer extends Remuxer {
         return `type=${initSegment.type} codec=${initSegment.codec || 'none'} container=${initSegment.container} bytes=${initSegment.data.byteLength} head=${formatBytesPrefix(initSegment.data)}`;
     }
 
-    _onTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack, drainTarget?: DrainTarget) {
+    _onTrackData(audioTrack: AudioTrack, videoTrack: VideoTrack, drainTarget?: DrainTarget, videoDrainEndDts?: number, videoDrainEndPts?: number) {
         if (this._dtsBase === Infinity) {
             this._calculateDtsBase(audioTrack, videoTrack);
         }
@@ -203,7 +203,7 @@ export class MP4Remuxer extends Remuxer {
             this._onInitSegment(TrackType.Audio, this._pendingAudioInitSegment);
             this._pendingAudioInitSegment = null;
         }
-        this._remuxVideo(videoTrack, drainTarget === TrackType.Video || drainTarget === 'both');
+        this._remuxVideo(videoTrack, drainTarget === TrackType.Video || drainTarget === 'both', videoDrainEndDts, videoDrainEndPts);
         this._remuxAudio(audioTrack, drainTarget === TrackType.Audio || drainTarget === 'both');
     }
 
@@ -638,10 +638,22 @@ export class MP4Remuxer extends Remuxer {
         track.length = 0;
     }
 
-    _remuxVideo(videoTrack: VideoTrack, force: boolean) {
-        // A forced end-of-stream flush may receive an empty placeholder track.
-        // There is nothing to remux and no codec metadata should be required.
-        if (videoTrack.frames.length === 0) {
+    // With `force`, write out every frame, including the held one, and hold nothing back.
+    // `drainEndDts` and `drainEndPts` are set on a track switch: the DTS and PTS of the new
+    // track's keyframe, on the same timeline as VideoFrame.dts/pts. Frames shown at or after
+    // drainEndPts are discarded, the last frame shown is held until drainEndPts, and the next
+    // segment starts at drainEndDts so the new track keeps its own timestamps.
+    _remuxVideo(videoTrack: VideoTrack, force: boolean, drainEndDts?: number, drainEndPts?: number) {
+        // Nothing to remux without frames, unless a forced call must write out the held
+        // frame. No codec metadata should be required in the empty case.
+        const hasHeldFrame = force && this._videoStashedLastFrame != null;
+        if (videoTrack.frames.length === 0 && !hasHeldFrame) {
+            // Track switch with no old-track video left to write. The next segment belongs
+            // to the new track, so its position is worked out afresh from its own timestamps
+            // instead of being butted up against the last segment written.
+            if (drainEndDts !== undefined) {
+                this._videoNextDts = Infinity;
+            }
             return;
         }
 
@@ -664,7 +676,8 @@ export class MP4Remuxer extends Remuxer {
 
         let track: VideoTrack = videoTrack;
         let frames: VideoFrame[] = track.frames;
-        let firstFrame = frames[0];
+        // An empty push reaches here only when a held frame exists (see above).
+        let firstFrame = frames[0] ?? this._videoStashedLastFrame!;
         let dtsCorrection = undefined;
         let firstDts = -1, lastDts = -1;
         let firstPts = -1, lastPts = -1;
@@ -726,6 +739,23 @@ export class MP4Remuxer extends Remuxer {
             }
         }
 
+        // Track switch: the new track keeps its own timestamps, so the next segment starts
+        // where the new keyframe is decoded, whatever is written (or discarded) here.
+        const switchNextDts = drainEndDts === undefined ? undefined : drainEndDts - this._dtsBase - dtsCorrection;
+        const switchEndPts = drainEndPts === undefined ? undefined : drainEndPts - this._dtsBase - dtsCorrection;
+
+        // Old-track frames shown at or after the new keyframe's first display are superseded by it.
+        if (drainEndPts !== undefined) {
+            mdatBytes -= this._discardVideoFramesShownFrom(frames, drainEndPts);
+            if (frames.length === 0) {
+                track.length = 0;
+                if (switchNextDts !== undefined) {
+                    this._videoNextDts = switchNextDts;
+                }
+                return;
+            }
+        }
+
         let info = new MediaSegmentInfo();
         let mp4Frames: any[] = [];  // !!@ change from any to a more specific type
 
@@ -760,6 +790,19 @@ export class MP4Remuxer extends Remuxer {
                     frameDuration = mp4Frames[mp4Frames.length - 1].duration;
                 } else {  // the only one frame, use reference frame duration
                     frameDuration = Math.floor(this._videoMeta.refFrameDuration);
+                }
+
+                // Track switch: this is the old track's last frame. It lasts until the new
+                // keyframe is decoded; if it is also the last frame shown, it is held until
+                // the new keyframe is first shown, so no hole is left before the new video.
+                if (lastFrame == null && switchNextDts !== undefined) {
+                    if (switchNextDts > dts) {
+                        frameDuration = switchNextDts - dts;
+                    }
+                    const isLastShown = mp4Frames.every((mp4Frame) => mp4Frame.pts < pts);
+                    if (isLastShown && switchEndPts !== undefined && switchEndPts - pts > frameDuration) {
+                        frameDuration = switchEndPts - pts;
+                    }
                 }
             }
 
@@ -828,7 +871,7 @@ export class MP4Remuxer extends Remuxer {
         let latest = mp4Frames[mp4Frames.length - 1];
         lastDts = latest.dts + latest.duration;
         lastPts = latest.pts + latest.duration;
-        this._videoNextDts = lastDts;
+        this._videoNextDts = switchNextDts ?? lastDts;
 
         // fill media segment info & add to info list
         info.beginDts = firstDts;
